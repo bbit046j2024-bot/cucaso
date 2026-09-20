@@ -1,0 +1,974 @@
+PRODUCT REQUIREMENTS DOCUMENT
+CUCASO Platform
+Unity, rally registration, capability-based funding and administration for Seventh-day Adventist universities, colleges and schools at the Mombasa coast
+Item
+Detail
+Working name
+CUCASO (working name) - full name and branding to be confirmed by the Administration Council
+Version / status
+1.0 - Draft for review
+Date
+19 September 2026
+Prepared for
+Administration Council
+Platform type
+Public website + institution portal + role-based administration panel
+Region
+Mombasa and the Kenyan coast
+Contents
+1.
+   Overview
+2.
+   Goals, Non-goals and Success Metrics
+3.
+   Stakeholders, Personas and Roles
+4.
+   User Stories
+5.
+   Functional Requirements
+6.
+   Business Rules and Cost Calculation
+7.
+   Key Workflows
+8.
+   Data Model (Main Entities)
+9.
+   Non-Functional Requirements
+10.
+   Recommended Technology and Integrations
+11.
+   Release Plan
+12.
+   Risks and Mitigations
+13.
+   Assumptions and Open Questions
+14.
+   Glossary
+1. Overview
+1.1 Purpose of this document
+This PRD defines what the CUCASO platform must do, for whom, and how success will be measured. It is the shared reference for the Administration Council, the organization's officers and the development team, and it is intended to be reviewed and signed off before design and development begin.
+1.2 Background
+Seventh-day Adventist universities, colleges and schools along the Mombasa coast - both public and private - participate through their SDA chapters. Today, coordination of joint rallies relies on phone calls, messaging groups, spreadsheets and cash handling. This makes it hard to know who is attending, what the event will cost, what each institution should contribute, and whether the money collected will be enough.
+1.3 Problem statement
+The organization has no single, clear public presence that explains 
+who it is and why it exists
+, and that welcomes new institutions.
+Attendee data arrives in inconsistent formats from many institutions, with duplicates and gaps.
+Rally costs are calculated manually, and fees are agreed case by case, with little transparency.
+Leaders cannot see early enough whether funds will cover the attending population.
+Approvals, payments and decisions are not recorded in one place, so accountability is weak.
+1.4 Product vision
+One trusted home for the coastal Adventist education family: a welcoming public website that unites and informs, and a secure portal where chapters register, submit attendees, receive a fair capability-based fee, pay into one account, and where each leader sees exactly what they need to lead.
+1.5 Key decisions already made
+Topic
+Decision
+Membership unit
+Institutions join through their 
+SDA chapter
+. The chapter is the billing and registration unit.
+Approval
+New chapters are approved by the 
+Administration Council
+.
+Fees
+Fees are charged 
+per institution/chapter
+ and differ according to each institution's 
+capability
+. Fixed costs are flexible and set per rally.
+Money flow
+Each chapter collects funds from its own members, then remits 
+one payment
+ to the organization's 
+single central account
+.
+Rallies
+Rallies are 
+recurring
+ and held at 
+different venues
+.
+2. Goals, Non-goals and Success Metrics
+2.1 Goals
+Present the organization clearly to its audiences, with a compelling explanation of its purpose and unity.
+Provide one source of truth for chapters, attendees, fees and payments.
+Calculate each chapter's fee automatically, transparently and according to capability.
+Give early warning when funds will not cover the attending population.
+Give each leader role-appropriate control and visibility, with a full audit trail.
+Make joining simple for new chapters, and make the platform reusable for every recurring rally and venue.
+2.2 Non-goals (version 1)
+A full student information system or learning platform.
+Native mobile apps (a mobile-first web app, optionally installable, is sufficient).
+Individual student payments and card payments (chapters remit a single payment).
+Managing chapters' internal finances (an optional collection tracker is a later addition).
+2.3 Scope summary
+In scope
+Out of scope (v1)
+Public website; chapter application and council approval; capability tiers; venues and rallies; attendee registration; cost engine and invoices; remittance tracking and reconciliation; funding dashboard; notifications; admin panel and reports; audit log.
+Student information system; e-learning; native apps; card/online payments by individual students; general church accounting; social network features.
+2.4 Success metrics (proposed targets)
+Metric
+Target
+How measured
+Chapters submitting attendee list before the registration deadline
+90% or more
+Platform data per rally
+Fees fully settled by the payment deadline
+95% or more of invoiced amount
+Ledger vs invoices
+Time to produce a final, clean attendee list after registration closes
+Within 24 hours
+Timestamp of lock to export
+Payments reconciled with no unexplained discrepancy at rally close
+100%
+Reconciliation report
+Chapter applications decided by the Council
+Within 7 days
+Application timestamps
+Public home page performance on a mobile connection
+Loads in under 3 seconds
+Lighthouse / field tests
+3. Stakeholders, Personas and Roles
+3.1 Personas
+Persona
+Goals
+Pain points today
+Chairperson / coordinator (Super Admin)
+See the whole picture; keep the organization on track; ensure rallies are funded.
+No early view of funding; decisions scattered across chats.
+Administration Council member
+Review and decide on new chapters, tiers and fee adjustments fairly.
+Incomplete applications; no record of past decisions.
+Central Treasurer
+Configure costs, issue invoices, reconcile payments into the single account.
+Manual calculations; unmatched payments; disputes over amounts.
+Secretary
+Maintain records, member directory, announcements and attendee lists.
+Chasing chapters for lists in different formats.
+Department head / chaplain
+Plan programme, meals, accommodation and transport for the numbers attending.
+Late, changing headcounts.
+Chapter representative
+Register the chapter, submit attendees, know the fee and deadline.
+Unclear amounts and requirements.
+Chapter treasurer
+Remit the chapter's fee with a clear reference and receipt.
+No proof of payment; uncertainty about balances.
+Public visitor / prospective chapter
+Understand the organization and how to join or take part.
+No central place for information.
+3.2 Role and permission matrix
+Legend: 
+Full
+ = create/edit/approve; 
+View
+ = read-only; 
+Vote
+ = Council decision; 
+Own
+ = own chapter only; 
+Summary
+ = aggregated figures only; 
+-
+ = no access. Abbreviations: SA Super Admin, CM Council Member, CT Central Treasurer, SEC Secretary, DH Department head/chaplain, CR Chapter Rep, CTr Chapter Treasurer.
+Capability
+SA
+CM
+CT
+SEC
+DH
+CR
+CTr
+Edit public content and announcements
+Full
+-
+-
+Full
+-
+-
+-
+Decide on chapter applications
+Full
+Vote
+-
+Review
+-
+-
+-
+Assign tiers and fee adjustments
+Full
+Full
+View
+View
+-
+-
+-
+Create/edit venues and rallies
+Full
+View
+View
+Full
+View
+-
+-
+Configure cost items and allocation mode
+Full
+View
+Full
+-
+-
+-
+-
+View all attendee lists
+Full
+View
+View
+Full
+View
+-
+-
+Submit and edit attendees
+-
+-
+-
+-
+-
+Own
+View own
+View own invoice and pay
+-
+-
+-
+-
+-
+View own
+Own
+Record and reconcile payments
+Full
+-
+Full
+-
+-
+-
+-
+Funding dashboard (all chapters)
+Full
+View
+Full
+View
+Summary
+-
+-
+Reports and exports
+Full
+View
+Full
+Full
+Summary
+Own
+Own
+Manage users and roles
+Full
+-
+-
+-
+-
+-
+-
+View audit log
+Full
+View
+View
+-
+-
+-
+-
+Chapters never see other chapters' tiers, weights or fees. Two-factor authentication is required for all administrative roles.
+4. User Stories
+ID
+Story
+Acceptance criteria
+US-01
+As a visitor, I want to understand what the organization is and why it exists, so that I feel drawn to take part.
+Home page states identity, mission and reasons for unity above the fold on mobile; clear links to register or log in.
+US-02
+As a chapter representative, I want to apply for my chapter to join, so that we can take part in rallies.
+Form validates required fields; document upload works; applicant receives confirmation and status updates.
+US-03
+As a Council member, I want a queue of applications with all details, so that I can decide fairly and quickly.
+Queue shows status; I can approve, reject or request changes with comments; decision is logged.
+US-04
+As the Council, I want to assign a capability tier when approving a chapter, so that its fees reflect its ability.
+Tier is mandatory at approval; history is retained; the chapter cannot see the tier or weight.
+US-05
+As the secretary, I want to create a rally at a chosen venue with deadlines, so that chapters know what to do.
+Rally has dates, venue, capacity, registration/payment deadlines and lock date; can be cloned from a previous rally.
+US-06
+As a chapter representative, I want to upload our attendees from a spreadsheet, so that registration is fast.
+Template provided; errors and duplicates are shown before saving; headcount updates immediately.
+US-07
+As a chapter representative, I want guardian consent captured for minors, so that we comply with the law.
+Minors cannot be confirmed without a recorded guardian name, contact and consent.
+US-08
+As the Central Treasurer, I want to define cost items and allocation rules, so that fees are calculated automatically.
+Budget and every chapter's fee update as headcount or items change until the fee lock.
+US-09
+As a chapter treasurer, I want to see my invoice and pay once with a clear reference, so that my payment is recognised.
+Invoice shows amount, deadline and reference; payment appears within minutes; receipt issued.
+US-10
+As the Central Treasurer, I want payments matched automatically, so that I only handle exceptions.
+Matched payments update balances; unmatched ones appear in a queue.
+US-11
+As the chairperson, I want to see at a glance whether the rally is funded, so that I can act early.
+Dashboard shows budget, collected, outstanding and a funded / on-track / shortfall status with the gap.
+US-12
+As the Council, I want to adjust or waive a chapter's fee with a reason, so that we can support chapters in need.
+Adjustment requires reason and approval; effect on other chapters or funding source is shown; audit entry created.
+US-13
+As a chaplain, I want meal, accommodation and transport totals, so that I can plan logistics.
+Summary report by category and by chapter, exportable.
+US-14
+As the Super Admin, I want to control who can do what, so that sensitive data is protected.
+Roles enforced on the server; changes are logged; all admins use 2FA.
+5. Functional Requirements
+Priority uses MoSCoW: 
+Must
+ = required for launch of its phase; 
+Should
+ = important, included if time allows; 
+Could
+ = desirable, later.
+5.1 Public website (PUB)
+ID
+Requirement
+Priority
+FR-PUB-01
+Home page presenting the organization's identity, mission, vision and reasons for unity, with admin-editable content.
+Must
+FR-PUB-02
+Member directory listing approved chapters and institutions (name, type, public/private, location).
+Must
+FR-PUB-03
+Rally page showing the current or upcoming rally (date, venue, programme, registration status) and a gallery of past rallies.
+Must
+FR-PUB-04
+Prominent calls to action: 'Register your chapter', 'Chapter login', and 'Rally information'.
+Must
+FR-PUB-05
+About and governance page presenting the Administration Council and departments.
+Should
+FR-PUB-06
+Announcements/news and a contact form.
+Should
+FR-PUB-07
+Mobile-first, low-bandwidth friendly, WCAG 2.1 AA accessible design.
+Should
+FR-PUB-08
+Search-engine basics: metadata, sitemap, social sharing previews.
+Should
+FR-PUB-09
+Kiswahili language option.
+Could
+FR-PUB-10
+Sponsor and donation page.
+Could
+5.2 Chapter onboarding and council approval (ONB)
+ID
+Requirement
+Priority
+FR-ONB-01
+Public application form capturing institution name, type (university, college, secondary, primary, other), sector (public/private), location, chapter name, patron/chaplain, chapter officers (chair, secretary, treasurer) with phone and email, and approximate membership.
+Must
+FR-ONB-02
+Upload of an endorsement document (PDF or image, with size limit).
+Must
+FR-ONB-03
+Council review queue with statuses: Submitted, Under review, Changes requested, Approved, Rejected.
+Must
+FR-ONB-04
+Council members can approve, reject or request changes with comments; the approval rule (for example majority of members, or a minimum number of approvals) is configurable; every vote is logged.
+Must
+FR-ONB-05
+Council assigns a capability tier at approval.
+Must
+FR-ONB-06
+On approval the system generates a unique chapter code, creates Chapter Rep and Chapter Treasurer accounts, and sends credentials by SMS/email.
+Must
+FR-ONB-07
+Applicant is notified at every status change.
+Must
+FR-ONB-08
+Duplicate detection against existing institutions and chapters.
+Should
+FR-ONB-09
+Chapters can update their details; changes to officers require Secretary confirmation.
+Should
+FR-ONB-10
+Suspend or deactivate a chapter with a reason, preserving history.
+Should
+5.3 Capability tiers and fee adjustments (TIER)
+ID
+Requirement
+Priority
+FR-TIER-01
+Council defines tiers, each with a name and a numeric weight (for example 2.0, 1.5, 1.0, 0.5).
+Must
+FR-TIER-02
+Each chapter is assigned to a tier with an effective date; the full change history is retained.
+Must
+FR-TIER-03
+Per-rally fee adjustments: custom fixed fee, partial subsidy or full waiver, each requiring a reason and Council approval.
+Must
+FR-TIER-04
+Weights are snapshotted when fees are calculated for a rally, so later tier edits never change past invoices.
+Must
+FR-TIER-05
+Tiers, weights and adjustments are visible only to the Council, Central Treasurer, Secretary (view) and Super Admin; a chapter sees only its own fee.
+Must
+FR-TIER-06
+Chapters can submit a fee reconsideration request to the Council, with a recorded decision.
+Should
+FR-TIER-07
+Tier suggestion from configurable criteria (institution type, sector, size, contribution history), always overridable by the Council.
+Could
+5.4 Venues and rallies (RAL)
+ID
+Requirement
+Priority
+FR-RAL-01
+Manage venues: name, location, capacity, contact details and cost notes.
+Must
+FR-RAL-02
+Create a rally: name, theme, dates, venue, capacity, registration deadline, payment deadline and fee lock date.
+Must
+FR-RAL-03
+Clone a previous rally (cost items, allocation mode, deadline offsets) as a starting template.
+Must
+FR-RAL-04
+Rally lifecycle states: Draft, Registration open, Fees locked, Payment closed, In progress, Completed, Archived.
+Must
+FR-RAL-05
+Enforce venue capacity, with an automatic waitlist when total registrations reach the limit.
+Should
+FR-RAL-06
+Rally history: attendance, budget vs actual and payment punctuality across rallies and venues.
+Should
+FR-RAL-07
+Optional per-chapter attendee quota tied to the chapter's fee.
+Could
+5.5 Attendee registration (ATT)
+ID
+Requirement
+Priority
+FR-ATT-01
+Chapter Rep can add attendees individually or by CSV/Excel upload using a provided template.
+Must
+FR-ATT-02
+Fields: full name, admission/ID number, gender, age category, phone, emergency contact, dietary requirements, accommodation need, transport need, and role (delegate, leader, patron).
+Must
+FR-ATT-03
+Upload validation with an error report before saving: required fields, duplicates within the chapter and across chapters.
+Must
+FR-ATT-04
+For attendees under 18, guardian name, contact and consent must be recorded before the registration is confirmed.
+Must
+FR-ATT-05
+Edit or remove attendees until the registration deadline; later changes require Secretary approval and follow the fee-lock policy.
+Must
+FR-ATT-06
+Live headcount per chapter and in total, feeding the cost engine.
+Must
+FR-ATT-07
+Export attendee lists by chapter, and logistics lists by dietary, accommodation and transport needs.
+Must
+FR-ATT-08
+Waitlist handling when capacity is reached.
+Should
+FR-ATT-09
+Optional self-registration link per chapter, with entries pending the Chapter Rep's approval.
+Could
+5.6 Cost engine and invoicing (COST)
+ID
+Requirement
+Priority
+FR-COST-01
+Central Treasurer defines cost items per rally: fixed, per-head and per-vehicle, each with a category, amount and note.
+Must
+FR-COST-02
+Configurable contingency percentage.
+Must
+FR-COST-03
+Total budget is calculated automatically from cost items and current registered headcount.
+Must
+FR-COST-04
+Allocation modes: capability-weighted (default) and equal per chapter; additionally headcount-weighted and base-plus-per-head.
+Must
+FR-COST-05
+Each chapter's fee is recalculated in real time until the fee lock date.
+Must
+FR-COST-06
+Fee lock on the lock date (or manually): fees freeze and final invoices are generated.
+Must
+FR-COST-07
+Invoice per chapter showing rally, fee, adjustments, amount due, payment reference and deadline, downloadable as PDF.
+Must
+FR-COST-08
+Sufficiency check comparing fees and payments against the budget (see section 6.3).
+Must
+FR-COST-09
+Rounding rule: fees rounded to whole shillings, with any remainder allocated to the highest-weight chapter and logged.
+Should
+FR-COST-10
+Post-lock changes handled through supplementary invoices or credit notes.
+Should
+FR-COST-11
+What-if simulator: change headcount, cost items or weights and preview resulting fees without saving.
+Should
+FR-COST-12
+Cross-subsidy view for the Council (see section 6.4).
+Should
+5.7 Payments and reconciliation (PAY)
+ID
+Requirement
+Priority
+FR-PAY-01
+A single organization collection account (Paybill, till or bank) is configured by the Central Treasurer.
+Must
+FR-PAY-02
+Payment reference format: [Chapter code]-[Rally code].
+Must
+FR-PAY-03
+M-Pesa Daraja C2B validation and confirmation callbacks record incoming payments and auto-match them to the chapter and rally.
+Must
+FR-PAY-04
+Manual entry of bank or cash payments with proof upload and verification by the Central Treasurer.
+Must
+FR-PAY-05
+Queue of unmatched payments for manual assignment.
+Must
+FR-PAY-06
+Partial payments and instalments; balances update automatically.
+Must
+FR-PAY-07
+Payment status per chapter: Unpaid, Partial, Paid, Overdue, Overpaid.
+Must
+FR-PAY-08
+Automatic receipts by SMS and downloadable PDF.
+Must
+FR-PAY-09
+Duplicate or replayed callbacks are handled safely (idempotent) and callbacks are validated.
+Must
+FR-PAY-10
+Overpayments recorded as credit carried forward or flagged for refund.
+Should
+FR-PAY-11
+Reconciliation report: expected vs received vs bank statement.
+Should
+FR-PAY-12
+Optional chapter-level tracker for money collected from the chapter's own members.
+Could
+5.8 Funding dashboard and alerts (DASH)
+ID
+Requirement
+Priority
+FR-DASH-01
+Rally funding summary: total budget, fees invoiced, collected, outstanding, percentage funded, and status (Funded / On track / Shortfall).
+Must
+FR-DASH-02
+Chapter table with attendee count, fee, amount paid, balance and payment status.
+Must
+FR-DASH-03
+Shortfall alerts when projected funds fall below the budget at configurable thresholds (for example 7 days before the payment deadline).
+Must
+FR-DASH-04
+Role-appropriate views (a chaplain sees summary figures, not individual chapter finances).
+Must
+FR-DASH-05
+Shortfall options panel: raise fees, cap attendance, or seek subsidy/sponsorship, each with its quantified effect.
+Should
+FR-DASH-06
+Per-head coverage indicator: funds available per registered attendee compared with the per-head cost.
+Should
+5.9 Notifications (NOT)
+ID
+Requirement
+Priority
+FR-NOT-01
+SMS and email templates for application status, credentials, registration confirmation, invoice issued, payment received, deadline reminders (for example 7, 3 and 1 day) and overdue notices.
+Must
+FR-NOT-02
+Admin broadcast to selected chapters or roles.
+Should
+FR-NOT-03
+Notification log showing what was sent, to whom and when.
+Should
+FR-NOT-04
+In-app notifications.
+Could
+5.10 Administration panel and reports (ADM)
+ID
+Requirement
+Priority
+FR-ADM-01
+Role-based access control for all roles in section 3.2, enforced on the server with least privilege.
+Must
+FR-ADM-02
+User management: invite, deactivate, reset password, assign roles.
+Must
+FR-ADM-03
+Configurable settings: council approval rule, tiers, reminder schedule, rounding, and payment account details.
+Must
+FR-ADM-04
+Reports: attendee lists and financial statement per rally, with export to PDF and Excel/CSV.
+Must
+FR-ADM-05
+Additional reports: logistics summary, chapter statements, budget vs actual, and rally comparison.
+Should
+FR-ADM-06
+Data retention controls and per-rally archiving.
+Should
+5.11 Audit trail (AUD)
+ID
+Requirement
+Priority
+FR-AUD-01
+Tamper-resistant log of logins, approvals and votes, tier changes, adjustments, fee locks, payment entries and edits, exports and role changes, recording who, when, and before/after values.
+Must
+FR-AUD-02
+Audit log viewable and filterable by Super Admin, Council members and Central Treasurer.
+Should
+5.12 Rally-day tools (DAY)
+ID
+Requirement
+Priority
+FR-DAY-01
+QR-coded attendee passes and phone-based check-in.
+Could
+FR-DAY-02
+Live attendance count against registrations.
+Could
+FR-DAY-03
+Post-rally attendance report and feedback form.
+Could
+6. Business Rules and Cost Calculation
+6.1 Budget
+Total budget = (Sum of fixed costs
+              + Sum of per-head rates x total registered attendees
+              + Sum of per-vehicle costs) x (1 + contingency %)
+6.2 Capability-weighted fee
+Chapter fee = Total budget x (chapter weight / sum of weights of all participating chapters)
+Weights come from the chapter's tier, snapshotted for the rally. The fees of all chapters always add up exactly to the budget. Fees recalculate as chapters join or leave, headcount changes or cost items change, until the fee lock date; after locking, changes are handled through supplementary invoices or credit notes. Other allocation modes (equal, headcount-weighted, base plus per head) are selectable per rally.
+Fee adjustments
+When the Council approves a subsidy or waiver, the reduction is either (a) 
+redistributed
+ across the remaining chapters in proportion to their weights (default), or (b) 
+covered by a named external source
+ such as a sponsor or reserve fund. The chosen treatment is recorded with the adjustment.
+6.3 Sufficiency check
+Funded:
+ fees invoiced (after adjustments and external funding) equal or exceed the budget and collected payments equal or exceed the budget.
+On track:
+ invoiced fees cover the budget, the payment deadline has not passed, and collections meet the configured schedule.
+Shortfall:
+ collections or projected collections fall below the configured threshold, or the deadline has passed with less than the full budget collected. The dashboard shows the exact gap and which chapters are outstanding.
+Per-head coverage:
+ funds collected divided by registered attendees, compared with the per-head cost.
+6.4 Worked example
+Fixed costs KES 200,000; per-head costs KES 800 x 500 attendees = KES 400,000; contingency 10%. Total budget = (200,000 + 400,000) x 1.10 = 
+KES 660,000
+. Cost to serve is the budget shared by headcount; cross-subsidy = fee minus cost to serve (positive: the chapter supports others; negative: the chapter is supported).
+Chapter
+Tier
+Weight
+Attendees
+Fee (KES)
+Cost to serve (KES)
+Cross-subsidy (KES)
+Chapter A
+Tier 1
+2.0
+150
+220,000
+198,000
++22,000
+Chapter B
+Tier 2
+1.5
+120
+165,000
+158,400
++6,600
+Chapter C
+Tier 3
+1.0
+100
+110,000
+132,000
+-22,000
+Chapter D
+Tier 3
+1.0
+80
+110,000
+105,600
++4,400
+Chapter E
+Tier 4
+0.5
+50
+55,000
+66,000
+-11,000
+Total
+6.0
+500
+660,000
+660,000
+0
+The cross-subsidy view is visible to the Council only. It informs future tier decisions and is never used to penalize a chapter.
+7. Key Workflows
+7.1 A chapter joins
+The chapter submits the application with officers and endorsement document.
+The application enters the Council queue; members review, comment and vote.
+On approval the Council assigns a tier; the system creates the chapter code and accounts and notifies the chapter.
+The chapter appears in the member directory and can take part in the next rally.
+7.2 A rally is set up
+The Secretary creates the rally (or clones the last one), choosing the venue, deadlines and capacity.
+The Central Treasurer sets cost items, contingency and allocation mode.
+The Council confirms tiers and any adjustments; the rally opens for registration and chapters are notified.
+7.3 Registration and fees
+Chapter Reps upload attendees; validation catches errors and duplicates; consent is recorded for minors.
+The engine updates the budget and each chapter's fee as headcount changes.
+On the lock date, fees freeze and final invoices are issued with payment references.
+7.4 Payment and reconciliation
+Each chapter collects from its own members offline, then remits one payment to the central account using its reference.
+Daraja callbacks (or manual entries) are matched to the chapter; balances and statuses update; a receipt is sent.
+Unmatched payments are resolved by the Central Treasurer from the exceptions queue.
+7.5 Shortfall handling
+The dashboard flags a shortfall and shows the gap and outstanding chapters.
+Reminders go to chapters; leaders review the options panel (fee change, attendance cap, subsidy or sponsorship).
+Any decision is recorded with reasons and reflected in supplementary invoices where needed.
+7.6 Rally close
+Final attendance and logistics reports are produced; budget vs actual and reconciliation reports are reviewed.
+The rally is archived, and its data feeds the rally history for future planning.
+7.7 Rally lifecycle states
+State
+Meaning
+Draft
+Being configured; not visible to chapters.
+Registration open
+Chapters can add and edit attendees; fees recalculate live.
+Fees locked
+Registration deadline reached; fees frozen; invoices issued.
+Payment closed
+Payment deadline reached; outstanding balances flagged.
+In progress
+Rally is taking place; check-in tools active.
+Completed
+Rally finished; reports and reconciliation being finalized.
+Archived
+Read-only record retained for history.
+8. Data Model (Main Entities)
+Entity
+Key fields
+Notes
+Institution
+name, type, sector, location
+Parent record of one or more chapters.
+Chapter
+institution, name, code, status, patron
+The billing and registration unit.
+User / Role
+name, phone, email, role, chapter (if any), 2FA
+Roles per section 3.2.
+Application
+chapter data, documents, status
+Created by the public application form.
+CouncilVote
+application, member, decision, comment, timestamp
+Supports the configurable approval rule.
+Tier / ChapterTier
+tier name, weight; chapter, tier, effective date
+History retained.
+Venue
+name, location, capacity, contact, notes
+Reusable across rallies.
+Rally
+name, theme, dates, venue, deadlines, lock date, state, allocation mode
+Recurring; clonable.
+CostItem
+rally, category, type (fixed/per-head/per-vehicle), amount
+Flexible per rally.
+RallyChapter
+rally, chapter, weight snapshot, quota, status
+A chapter's participation in a rally.
+Attendee
+rally, chapter, personal fields, needs, role, status
+Personal data; access restricted.
+GuardianConsent
+attendee, guardian name, contact, consent date
+Required for under-18s.
+Invoice
+rally, chapter, amount, adjustments, due date, reference
+Supplementary invoices and credit notes allowed.
+FeeAdjustment
+rally, chapter, type, amount, reason, approved by, funding treatment
+Council-approved.
+Payment
+reference, amount, source, chapter, rally, status, matched invoice
+From Daraja or manual entry.
+Notification
+recipient, channel, template, status, timestamp
+Delivery log.
+AuditLog
+actor, action, entity, before/after, timestamp
+Append-only.
+FileUpload
+owner entity, type, storage reference
+Endorsements, proofs of payment.
+9. Non-Functional Requirements
+Area
+Requirement
+Performance
+Home page loads in under 3 seconds on a typical mobile connection; supports at least 100 chapters and 2,000 attendees per rally; a 500-row upload validates in under 30 seconds.
+Availability
+At least 99.5% availability during registration and payment windows; daily backups with periodic restore tests.
+Security
+HTTPS everywhere; hashed passwords; 2FA for admin roles; server-side role enforcement; rate limiting; input validation; secure file uploads; secrets kept out of code; validation of Daraja callbacks.
+Privacy and legal
+Compliance with the Kenya Data Protection Act, 2019: lawful basis and consent, purpose limitation, data minimisation, guardian consent for minors, clear privacy notice, role-limited access, retention schedule, and handling of access and deletion requests. Confirm any registration obligations with legal counsel.
+Auditability
+All financial and governance actions are logged and cannot be edited by ordinary users.
+Accessibility and usability
+Mobile-first; WCAG 2.1 AA; simple language; works on low-end phones and low data; clear error messages.
+Localisation
+English first; optional Kiswahili; currency KES; East Africa Time; local phone number formats.
+Maintainability
+Automated tests for the cost engine using the worked example; separate test and production environments; documented configuration; error monitoring and logs.
+10. Recommended Technology and Integrations
+The following is a recommendation for the development team, not a constraint.
+Layer
+Recommendation
+Web application
+Next.js with TypeScript, mobile-first UI
+Database
+PostgreSQL with an ORM such as Prisma, using transactions for fee and payment operations
+Authentication
+Secure session-based login with role-based access control and 2FA for admins
+Payments
+Safaricom Daraja API (C2B for Paybill/till confirmations; STK Push optional later) with a manual entry fallback
+Messaging
+SMS provider such as Africa's Talking; transactional email service
+Files and PDFs
+S3-compatible object storage; server-side PDF generation for invoices, receipts and reports
+Hosting and operations
+Managed cloud or VPS in a region with good East Africa latency; CDN; automated backups; error monitoring
+11. Release Plan
+Durations are set after discovery, once the team and availability are known.
+Phase
+Scope
+Exit criteria
+Phase 0: Discovery
+Confirm name and branding; write public content; agree Council approval rule, tiers and weights, cost item list, central account and data-protection notice; start Daraja onboarding.
+Signed-off PRD and content; open questions answered.
+Phase 1: MVP
+Public website; chapter application and Council approval with tier assignment; roles and admin panel; venues and rallies; attendee upload and validation; cost engine and invoices.
+A pilot chapter can join, register attendees and receive a correct invoice.
+Phase 2: Payments and oversight
+Daraja integration and reconciliation; funding dashboard and shortfall alerts; reminders and receipts; audit log views.
+A pilot rally collects and reconciles real payments.
+Phase 3: Enhancement
+QR check-in; what-if simulator; cross-subsidy view; rally history and comparison; additional reports; Kiswahili.
+Second rally at a different venue runs from a cloned template.
+12. Risks and Mitigations
+Risk
+Impact
+Mitigation
+Poor quality attendee data from bulk uploads
+High
+Template, strict validation, duplicate detection and an error report before saving.
+Privacy breach involving minors' data
+High
+Guardian consent, data minimisation, role-limited access, encryption in transit, retention limits, Data Protection Act review.
+Payments made outside the system or with wrong references
+High
+Clear invoice reference, unmatched-payment queue, manual entry with proof, reconciliation report.
+Disputes about tiers and fees
+Medium
+Council-owned decisions, recorded reasons, audit trail, reconsideration request process, transparency to each chapter about its own fee.
+Delays in Daraja onboarding or approvals
+Medium
+Start early; keep manual payment entry as a fallback from day one.
+Low digital confidence among some users
+Medium
+Simple interface, short guides and videos, SMS support, training for chapter officers.
+Changing cost rules between rallies
+Medium
+Configurable cost items, allocation modes and cloning; tests on the cost engine.
+Loss of access to admin accounts
+Medium
+Multiple admins, 2FA recovery process, documented handover.
+Scope creep
+Medium
+MoSCoW prioritization and phased releases.
+13. Assumptions and Open Questions
+13.1 Assumptions
+One central collection account (Paybill, till or bank) receives all remittances.
+The Council approval rule is a configurable majority vote.
+Each institution has one chapter unless stated otherwise.
+The Super Admin can configure the system but cannot silently override Council decisions; overrides, if permitted, are logged.
+13.2 Open questions
+#
+Question
+Suggested owner
+1
+What does CUCASO stand for in full, and what are the organization's logo, brand colours, mission and vision statements?
+Council / Secretary
+2
+How many Council members are there, and what approval threshold applies to new chapters and to tier changes?
+Council
+3
+Is the central account a Paybill, till number or bank account, and who owns and reconciles it?
+Central Treasurer
+4
+What tiers and weights will be used, and which tier does each chapter start in?
+Council
+5
+Can one institution have several chapters or campuses? If so, are they billed separately?
+Council
+6
+What age groups attend rallies (primary, secondary, tertiary), and what consent rules apply to each?
+Council / Chaplains
+7
+What is the policy for late registrations after the fee lock, withdrawals and refunds?
+Central Treasurer
+8
+When a fee is waived or reduced, is the difference redistributed or covered by an external source?
+Council
+9
+How long should attendee data be kept after a rally?
+Council / legal advice
+10
+Who will own the domain and hosting, and who administers the platform after launch?
+Super Admin
+14. Glossary
+Term
+Meaning
+Chapter
+The SDA chapter of an institution; the unit that registers, is billed and pays.
+Administration Council
+The governing body that approves chapters, assigns tiers and approves fee adjustments.
+Rally
+A recurring joint gathering of member chapters, held at a chosen venue.
+Tier / weight
+A capability category and its numeric factor used to share the rally budget.
+Fee lock
+The moment fees freeze and final invoices are issued.
+Remittance
+The single payment a chapter makes to the central account.
+Reconciliation
+Matching received payments to invoices and to the account statement.
+Daraja
+Safaricom's API for M-Pesa integration.
+Cross-subsidy
+The difference between a chapter's fee and the cost of serving its attendees.

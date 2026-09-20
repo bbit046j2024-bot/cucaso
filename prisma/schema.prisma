@@ -1,0 +1,361 @@
+// CUCASO Database Schema — PRD Section 8
+// Coastal Universities and Colleges Adventist Schools Organization
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum InstitutionType {
+  UNIVERSITY
+  COLLEGE
+  SECONDARY
+  PRIMARY
+  OTHER
+}
+
+enum InstitutionSector {
+  PUBLIC
+  PRIVATE
+}
+
+enum ChapterStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum ApplicationStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  CHANGES_REQUESTED
+  APPROVED
+  REJECTED
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  COUNCIL_MEMBER
+  CENTRAL_TREASURER
+  SECRETARY
+  CHAPLAIN
+  CHAPTER_REP
+  CHAPTER_TREASURER
+}
+
+enum RallyState {
+  DRAFT
+  REGISTRATION_OPEN
+  FEES_LOCKED
+  PAYMENT_CLOSED
+  IN_PROGRESS
+  COMPLETED
+  ARCHIVED
+}
+
+enum AllocationMode {
+  CAPABILITY_WEIGHTED
+  EQUAL
+  HEADCOUNT_WEIGHTED
+  BASE_PLUS_PER_HEAD
+}
+
+enum CostType {
+  FIXED
+  PER_HEAD
+  PER_VEHICLE
+}
+
+enum AgeCategory {
+  UNDER_18
+  ADULT
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum AttendeeRole {
+  DELEGATE
+  LEADER
+  PATRON
+}
+
+enum AttendeeStatus {
+  CONFIRMED
+  PENDING_CONSENT
+  WAITLISTED
+}
+
+enum InvoiceStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  OVERDUE
+  OVERPAID
+}
+
+enum PaymentMethod {
+  MPESA_DARAJA
+  BANK_TRANSFER
+  CASH
+}
+
+enum PaymentStatus {
+  MATCHED
+  UNMATCHED
+  VERIFYING
+}
+
+model CapabilityTier {
+  id          String         @id @default(cuid())
+  name        String         // e.g. Tier 1, Tier 2
+  weight      Float          // e.g. 2.0, 1.5, 1.0, 0.5
+  description String?
+  chapters    ChapterTier[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model Institution {
+  id        String            @id @default(cuid())
+  name      String
+  type      InstitutionType
+  sector    InstitutionSector
+  location  String
+  chapters  Chapter[]
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+}
+
+model Chapter {
+  id                 String                     @id @default(cuid())
+  code               String                     @unique // e.g. TUM-01
+  institutionId     String
+  institution        Institution                @relation(fields: [institutionId], references: [id])
+  name               String                     // e.g. TUM Chapter
+  status             ChapterStatus              @default(PENDING)
+  patronName         String?
+  patronPhone        String?
+  patronEmail        String?
+  approximateMembers Int                        @default(0)
+  users              User[]
+  tierHistory        ChapterTier[]
+  participations     RallyChapterParticipation[]
+  attendees          Attendee[]
+  invoices           Invoice[]
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+}
+
+model ChapterTier {
+  id          String         @id @default(cuid())
+  chapterId   String
+  chapter     Chapter        @relation(fields: [chapterId], references: [id])
+  tierId      String
+  tier        CapabilityTier @relation(fields: [tierId], references: [id])
+  effectiveAt DateTime       @default(now())
+}
+
+model User {
+  id           String        @id @default(cuid())
+  name         String
+  email        String        @unique
+  phone        String?
+  passwordHash String
+  role         UserRole
+  chapterId    String?
+  chapter      Chapter?      @relation(fields: [chapterId], references: [id])
+  votes        CouncilVote[]
+  auditLogs    AuditLog[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Application {
+  id               String            @id @default(cuid())
+  institutionName  String
+  institutionType  InstitutionType
+  sector           InstitutionSector
+  location         String
+  chapterName      String
+  patronName       String
+  patronPhone      String
+  patronEmail      String
+  approxMembers    Int
+  endorsementUrl   String?
+  status           ApplicationStatus @default(SUBMITTED)
+  votes            CouncilVote[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+}
+
+model CouncilVote {
+  id            String      @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id])
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+  decision      String      // APPROVED, REJECTED, REQUEST_CHANGES
+  comment       String?
+  createdAt     DateTime    @default(now())
+}
+
+model Venue {
+  id        String   @id @default(cuid())
+  name      String
+  location  String
+  capacity  Int
+  contact   String?
+  notes     String?
+  rallies   Rally[]
+  createdAt DateTime @default(now())
+}
+
+model Rally {
+  id                   String                     @id @default(cuid())
+  code                 String                     @unique // e.g. CUR-2026
+  title                String                     // Coastal Unity Rally 2026
+  theme                String
+  venueId              String
+  venue                Venue                      @relation(fields: [venueId], references: [id])
+  capacity             Int
+  startDate            DateTime
+  endDate              DateTime
+  registrationDeadline DateTime
+  paymentDeadline      DateTime
+  feeLockDate          DateTime
+  state                RallyState                 @default(DRAFT)
+  allocationMode       AllocationMode             @default(CAPABILITY_WEIGHTED)
+  contingencyPercent   Float                      @default(10.0)
+  costItems            CostItem[]
+  participations       RallyChapterParticipation[]
+  attendees            Attendee[]
+  invoices             Invoice[]
+  feeAdjustments       FeeAdjustment[]
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
+}
+
+model CostItem {
+  id        String   @id @default(cuid())
+  rallyId   String
+  rally     Rally    @relation(fields: [rallyId], references: [id])
+  category  String   // VENUE, CATERING, ACCOMMODATION, TRANSPORT, LOGISTICS, OTHER
+  name      String
+  type      CostType
+  amount    Float
+  quantity  Int      @default(1)
+  notes     String?
+  createdAt DateTime @default(now())
+}
+
+model RallyChapterParticipation {
+  id             String   @id @default(cuid())
+  rallyId        String
+  rally          Rally    @relation(fields: [rallyId], references: [id])
+  chapterId      String
+  chapter        Chapter  @relation(fields: [chapterId], references: [id])
+  weightSnapshot Float
+  attendeeCount  Int      @default(0)
+  calculatedFee  Float    @default(0)
+  costToServe    Float    @default(0)
+  crossSubsidy   Float    @default(0)
+  createdAt      DateTime @default(now())
+
+  @@unique([rallyId, chapterId])
+}
+
+model Attendee {
+  id                    String           @id @default(cuid())
+  rallyId               String
+  rally                 Rally            @relation(fields: [rallyId], references: [id])
+  chapterId             String
+  chapter               Chapter          @relation(fields: [chapterId], references: [id])
+  fullName              String
+  admissionOrIdNumber   String
+  gender                Gender
+  ageCategory           AgeCategory
+  phone                 String?
+  emergencyContactName  String
+  emergencyContactPhone String
+  dietaryRequirements   String?
+  accommodationNeeded   Boolean          @default(false)
+  transportNeeded       Boolean          @default(false)
+  role                  AttendeeRole     @default(DELEGATE)
+  status                AttendeeStatus   @default(CONFIRMED)
+  guardianConsent       GuardianConsent?
+  createdAt             DateTime         @default(now())
+}
+
+model GuardianConsent {
+  id            String   @id @default(cuid())
+  attendeeId    String   @unique
+  attendee      Attendee @relation(fields: [attendeeId], references: [id])
+  guardianName  String
+  guardianPhone String
+  consentGiven  Boolean  @default(true)
+  consentDate   DateTime @default(now())
+}
+
+model FeeAdjustment {
+  id               String   @id @default(cuid())
+  rallyId          String
+  rally            Rally    @relation(fields: [rallyId], references: [id])
+  chapterId        String
+  type             String   // FIXED_FEE, PARTIAL_SUBSIDY, FULL_WAIVER
+  amount           Float
+  reason           String
+  approvedBy       String
+  fundingTreatment String   // REDISTRIBUTE_REMAINING, EXTERNAL_SPONSOR
+  createdAt        DateTime @default(now())
+}
+
+model Invoice {
+  id               String        @id @default(cuid())
+  invoiceNumber    String        @unique
+  rallyId          String
+  rally            Rally         @relation(fields: [rallyId], references: [id])
+  chapterId        String
+  chapter          Chapter       @relation(fields: [chapterId], references: [id])
+  amountDue        Float
+  amountPaid       Float         @default(0)
+  balance          Float
+  paymentReference String        @unique // e.g. TUM-01-CUR2026
+  dueDate          DateTime
+  status           InvoiceStatus @default(UNPAID)
+  payments         Payment[]
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+}
+
+model Payment {
+  id                 String        @id @default(cuid())
+  invoiceId          String
+  invoice            Invoice       @relation(fields: [invoiceId], references: [id])
+  reference          String
+  amount             Float
+  method             PaymentMethod
+  mpesaReceiptNumber String?
+  payerName          String?
+  payerPhone         String?
+  status             PaymentStatus @default(MATCHED)
+  timestamp          DateTime      @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  actor     String   // Email or System
+  action    String   // e.g. APPLICATION_APPROVED, TIER_CHANGED, FEE_LOCKED
+  entity    String   // e.g. Chapter, Invoice
+  details   String   // JSON string of before/after
+  createdAt DateTime @default(now())
+}

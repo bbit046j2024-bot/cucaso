@@ -1,0 +1,572 @@
+{
+  "chapters": [
+    {
+      "id": "ch-tum",
+      "code": "TUM-01",
+      "institutionName": "Technical University of Mombasa",
+      "chapterName": "TUM SDA Chapter",
+      "type": "UNIVERSITY",
+      "sector": "PUBLIC",
+      "location": "Tudor, Mombasa Central",
+      "status": "APPROVED",
+      "tierId": "TIER_1",
+      "patronName": "Pr. Eric Musembi",
+      "patronPhone": "+254 712 345 678",
+      "patronEmail": "patron@tum.ac.ke",
+      "repName": "John Mwangi",
+      "repPhone": "+254 720 112 233",
+      "treasurerName": "David Kiboi",
+      "treasurerPhone": "+254 722 445 566",
+      "approximateMembers": 650,
+      "attendeesCount": 248,
+      "createdAt": "2024-02-15",
+      "coordinates": {
+        "lat": -4.0326,
+        "lng": 39.6642
+      },
+      "mapPosition": {
+        "top": 48,
+        "left": 43
+      }
+    },
+    {
+      "id": "ch-pwani",
+      "code": "PWANI-02",
+      "institutionName": "Pwani University",
+      "chapterName": "Pwani SDA Chapter",
+      "type": "UNIVERSITY",
+      "sector": "PUBLIC",
+      "location": "Kilifi Town, Kilifi",
+      "status": "APPROVED",
+      "tierId": "TIER_1",
+      "patronName": "Dr. Beatrice Mutua",
+      "patronPhone": "+254 721 889 900",
+      "patronEmail": "chaplain@pwani.ac.ke",
+      "repName": "Harrison Kazungu",
+      "repPhone": "+254 713 556 677",
+      "treasurerName": "Mercy Chebet",
+      "treasurerPhone": "+254 714 667 788",
+      "approximateMembers": 480,
+      "attendeesCount": 410,
+      "createdAt": "2024-03-01",
+      "coordinates": {
+        "lat": -3.6305,
+        "lng": 39.8499
+      },
+      "mapPosition": {
+        "top": 28,
+        "left": 54
+      }
+    },
+    {
+      "id": "ch-mpoly",
+      "code": "MPOLY-03",
+      "institutionName": "Mombasa Polytechnic",
+      "chapterName": "Mombasa Poly SDA Fellowship",
+      "type": "COLLEGE",
+      "sector": "PUBLIC",
+      "location": "Ganjoni, Mombasa Central",
+      "status": "APPROVED",
+      "tierId": "TIER_3",
+      "patronName": "Eld. Samuel Charo",
+      "patronPhone": "+254 733 111 222",
+      "repName": "Peter Ochieng",
+      "repPhone": "+254 734 222 333",
+      "approximateMembers": 350,
+      "attendeesCount": 320,
+      "createdAt": "2024-03-12",
+      "coordinates": {
+        "lat": -4.0628,
+        "lng": 39.6631
+      },
+      "mapPosition": {
+        "top": 54,
+        "left": 40
+      }
+    },
+    {
+      "id": "ch-kmtc",
+      "code": "KMTC-04",
+      "institutionName": "Kenya Medical Training College (KMTC)",
+      "chapterName": "KMTC Mombasa Health Chapter",
+      "type": "COLLEGE",
+      "sector": "PUBLIC",
+      "location": "Makadara, Mombasa Central",
+      "status": "APPROVED",
+      "tierId": "TIER_2",
+      "patronName": "Eld. Evans Kilonzo",
+      "patronPhone": "+254 722 888 111",
+      "repName": "Agnes Mumbua",
+      "repPhone": "+254 723 999 222",
+      "approximateMembers": 240,
+      "attendeesCount": 210,
+      "createdAt": "2024-03-20",
+      "coordinates": {
+        "lat": -4.0489,
+        "lng": 39.6738
+      },
+      "mapPosition": {
+        "top": 50,
+        "left": 44
+      }
+    },
+    {
+      "id": "ch-diani",
+      "code": "DIANI-05",
+      "institutionName": "Diani College of Technology",
+      "chapterName": "Diani SDA Chapter",
+      "type": "COLLEGE",
+      "sector": "PRIVATE",
+      "location": "Diani, Kwale",
+      "status": "APPROVED",
+      "tierId": "TIER_3",
+      "patronName": "Pr. Japheth Mganga",
+      "patronPhone": "+254 715 443 322",
+      "repName": "Kevin Mwalimu",
+      "repPhone": "+254 716 554 433",
+      "approximateMembers": 200,
+      "attendeesCount": 180,
+      "createdAt": "2024-04-05",
+      "coordinates": {
+        "lat": -4.2797,
+        "lng": 39.5847
+      },
+      "mapPosition": {
+        "top": 72,
+        "left": 34
+      }
+    },
+    {
+      "id": "ch-ttu",
+      "code": "TTU-06",
+      "institutionName": "Taita Taveta University",
+      "chapterName": "TTU Hilltop Chapter",
+      "type": "UNIVERSITY",
+      "sector": "PUBLIC",
+      "location": "Voi, Taita Taveta",
+      "status": "APPROVED",
+      "tierId": "TIER_2",
+      "patronName": "Dr. Leonard Mwashighadi",
+      "patronPhone": "+254 724 332 211",
+      "repName": "Collins Mwachofi",
+      "repPhone": "+254 725 443 322",
+      "approximateMembers": 280,
+      "attendeesCount": 250,
+      "createdAt": "2024-04-18",
+      "coordinates": {
+        "lat": -3.3974,
+        "lng": 38.5562
+      },
+      "mapPosition": {
+        "top": 38,
+        "left": 20
+      }
+    },
+    {
+      "id": "ch-garissa",
+      "code": "GAR-07",
+      "institutionName": "Garissa University SDA Liaison",
+      "chapterName": "Garissa Coast Chapter",
+      "type": "UNIVERSITY",
+      "sector": "PUBLIC",
+      "location": "Garissa Road, North Coast",
+      "status": "APPROVED",
+      "tierId": "TIER_2",
+      "patronName": "Pr. Abdi Hassan",
+      "patronPhone": "+254 726 554 433",
+      "repName": "Ahmed Baraka",
+      "repPhone": "+254 727 665 544",
+      "approximateMembers": 190,
+      "attendeesCount": 160,
+      "createdAt": "2024-05-02",
+      "coordinates": {
+        "lat": -2.35,
+        "lng": 39.65
+      },
+      "mapPosition": {
+        "top": 12,
+        "left": 48
+      }
+    },
+    {
+      "id": "ch-kwale",
+      "code": "KWL-08",
+      "institutionName": "Kwale Technical Training Institute",
+      "chapterName": "Kwale Tech SDA Chapter",
+      "type": "COLLEGE",
+      "sector": "PUBLIC",
+      "location": "Matuga, Kwale",
+      "status": "APPROVED",
+      "tierId": "TIER_3",
+      "patronName": "Eld. Benson Mwanyalo",
+      "patronPhone": "+254 728 776 655",
+      "repName": "Dorcas Zani",
+      "repPhone": "+254 729 887 766",
+      "approximateMembers": 160,
+      "attendeesCount": 140,
+      "createdAt": "2024-05-15",
+      "coordinates": {
+        "lat": -4.1744,
+        "lng": 39.4521
+      },
+      "mapPosition": {
+        "top": 64,
+        "left": 30
+      }
+    },
+    {
+      "id": "ch-cgh",
+      "code": "CGH-09",
+      "institutionName": "Coast Girls High School",
+      "chapterName": "Coast Girls SDA Fellowship",
+      "type": "SECONDARY",
+      "sector": "PUBLIC",
+      "location": "Kizingo, Mombasa Island",
+      "status": "APPROVED",
+      "tierId": "TIER_4",
+      "patronName": "Mrs. Rachel Mwatela",
+      "patronPhone": "+254 730 998 877",
+      "repName": "Naomi Zawadi",
+      "repPhone": "+254 731 009 988",
+      "approximateMembers": 100,
+      "attendeesCount": 90,
+      "createdAt": "2024-06-01",
+      "coordinates": {
+        "lat": -4.0689,
+        "lng": 39.6789
+      },
+      "mapPosition": {
+        "top": 56,
+        "left": 43
+      }
+    },
+    {
+      "id": "ch-mss",
+      "code": "MSS-10",
+      "institutionName": "Mombasa Secondary School",
+      "chapterName": "Mombasa Secondary SDA Chapter",
+      "type": "SECONDARY",
+      "sector": "PUBLIC",
+      "location": "Mvita, Mombasa Island",
+      "status": "APPROVED",
+      "tierId": "TIER_4",
+      "patronName": "Mr. Boniface Otieno",
+      "patronPhone": "+254 732 110 099",
+      "repName": "Brian Okello",
+      "repPhone": "+254 733 221 100",
+      "approximateMembers": 85,
+      "attendeesCount": 75,
+      "createdAt": "2024-06-10",
+      "coordinates": {
+        "lat": -4.0531,
+        "lng": 39.6685
+      },
+      "mapPosition": {
+        "top": 52,
+        "left": 42
+      }
+    },
+    {
+      "id": "ch-kca",
+      "code": "KCA-11",
+      "institutionName": "Kilifi College of Accountancy",
+      "chapterName": "KCA Coastal Fellowship",
+      "type": "COLLEGE",
+      "sector": "PRIVATE",
+      "location": "Mtwapa, Kilifi South",
+      "status": "APPROVED",
+      "tierId": "TIER_3",
+      "patronName": "Eld. Gideon Kiptoo",
+      "patronPhone": "+254 734 332 211",
+      "repName": "Lilian Akinyi",
+      "repPhone": "+254 735 443 322",
+      "approximateMembers": 130,
+      "attendeesCount": 110,
+      "createdAt": "2024-07-01",
+      "coordinates": {
+        "lat": -3.9452,
+        "lng": 39.7431
+      },
+      "mapPosition": {
+        "top": 40,
+        "left": 48
+      }
+    },
+    {
+      "id": "ch-mal",
+      "code": "MAL-12",
+      "institutionName": "Malindi High School SDA Chapter",
+      "chapterName": "Malindi High Adventist Society",
+      "type": "SECONDARY",
+      "sector": "PUBLIC",
+      "location": "Malindi, Kilifi North",
+      "status": "APPROVED",
+      "tierId": "TIER_4",
+      "patronName": "Mr. Caleb Mwanzia",
+      "patronPhone": "+254 736 554 433",
+      "repName": "Silas Fondo",
+      "repPhone": "+254 737 665 544",
+      "approximateMembers": 75,
+      "attendeesCount": 65,
+      "createdAt": "2024-07-15",
+      "coordinates": {
+        "lat": -3.2192,
+        "lng": 40.1169
+      },
+      "mapPosition": {
+        "top": 18,
+        "left": 62
+      }
+    }
+  ],
+  "rallies": [
+    {
+      "id": "rally-cur-2026",
+      "code": "CUR-2026",
+      "title": "Coastal Unity Rally 2026",
+      "theme": "Stronger Together for a Greater Mission",
+      "venueName": "Mombasa Sports Complex",
+      "venueLocation": "Mombasa Island, Coast Region, Kenya",
+      "capacity": 3000,
+      "startDate": "2026-11-15T08:00:00Z",
+      "endDate": "2026-11-17T17:00:00Z",
+      "registrationDeadline": "2026-11-01T23:59:59Z",
+      "paymentDeadline": "2026-11-10T23:59:59Z",
+      "feeLockDate": "2026-11-01T23:59:59Z",
+      "state": "REGISTRATION_OPEN",
+      "allocationMode": "CAPABILITY_WEIGHTED",
+      "contingencyPercent": 10
+    }
+  ],
+  "attendees": [],
+  "invoices": [
+    {
+      "id": "inv-tum",
+      "invoiceNumber": "INV-2026-001",
+      "rallyId": "rally-cur-2026",
+      "chapterId": "ch-tum",
+      "institutionName": "Technical University of Mombasa",
+      "amountDue": 420000,
+      "amountPaid": 340000,
+      "balance": 80000,
+      "paymentReference": "CUCASO-TUM-2026",
+      "dueDate": "2026-11-10",
+      "status": "PARTIAL"
+    },
+    {
+      "id": "inv-pwani",
+      "invoiceNumber": "INV-2026-002",
+      "rallyId": "rally-cur-2026",
+      "chapterId": "ch-pwani",
+      "institutionName": "Pwani University",
+      "amountDue": 350000,
+      "amountPaid": 350000,
+      "balance": 0,
+      "paymentReference": "CUCASO-PWANI-2026",
+      "dueDate": "2026-11-10",
+      "status": "PAID"
+    },
+    {
+      "id": "inv-mpoly",
+      "invoiceNumber": "INV-2026-003",
+      "rallyId": "rally-cur-2026",
+      "chapterId": "ch-mpoly",
+      "institutionName": "Mombasa Polytechnic",
+      "amountDue": 280000,
+      "amountPaid": 140000,
+      "balance": 140000,
+      "paymentReference": "CUCASO-MPOLY-2026",
+      "dueDate": "2026-11-10",
+      "status": "PARTIAL"
+    },
+    {
+      "id": "inv-kmtc",
+      "invoiceNumber": "INV-2026-004",
+      "rallyId": "rally-cur-2026",
+      "chapterId": "ch-kmtc",
+      "institutionName": "Kenya Medical Training College",
+      "amountDue": 220000,
+      "amountPaid": 220000,
+      "balance": 0,
+      "paymentReference": "CUCASO-KMTC-2026",
+      "dueDate": "2026-11-10",
+      "status": "PAID"
+    },
+    {
+      "id": "inv-diani",
+      "invoiceNumber": "INV-2026-005",
+      "rallyId": "rally-cur-2026",
+      "chapterId": "ch-diani",
+      "institutionName": "Diani College of Technology",
+      "amountDue": 180000,
+      "amountPaid": 0,
+      "balance": 180000,
+      "paymentReference": "CUCASO-DIANI-2026",
+      "dueDate": "2026-11-10",
+      "status": "OVERDUE"
+    },
+    {
+      "id": "inv-ttu",
+      "invoiceNumber": "INV-2026-006",
+      "rallyId": "rally-cur-2026",
+      "chapterId": "ch-ttu",
+      "institutionName": "Taita Taveta University",
+      "amountDue": 240000,
+      "amountPaid": 240000,
+      "balance": 0,
+      "paymentReference": "CUCASO-TTU-2026",
+      "dueDate": "2026-11-10",
+      "status": "PAID"
+    },
+    {
+      "id": "inv-garissa",
+      "invoiceNumber": "INV-2026-007",
+      "rallyId": "rally-cur-2026",
+      "chapterId": "ch-garissa",
+      "institutionName": "Garissa University SDA Liaison",
+      "amountDue": 200000,
+      "amountPaid": 200000,
+      "balance": 0,
+      "paymentReference": "CUCASO-GAR-2026",
+      "dueDate": "2026-11-10",
+      "status": "PAID"
+    },
+    {
+      "id": "inv-kwale",
+      "invoiceNumber": "INV-2026-008",
+      "rallyId": "rally-cur-2026",
+      "chapterId": "ch-kwale",
+      "institutionName": "Kwale Technical Training Institute",
+      "amountDue": 150000,
+      "amountPaid": 150000,
+      "balance": 0,
+      "paymentReference": "CUCASO-KWL-2026",
+      "dueDate": "2026-11-10",
+      "status": "PAID"
+    },
+    {
+      "id": "inv-cgh",
+      "invoiceNumber": "INV-2026-009",
+      "rallyId": "rally-cur-2026",
+      "chapterId": "ch-cgh",
+      "institutionName": "Coast Girls High School",
+      "amountDue": 85000,
+      "amountPaid": 85000,
+      "balance": 0,
+      "paymentReference": "CUCASO-CGH-2026",
+      "dueDate": "2026-11-10",
+      "status": "PAID"
+    },
+    {
+      "id": "inv-mss",
+      "invoiceNumber": "INV-2026-010",
+      "rallyId": "rally-cur-2026",
+      "chapterId": "ch-mss",
+      "institutionName": "Mombasa Secondary School",
+      "amountDue": 70000,
+      "amountPaid": 70000,
+      "balance": 0,
+      "paymentReference": "CUCASO-MSS-2026",
+      "dueDate": "2026-11-10",
+      "status": "PAID"
+    },
+    {
+      "id": "inv-kca",
+      "invoiceNumber": "INV-2026-011",
+      "rallyId": "rally-cur-2026",
+      "chapterId": "ch-kca",
+      "institutionName": "Kilifi College of Accountancy",
+      "amountDue": 120000,
+      "amountPaid": 120000,
+      "balance": 0,
+      "paymentReference": "CUCASO-KCA-2026",
+      "dueDate": "2026-11-10",
+      "status": "PAID"
+    },
+    {
+      "id": "inv-mal",
+      "invoiceNumber": "INV-2026-012",
+      "rallyId": "rally-cur-2026",
+      "chapterId": "ch-mal",
+      "institutionName": "Malindi High School SDA Chapter",
+      "amountDue": 60000,
+      "amountPaid": 60000,
+      "balance": 0,
+      "paymentReference": "CUCASO-MAL-2026",
+      "dueDate": "2026-11-10",
+      "status": "PAID"
+    }
+  ],
+  "payments": [],
+  "applications": [],
+  "costItems": [
+    {
+      "id": "cost-1",
+      "rallyId": "rally-cur-2026",
+      "category": "VENUE",
+      "name": "Mombasa Sports Complex Main Arena & Grounds Rental",
+      "type": "FIXED",
+      "amount": 450000,
+      "notes": "3 full days including electricity, water, security barrier setup"
+    },
+    {
+      "id": "cost-2",
+      "rallyId": "rally-cur-2026",
+      "category": "LOGISTICS",
+      "name": "Sound System, High-Wattage PA, Stage, LED Screens",
+      "type": "FIXED",
+      "amount": 350000,
+      "notes": "Acoustics setup for outdoor amphitheatre and main rally tent"
+    },
+    {
+      "id": "cost-3",
+      "rallyId": "rally-cur-2026",
+      "category": "LOGISTICS",
+      "name": "Tents, Canopies & 3,000 High-Density Chairs",
+      "type": "FIXED",
+      "amount": 220000,
+      "notes": "Delegation zone demarcations for 12 chapters"
+    },
+    {
+      "id": "cost-4",
+      "rallyId": "rally-cur-2026",
+      "category": "LOGISTICS",
+      "name": "Police Escort, Private Security & County Permits",
+      "type": "FIXED",
+      "amount": 120000,
+      "notes": "Mombasa County public gatherings compliance"
+    },
+    {
+      "id": "cost-5",
+      "rallyId": "rally-cur-2026",
+      "category": "LOGISTICS",
+      "name": "Red Cross First Aid Mobile Station & Medical Standby",
+      "type": "FIXED",
+      "amount": 80000,
+      "notes": "EMT nurse coverage for 3 days"
+    },
+    {
+      "id": "cost-6",
+      "rallyId": "rally-cur-2026",
+      "category": "CATERING",
+      "name": "Nutritious Sabbath Meals & Delegate Catering Package",
+      "type": "PER_HEAD",
+      "amount": 650,
+      "notes": "Friday dinner, Sabbath breakfast/lunch/dinner, Sunday breakfast"
+    },
+    {
+      "id": "cost-7",
+      "rallyId": "rally-cur-2026",
+      "category": "LOGISTICS",
+      "name": "Printed Handbook, Lanyards, Songbooks & Name Badges",
+      "type": "PER_HEAD",
+      "amount": 200,
+      "notes": "Official CUCASO 2026 commemorative materials"
+    }
+  ],
+  "auditLogs": [],
+  "leaders": [],
+  "institutionalHeads": [],
+  "gallery": [],
+  "updatedAt": "2026-09-20T13:03:04.160Z"
+}
