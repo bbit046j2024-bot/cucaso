@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { Info } from "lucide-react";
-import { calculateCapabilityFees } from "@/lib/cost-engine";
-import { CostItem } from "@/types";
+import { calculateCapabilityFees, CostItemInput, ChapterInput } from "@/lib/cost-engine";
 import { formatCurrency } from "@/lib/utils";
 
 export function CostCalculatorSimulator() {
@@ -13,22 +12,30 @@ export function CostCalculatorSimulator() {
 
   // Sample chapters from PRD section 6.4
   const [chapters, setChapters] = useState([
-    { id: "ch-a", code: "TUM", name: "Chapter A (Tier 1)", weight: 2.0, attendeeCount: 150 },
-    { id: "ch-b", code: "PWANI", name: "Chapter B (Tier 2)", weight: 1.5, attendeeCount: 120 },
-    { id: "ch-c", code: "MPOLY", name: "Chapter C (Tier 3)", weight: 1.0, attendeeCount: 100 },
-    { id: "ch-d", code: "KMTC", name: "Chapter D (Tier 3)", weight: 1.0, attendeeCount: 80 },
-    { id: "ch-e", code: "COAST", name: "Chapter E (Tier 4)", weight: 0.5, attendeeCount: 50 },
+    { id: "ch-a", code: "TUM", name: "Chapter A (Tier 1)", weight: 2.0, weightBasisPoints: 200, attendeeCount: 150 },
+    { id: "ch-b", code: "PWANI", name: "Chapter B (Tier 2)", weight: 1.5, weightBasisPoints: 150, attendeeCount: 120 },
+    { id: "ch-c", code: "MPOLY", name: "Chapter C (Tier 3)", weight: 1.0, weightBasisPoints: 100, attendeeCount: 100 },
+    { id: "ch-d", code: "KMTC", name: "Chapter D (Tier 3)", weight: 1.0, weightBasisPoints: 100, attendeeCount: 80 },
+    { id: "ch-e", code: "COAST", name: "Chapter E (Tier 4)", weight: 0.5, weightBasisPoints: 50, attendeeCount: 50 },
   ]);
 
-  const costItems: CostItem[] = [
-    { id: "1", rallyId: "sim", category: "VENUE", name: "Venue & Equipment", type: "FIXED", amount: fixedCosts },
-    { id: "2", rallyId: "sim", category: "CATERING", name: "Meals & Refreshments", type: "PER_HEAD", amount: perHeadRate },
+  const costItems: CostItemInput[] = [
+    { id: "1", category: "VENUE", type: "FIXED", amountKes: fixedCosts },
+    { id: "2", category: "CATERING", type: "PER_HEAD", amountKes: perHeadRate },
   ];
+
+  const chapterInputs: ChapterInput[] = chapters.map((c) => ({
+    id: c.id,
+    code: c.code,
+    name: c.name,
+    weightBasisPoints: c.weightBasisPoints,
+    attendeeCount: c.attendeeCount,
+  }));
 
   const { summary, chapterFees } = calculateCapabilityFees({
     costItems,
-    contingencyPercent: contingency,
-    chapters,
+    contingencyBasisPoints: contingency * 100,
+    chapters: chapterInputs,
     allocationMode: "CAPABILITY_WEIGHTED",
   });
 
@@ -55,7 +62,7 @@ export function CostCalculatorSimulator() {
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-right">
           <span className="text-xs text-slate-500 block uppercase font-semibold">Total Budget</span>
           <span className="font-heading font-black text-2xl text-navy-900">
-            {formatCurrency(summary.totalBudget)}
+            {formatCurrency(summary.totalBudgetKes)}
           </span>
         </div>
       </div>
@@ -113,7 +120,7 @@ export function CostCalculatorSimulator() {
           <tbody className="divide-y divide-slate-200">
             {chapterFees.map((cf, idx) => {
               const ch = chapters[idx];
-              const isPositive = cf.crossSubsidy >= 0;
+              const isPositive = cf.crossSubsidyKes >= 0;
               return (
                 <tr key={ch.id} className="hover:bg-slate-50 transition-colors">
                   <td className="py-3.5 px-4 font-semibold text-slate-900">
@@ -133,10 +140,10 @@ export function CostCalculatorSimulator() {
                     />
                   </td>
                   <td className="py-3.5 px-4 text-right font-bold text-navy-900">
-                    {formatCurrency(cf.calculatedFee)}
+                    {formatCurrency(cf.finalFeeKes)}
                   </td>
                   <td className="py-3.5 px-4 text-right text-slate-600 font-mono">
-                    {formatCurrency(cf.costToServe)}
+                    {formatCurrency(cf.costToServeKes)}
                   </td>
                   <td className="py-3.5 px-4 text-right font-mono font-bold">
                     <span
@@ -147,7 +154,7 @@ export function CostCalculatorSimulator() {
                       }`}
                     >
                       {isPositive ? "+" : ""}
-                      {formatCurrency(cf.crossSubsidy)}
+                      {formatCurrency(cf.crossSubsidyKes)}
                     </span>
                   </td>
                 </tr>
@@ -164,10 +171,10 @@ export function CostCalculatorSimulator() {
                 {summary.totalAttendees}
               </td>
               <td className="py-3.5 px-4 text-right text-amber-400 font-bold">
-                {formatCurrency(summary.totalBudget)}
+                {formatCurrency(summary.totalBudgetKes)}
               </td>
               <td className="py-3.5 px-4 text-right font-mono">
-                {formatCurrency(summary.totalBudget)}
+                {formatCurrency(summary.totalBudgetKes)}
               </td>
               <td className="py-3.5 px-4 text-right font-mono">KES 0</td>
             </tr>
@@ -178,7 +185,7 @@ export function CostCalculatorSimulator() {
       <div className="mt-4 p-3 bg-teal-50 border border-teal-200 rounded-lg text-xs text-teal-800 flex items-center gap-2">
         <Info className="w-4 h-4 text-teal-700 flex-shrink-0" />
         <div>
-          <strong>Note on Cross-Subsidy:</strong> Positive values indicate higher-capability chapters supporting the general rally budget. Negative values indicate supported chapters receiving a capability concession.
+          <span className="font-bold">Pure deterministic engine:</span> Remainder from whole-shilling rounding is automatically reconciled to the chapter with the highest weight ({chapterFees[0]?.name || "Tier 1"}).
         </div>
       </div>
     </div>

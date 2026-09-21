@@ -8,9 +8,27 @@ export type UserRole =
   | 'COUNCIL_MEMBER'
   | 'CENTRAL_TREASURER'
   | 'SECRETARY'
+  | 'COMMUNICATIONS_DIRECTOR'
   | 'CHAPLAIN'
   | 'CHAPTER_REP'
-  | 'CHAPTER_TREASURER';
+  | 'CHAPTER_TREASURER'
+  | 'OBSERVER';
+
+export interface UserAccount {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  role: UserRole;
+  roleTitle?: string;
+  chapterId?: string;
+  chapterName?: string;
+  status: 'ACTIVE' | 'SUSPENDED' | 'PENDING';
+  totpEnabled?: boolean;
+  twoFactorEnabled?: boolean;
+  lastActive?: string;
+  avatarUrl?: string;
+}
 
 export interface CapabilityTier {
   id: string;
@@ -32,10 +50,16 @@ export interface Chapter {
   patronName?: string;
   patronPhone?: string;
   patronEmail?: string;
+  patronPhoto?: string;
   repName?: string;
   repPhone?: string;
+  repPhoto?: string;
   treasurerName?: string;
   treasurerPhone?: string;
+  treasurerPhoto?: string;
+  secretaryName?: string;
+  secretaryPhone?: string;
+  secretaryPhoto?: string;
   approximateMembers: number;
   attendeesCount?: number;
   coordinates?: {
@@ -46,6 +70,7 @@ export interface Chapter {
     top: number; // percentage 0-100%
     left: number; // percentage 0-100%
   };
+  logoUrl?: string;
   createdAt: string;
 }
 
@@ -127,6 +152,7 @@ export interface Attendee {
   role: 'DELEGATE' | 'LEADER' | 'PATRON';
   status: 'CONFIRMED' | 'PENDING_CONSENT' | 'WAITLISTED';
   registrationDate: string;
+  registrationSource?: 'ADMIN' | 'SELF_LINK';
   guardianConsent?: {
     guardianName: string;
     guardianPhone: string;
@@ -180,14 +206,20 @@ export interface BudgetSummary {
 
 export interface ExecutiveLeader {
   id: string;
-  positionNumber: number;
+  positionNumber?: number;
   title: string;
   name: string;
-  institution: string;
+  institution?: string;
   credentials?: string;
   image?: string;
+  imageUrl?: string;
   bio?: string;
   contact?: string;
+  phone?: string;
+  email?: string;
+  role?: string;
+  category?: "CENTRAL_COUNCIL" | "OTHER" | string;
+  status?: string;
 }
 
 export interface InstitutionalHead {

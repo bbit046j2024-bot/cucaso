@@ -6,7 +6,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const chapter = getChapterById(params.id);
+    const chapter = await getChapterById(params.id);
     if (!chapter) {
       return NextResponse.json(
         { success: false, error: "Chapter not found" },
@@ -28,7 +28,7 @@ export async function PUT(
 ) {
   try {
     const body = await request.json();
-    const updated = updateChapter(params.id, body);
+    const updated = await updateChapter(params.id, body);
     if (!updated) {
       return NextResponse.json(
         { success: false, error: "Chapter not found" },
@@ -56,7 +56,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const deleted = deleteChapter(params.id);
+    const deleted = await deleteChapter(params.id);
     if (!deleted) {
       return NextResponse.json(
         { success: false, error: "Chapter not found" },

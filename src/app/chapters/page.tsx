@@ -99,8 +99,10 @@ export default function ChaptersPage() {
                 </div>
                 
                 <EmbeddedCoastalMap 
-                  chapters={MEMBER_CHAPTERS} 
-                  className="min-h-[420px] rounded-2xl overflow-hidden" 
+                  chapters={chapters} 
+                  selectedChapterId={selectedChapter?.id}
+                  onSelectChapter={(ch) => setSelectedChapter(ch)}
+                  className="min-h-[500px] rounded-2xl overflow-hidden" 
                 />
               </div>
             </div>

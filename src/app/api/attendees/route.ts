@@ -5,7 +5,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const chapterId = searchParams.get("chapterId") || undefined;
-    const attendees = getAttendees(chapterId);
+    const attendees = await getAttendees(chapterId);
     return NextResponse.json({ success: true, data: attendees });
   } catch (error) {
     return NextResponse.json(
@@ -18,12 +18,12 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const newAttendee = createAttendee(body);
+    const newAttendee = await createAttendee(body);
     return NextResponse.json({ success: true, data: newAttendee }, { status: 201 });
-  } catch (error) {
+  } catch (error: any) {
     return NextResponse.json(
-      { success: false, error: "Failed to create attendee" },
-      { status: 500 }
+      { success: false, error: error?.message || "Failed to create attendee" },
+      { status: 400 }
     );
   }
 }
@@ -35,7 +35,7 @@ export async function DELETE(request: Request) {
     if (!id) {
       return NextResponse.json({ success: false, error: "Missing attendee id" }, { status: 400 });
     }
-    const deleted = deleteAttendee(id);
+    const deleted = await deleteAttendee(id);
     return NextResponse.json({ success: deleted });
   } catch (error) {
     return NextResponse.json(

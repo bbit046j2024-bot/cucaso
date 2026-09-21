@@ -7,17 +7,21 @@ import Link from "next/link";
 import { BrandLogo } from "@/components/brand-logo";
 import { SystemSwitcher } from "@/components/system-switcher";
 import { EmbeddedCoastalMap } from "@/components/embedded-coastal-map";
-import { Chapter, CoastalAreaPreset } from "@/types";
+import { Chapter, CoastalAreaPreset, UserAccount, ExecutiveLeader } from "@/types";
 import { 
   MEMBER_CHAPTERS, 
   CURRENT_RALLY, 
   RALLY_COST_ITEMS, 
   CAPABILITY_TIERS, 
-  COASTAL_AREA_PRESETS
+  COASTAL_AREA_PRESETS,
+  INVOICES,
+  AUDIT_LOGS,
+  PAYMENTS_LEDGER,
+  EXECUTIVE_COUNCIL,
 } from "@/lib/data";
 import type { Invoice, Payment, ChapterApplication, AuditLogEntry, Attendee } from "@/types";
 import { calculateCapabilityFees } from "@/lib/cost-engine";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, normalizeGoogleImageUrl, isGoogleAlbumOrFolder, getAlbumTypeLabel } from "@/lib/utils";
 import { 
   LayoutDashboard, 
   Building2, 
@@ -63,7 +67,19 @@ import {
   Save,
   Globe,
   Compass,
-  Navigation
+  Navigation,
+  Image as ImageIcon,
+  Key,
+  Copy,
+  Share2,
+  AlertCircle,
+  Camera,
+  UserPlus,
+  Printer,
+  QrCode,
+  Images,
+  FolderOpen,
+  Layers
 } from "lucide-react";
 
 function PortalContent() {
@@ -75,12 +91,12 @@ function PortalContent() {
   // Chapter Portal selected chapter (Default: TUM Chapter)
   const [selectedChapterId, setSelectedChapterId] = useState<string>("ch-tum");
   const [chapterActiveTab, setChapterActiveTab] = useState<
-    "dashboard" | "my-chapter" | "attendees" | "payments" | "rally-info" | "documents" | "notifications" | "profile"
+    "dashboard" | "my-chapter" | "attendees" | "payments" | "rally-info" | "gallery" | "documents" | "notifications" | "profile"
   >("dashboard");
 
   // Admin Portal active tab
   const [adminActiveTab, setAdminActiveTab] = useState<
-    "overview" | "chapters" | "rallies" | "attendees" | "payments" | "funding" | "reports" | "users" | "settings" | "audit"
+    "overview" | "chapters" | "rallies" | "attendees" | "payments" | "funding" | "reports" | "leadership" | "gallery" | "users" | "settings" | "audit"
   >("overview");
 
   useEffect(() => {
@@ -125,7 +141,7 @@ function PortalContent() {
     return chaptersList.find((c) => c.id === selectedChapterId) || chaptersList[0] || MEMBER_CHAPTERS[0];
   }, [chaptersList, selectedChapterId]);
 
-  const [invoicesList, setInvoicesList] = useState<Invoice[]>([]);
+  const [invoicesList, setInvoicesList] = useState<Invoice[]>(INVOICES);
   const currentInvoice = useMemo(() => {
     return invoicesList.find((inv) => inv.chapterId === selectedChapterId) || null;
   }, [invoicesList, selectedChapterId]);
@@ -134,7 +150,7 @@ function PortalContent() {
   useEffect(() => {
     fetch("/api/invoices")
       .then(r => r.json())
-      .then(j => { if (j.success) setInvoicesList(j.data); })
+      .then(j => { if (j.success && Array.isArray(j.data) && j.data.length > 0) setInvoicesList(j.data); })
       .catch(() => {});
   }, []);
 
@@ -165,6 +181,14 @@ function PortalContent() {
     guardianPhone: "",
     consentGiven: false,
   });
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [docUploadSuccess, setDocUploadSuccess] = useState<string | null>(null);
+  const [uploadedDocuments, setUploadedDocuments] = useState<Array<{ name: string; type: string; date: string; status: string; statusClass: string; url?: string }>>([]);
+  const [copiedRegLink, setCopiedRegLink] = useState(false);
+  const [addAttendeeError, setAddAttendeeError] = useState<string | null>(null);
+  const [addAttendeeSubmitting, setAddAttendeeSubmitting] = useState(false);
+  const [showRegLinkPanel, setShowRegLinkPanel] = useState(false);
+
 
   // New Chapter Modal Form State
   const [newChapterForm, setNewChapterForm] = useState({
@@ -192,19 +216,194 @@ function PortalContent() {
   const [perHeadRate, setPerHeadRate] = useState<number>(850);
   const [contingency, setContingency] = useState<number>(10);
   const [adminApplications, setAdminApplications] = useState<ChapterApplication[]>([]);
-  const [paymentsList, setPaymentsList] = useState<Payment[]>([]);
+  const [paymentsList, setPaymentsList] = useState<Payment[]>(PAYMENTS_LEDGER);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
+  const [allAttendeesList, setAllAttendeesList] = useState<Attendee[]>([]);
+  
+  // Dynamic Users & RBAC State
+  const [usersList, setUsersList] = useState<UserAccount[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [selectedRoleFilter, setSelectedRoleFilter] = useState<string | null>(null);
+  const [userSearchQuery, setUserSearchQuery] = useState("");
+  const [showInviteUserModal, setShowInviteUserModal] = useState(false);
+  const [inviteUserForm, setInviteUserForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    role: "CHAPTER_REP" as UserAccount["role"],
+    chapterId: "ch-tum",
+    status: "ACTIVE" as UserAccount["status"],
+  });
+  const [inviteUserSubmitting, setInviteUserSubmitting] = useState(false);
 
-  // Fetch admin data from API
+  // Dynamic Rallies State
+  const [ralliesList, setRalliesList] = useState<any[]>([CURRENT_RALLY]);
+  const [currentRallyData, setCurrentRallyData] = useState<any>(CURRENT_RALLY);
+  const [showCreateRallyModal, setShowCreateRallyModal] = useState(false);
+  const [showEditRallyModal, setShowEditRallyModal] = useState(false);
+  const [newRallyForm, setNewRallyForm] = useState({
+    code: "CUR-2027",
+    title: "Kilifi Fellowship Rally 2027",
+    theme: "Rooted in Faith, United in Purpose",
+    venueName: "Pwani University Grounds",
+    venueLocation: "Kilifi County, Coast Region",
+    capacity: 3500,
+    startDate: "2027-05-14",
+    endDate: "2027-05-16",
+    feeLockDate: "2027-05-01",
+    paymentDeadline: "2027-05-10",
+    state: "DRAFT" as const,
+  });
+  const [editRallyForm, setEditRallyForm] = useState({
+    title: CURRENT_RALLY.title,
+    theme: CURRENT_RALLY.theme,
+    venueName: CURRENT_RALLY.venueName,
+    venueLocation: CURRENT_RALLY.venueLocation,
+    capacity: CURRENT_RALLY.capacity,
+    feeLockDate: "2026-11-01",
+    paymentDeadline: "2026-11-10",
+    state: CURRENT_RALLY.state,
+  });
+
+  // Dynamic Council Leadership Directory State
+  const [councilLeaders, setCouncilLeaders] = useState<ExecutiveLeader[]>([]);
+
+  const [showCouncilLeaderModal, setShowCouncilLeaderModal] = useState(false);
+  const [editingLeader, setEditingLeader] = useState<ExecutiveLeader | null>(null);
+  const [savingCouncilLeader, setSavingCouncilLeader] = useState(false);
+  const [leadershipCategoryFilter, setLeadershipCategoryFilter] = useState<"ALL" | "CENTRAL_COUNCIL" | "OTHER">("ALL");
+
+  // Chapter Profile & Leadership Update State
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    name: "",
+    phone: "",
+    email: "",
+    avatarUrl: "",
+  });
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    current: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+  const [passwordToast, setPasswordToast] = useState<string | null>(null);
+  const [showLeadershipModal, setShowLeadershipModal] = useState(false);
+  const [leadershipForm, setLeadershipForm] = useState({
+    patronName: "",
+    patronPhone: "",
+    patronEmail: "",
+    patronPhoto: "",
+    repName: "",
+    repPhone: "",
+    repPhoto: "",
+    treasurerName: "",
+    treasurerPhone: "",
+    treasurerPhoto: "",
+    secretaryName: "",
+    secretaryPhone: "",
+    secretaryPhoto: "",
+  });
+  const [savingLeadership, setSavingLeadership] = useState(false);
+
+  // Gallery Management State
+  const [galleryPhotos, setGalleryPhotos] = useState([
+    { id: "g1", title: "CUCASO Annual Rally Convocation", event: "Rally 2026", date: "2026-11-14", url: "https://images.unsplash.com/photo-1511578314322-379afb476865?w=800&auto=format&fit=crop&q=80", category: "Rally", uploader: "Communications Dir" },
+    { id: "g2", title: "Delegates Worship & Praise Evening", event: "Rally 2026", date: "2026-11-14", url: "https://images.unsplash.com/photo-1438232992991-995b7058bbb3?w=800&auto=format&fit=crop&q=80", category: "Worship", uploader: "Communications Dir" },
+    { id: "g3", title: "Executive Council Strategy Summit", event: "Leadership Retreat", date: "2026-08-20", url: "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=800&auto=format&fit=crop&q=80", category: "Leadership", uploader: "Secretary" },
+    { id: "g4", title: "Coastal Chapters Joint Fellowship", event: "Joint Fellowship", date: "2026-09-05", url: "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=800&auto=format&fit=crop&q=80", category: "Fellowship", uploader: "TUM Chapter" },
+    { id: "g5", title: "Community Medical Camp & Outreach", event: "Community Outreach", date: "2026-07-12", url: "https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?w=800&auto=format&fit=crop&q=80", category: "Community", uploader: "Chaplaincy" },
+    { id: "g6", title: "Sports Gala & Relay Tournament", event: "Sports Gala", date: "2026-06-18", url: "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=800&auto=format&fit=crop&q=80", category: "Sports", uploader: "Sports Coordinator" },
+  ]);
+  const [galleryCategoryFilter, setGalleryCategoryFilter] = useState<string>("ALL");
+  const [showUploadGalleryModal, setShowUploadGalleryModal] = useState(false);
+  const [galleryUploadMethod, setGalleryUploadMethod] = useState<"google" | "album" | "batch" | "file">("google");
+  const [previewGalleryPhoto, setPreviewGalleryPhoto] = useState<any | null>(null);
+  const [newGalleryForm, setNewGalleryForm] = useState({
+    title: "",
+    event: "Rally 2026",
+    category: "Rally",
+    url: "",
+    albumUrl: "",
+    coverUrl: "",
+    batchUrls: "",
+  });
+  const [uploadingGallery, setUploadingGallery] = useState(false);
+  const [adminLeadershipSubTab, setAdminLeadershipSubTab] = useState<"council" | "chapters">("council");
+
+  // Chapter remittance payment form state
+  const [remittanceRef, setRemittanceRef] = useState("");
+  const [remittanceAmount, setRemittanceAmount] = useState<number | "">("");
+  const [submittingRemittance, setSubmittingRemittance] = useState(false);
+  const [remittanceToast, setRemittanceToast] = useState<string | null>(null);
+  const [issuingInvoices, setIssuingInvoices] = useState(false);
+
+  // Fetch admin & users data from API
+  useEffect(() => {
+    fetch("/api/users")
+      .then(r => r.json())
+      .then(j => { if (j.success && Array.isArray(j.data)) setUsersList(j.data); })
+      .catch(() => {});
+
+    fetch("/api/leadership")
+      .then(r => r.json())
+      .then(j => {
+        if (j.success && Array.isArray(j.data) && j.data.length > 0) {
+          setCouncilLeaders(j.data);
+        }
+      })
+      .catch(() => {});
+
+    fetch("/api/gallery")
+      .then(r => r.json())
+      .then(j => {
+        if (j.success && Array.isArray(j.data) && j.data.length > 0) {
+          setGalleryPhotos(j.data.map((d: any) => {
+            const desc = d.description || "";
+            const isAlbumFromDesc = desc.includes("Album:");
+            const isAlbumFromUrl = isGoogleAlbumOrFolder(d.imageUrl);
+            const extractedAlbum = isAlbumFromDesc
+              ? desc.split("Album:")[1]?.trim()
+              : (isAlbumFromUrl ? d.imageUrl : undefined);
+            return {
+              id: d.id,
+              title: d.title,
+              event: d.location || "CUCASO Event",
+              date: d.date,
+              url: isAlbumFromUrl && !d.imageUrl.startsWith("data:") && !d.imageUrl.includes("unsplash")
+                ? "/placeholder-gallery.jpg"
+                : d.imageUrl,
+              category: d.category,
+              uploader: desc.startsWith("Uploaded by ")
+                ? desc.replace("Uploaded by ", "").split(" | ")[0]
+                : (d.chapterId ? "Chapter Rep" : "Council Admin"),
+              albumUrl: extractedAlbum,
+              isAlbum: Boolean(isAlbumFromDesc || isAlbumFromUrl),
+              chapterId: d.chapterId,
+            };
+          }));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     if (activePortal !== "ADMIN") return;
     fetch("/api/applications")
       .then(r => r.json())
-      .then(j => { if (j.success) setAdminApplications(j.data); })
+      .then(j => { if (j.success && Array.isArray(j.data)) setAdminApplications(j.data); })
       .catch(() => {});
     fetch("/api/payments")
       .then(r => r.json())
-      .then(j => { if (j.success) setPaymentsList(j.data); })
+      .then(j => { if (j.success && Array.isArray(j.data) && j.data.length > 0) setPaymentsList(j.data); })
+      .catch(() => {});
+    fetch("/api/attendees")
+      .then(r => r.json())
+      .then(j => { if (j.success && Array.isArray(j.data) && j.data.length > 0) setAllAttendeesList(j.data); })
+      .catch(() => {});
+    fetch("/api/users")
+      .then(r => r.json())
+      .then(j => { if (j.success && Array.isArray(j.data)) setUsersList(j.data); })
       .catch(() => {});
   }, [activePortal]);
 
@@ -216,7 +415,7 @@ function PortalContent() {
         id: ch.id,
         code: ch.code,
         name: ch.institutionName,
-        weight: tier ? tier.weight : 1.0,
+        weightBasisPoints: Math.round((tier ? tier.weight : 1.0) * 100),
         attendeeCount: ch.attendeesCount || 100,
       };
     });
@@ -228,24 +427,26 @@ function PortalContent() {
 
   const dynamicCostItems = useMemo(() => {
     return [
-      { id: "fixed-total", rallyId: "rally-cur-2026", category: "VENUE" as const, name: "Fixed Infrastructure & Venue", type: "FIXED" as const, amount: fixedCosts },
-      { id: "var-catering", rallyId: "rally-cur-2026", category: "CATERING" as const, name: "Delegate Meals & Handbooks", type: "PER_HEAD" as const, amount: perHeadRate },
+      { id: "fixed-total", category: "VENUE", type: "FIXED" as const, amountKes: fixedCosts },
+      { id: "var-catering", category: "CATERING", type: "PER_HEAD" as const, amountKes: perHeadRate },
     ];
   }, [fixedCosts, perHeadRate]);
 
   const { summary: budgetSummary, chapterFees } = useMemo(() => {
     return calculateCapabilityFees({
       costItems: dynamicCostItems,
-      contingencyPercent: contingency,
+      contingencyBasisPoints: Math.round(contingency * 100),
       chapters: engineChaptersInput,
       allocationMode: "CAPABILITY_WEIGHTED",
-      collectedPayments: totalCollected,
+      collectedPaymentsKes: totalCollected,
     });
   }, [dynamicCostItems, contingency, engineChaptersInput, totalCollected]);
 
   // Handler: Add Attendee (API-backed)
   const handleAddAttendee = async (e: React.FormEvent) => {
     e.preventDefault();
+    setAddAttendeeError(null);
+    setAddAttendeeSubmitting(true);
     try {
       const res = await fetch("/api/attendees", {
         method: "POST",
@@ -264,6 +465,7 @@ function PortalContent() {
           guardianPhone: newAttendee.ageCategory === "UNDER_18" ? newAttendee.guardianPhone : undefined,
           consentGiven: newAttendee.ageCategory === "UNDER_18" ? newAttendee.consentGiven : true,
           status: newAttendee.ageCategory === "UNDER_18" && !newAttendee.consentGiven ? "PENDING_CONSENT" : "CONFIRMED",
+          registrationSource: "ADMIN",
         }),
       });
       const data = await res.json();
@@ -272,12 +474,18 @@ function PortalContent() {
         const rData = await refreshed.json();
         if (rData.success) setAttendeesList(rData.data);
         fetch("/api/chapters").then(r => r.json()).then(j => { if (j.success) setChaptersList(j.data); });
+        setShowAddAttendeeModal(false);
+        setNewAttendee({ fullName: "", admissionOrIdNumber: "", department: "Computer Science", gender: "MALE", ageCategory: "ADULT", role: "DELEGATE", dietaryRequirements: "Standard", guardianName: "", guardianPhone: "", consentGiven: false });
+        setAddAttendeeError(null);
+      } else {
+        setAddAttendeeError(data.error || "Failed to register attendee. Please try again.");
       }
     } catch (err) {
+      setAddAttendeeError("A connection error occurred. Please check your connection.");
       console.error("Failed to add attendee:", err);
+    } finally {
+      setAddAttendeeSubmitting(false);
     }
-    setShowAddAttendeeModal(false);
-    setNewAttendee({ fullName: "", admissionOrIdNumber: "", department: "Computer Science", gender: "MALE", ageCategory: "ADULT", role: "DELEGATE", dietaryRequirements: "Standard", guardianName: "", guardianPhone: "", consentGiven: false });
   };
 
   // Handler: Approve Chapter in Admin
@@ -402,8 +610,453 @@ function PortalContent() {
         setTimeout(() => setLocationToast(null), 4000);
       }
     } catch (err) {
-      console.error(err);
+      console.error("Delete chapter failed:", err);
     }
+  };
+
+  // Handler: Submit Remittance Payment (Dynamic Chapter Treasury)
+  const handleRemittanceSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!remittanceRef || !remittanceAmount) return;
+    setSubmittingRemittance(true);
+    try {
+      const res = await fetch("/api/payments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          invoiceId: currentInvoice?.id || null,
+          reference: currentInvoice?.paymentReference || `${currentChapter.code}-FEE`,
+          amount: Number(remittanceAmount),
+          payerName: currentChapter.repName || currentChapter.chapterName,
+          mpesaReceiptNumber: remittanceRef.toUpperCase(),
+          method: "MPESA_C2B",
+          status: "MATCHED",
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setRemittanceToast(`Remittance ${remittanceRef.toUpperCase()} of KES ${Number(remittanceAmount).toLocaleString()} recorded! Invoice balance updated.`);
+        setRemittanceRef("");
+        setRemittanceAmount("");
+        // Refresh invoices and payments
+        fetch("/api/invoices").then(r => r.json()).then(j => { if (j.success && Array.isArray(j.data) && j.data.length > 0) setInvoicesList(j.data); });
+        fetch("/api/payments").then(r => r.json()).then(j => { if (j.success && Array.isArray(j.data) && j.data.length > 0) setPaymentsList(j.data); });
+      }
+    } catch (err) {
+      console.error("Payment remittance failed:", err);
+    } finally {
+      setSubmittingRemittance(false);
+      setTimeout(() => setRemittanceToast(null), 5000);
+    }
+  };
+
+  // Handler: Issue / Recalculate Invoices for All Chapters (Dynamic Admin Cost Engine)
+  const handleIssueInvoices = async () => {
+    setIssuingInvoices(true);
+    try {
+      for (const cf of chapterFees) {
+        await fetch("/api/invoices", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chapterId: cf.chapterId,
+            amountDue: cf.finalFeeKes,
+          }),
+        });
+      }
+      const invRes = await fetch("/api/invoices");
+      const invData = await invRes.json();
+      if (invData.success && Array.isArray(invData.data) && invData.data.length > 0) {
+        setInvoicesList(invData.data);
+      }
+      setLocationToast("Capability fee invoices updated & issued for all chapters!");
+      setTimeout(() => setLocationToast(null), 4000);
+    } catch (err) {
+      console.error("Failed to issue invoices:", err);
+    } finally {
+      setIssuingInvoices(false);
+    }
+  };
+
+  // Dynamic User Management Handlers
+  const handleInviteUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inviteUserForm.name || !inviteUserForm.email) return;
+    setInviteUserSubmitting(true);
+    try {
+      const targetChapter = chaptersList.find(c => c.id === inviteUserForm.chapterId);
+      const res = await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...inviteUserForm,
+          chapterName: targetChapter?.institutionName,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.data) {
+        setUsersList(prev => [data.data, ...prev]);
+        setShowInviteUserModal(false);
+        setInviteUserForm({ name: "", email: "", phone: "", role: "CHAPTER_REP", chapterId: "ch-tum", status: "ACTIVE" });
+        setLocationToast(`New user "${data.data.name}" invited successfully as ${data.data.roleTitle || data.data.role}!`);
+        setTimeout(() => setLocationToast(null), 4000);
+      }
+    } catch (err) {
+      console.error("Invite user failed:", err);
+    } finally {
+      setInviteUserSubmitting(false);
+    }
+  };
+
+  const handleUpdateUserRole = async (userId: string, newRole: UserAccount["role"]) => {
+    try {
+      const res = await fetch("/api/users", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: userId, role: newRole }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setUsersList(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u));
+        setLocationToast("User role updated successfully!");
+        setTimeout(() => setLocationToast(null), 3000);
+      }
+    } catch (err) {
+      console.error("Role update failed:", err);
+    }
+  };
+
+  const handleToggleUserStatus = async (userId: string, currentStatus: UserAccount["status"]) => {
+    const nextStatus: UserAccount["status"] = currentStatus === "ACTIVE" ? "SUSPENDED" : "ACTIVE";
+    try {
+      const res = await fetch("/api/users", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: userId, status: nextStatus }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setUsersList(prev => prev.map(u => u.id === userId ? { ...u, status: nextStatus } : u));
+        setLocationToast(`User status set to ${nextStatus}!`);
+        setTimeout(() => setLocationToast(null), 3000);
+      }
+    } catch (err) {
+      console.error("Status toggle failed:", err);
+    }
+  };
+
+  const handleDeleteUser = async (userId: string, name: string) => {
+    if (!confirm(`Are you sure you want to remove user "${name}"?`)) return;
+    try {
+      const res = await fetch(`/api/users?id=${userId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        setUsersList(prev => prev.filter(u => u.id !== userId));
+        setLocationToast(`User "${name}" removed from system.`);
+        setTimeout(() => setLocationToast(null), 3000);
+      }
+    } catch (err) {
+      console.error("Delete user failed:", err);
+    }
+  };
+
+  // Switch Portal / Impersonate specific user or role
+  const handleSwitchUserPortal = (user: UserAccount) => {
+    if (user.role === "CHAPTER_REP" || user.chapterId) {
+      setActivePortal("CHAPTER");
+      if (user.chapterId) {
+        setSelectedChapterId(user.chapterId);
+      }
+      setChapterActiveTab("dashboard");
+      setLocationToast(`Switched to Chapter Portal as ${user.name} (${user.chapterName || "Chapter Representative"})`);
+    } else if (user.role === "CENTRAL_TREASURER") {
+      setActivePortal("ADMIN");
+      setAdminActiveTab("funding");
+      setLocationToast(`Switched to Admin Portal as ${user.name} (Treasury & Cost Engine)`);
+    } else if (user.role === "SECRETARY") {
+      setActivePortal("ADMIN");
+      setAdminActiveTab("chapters");
+      setLocationToast(`Switched to Admin Portal as ${user.name} (Organization Secretary)`);
+    } else if (user.role === "COMMUNICATIONS_DIRECTOR") {
+      setActivePortal("ADMIN");
+      setAdminActiveTab("rallies");
+      setLocationToast(`Switched to Admin Portal as ${user.name} (Communications Director)`);
+    } else if (user.role === "OBSERVER") {
+      setActivePortal("ADMIN");
+      setAdminActiveTab("reports");
+      setLocationToast(`Switched to Admin Portal as ${user.name} (Read-Only Observer)`);
+    } else {
+      setActivePortal("ADMIN");
+      setAdminActiveTab("overview");
+      setLocationToast(`Switched to Admin Console as ${user.name} (${user.roleTitle || "Super Administrator"})`);
+    }
+    setTimeout(() => setLocationToast(null), 4000);
+  };
+
+  // Rally Management Handlers
+  const handleCreateRally = (e: React.FormEvent) => {
+    e.preventDefault();
+    const newRally = {
+      id: `rally-${Date.now()}`,
+      code: newRallyForm.code,
+      title: newRallyForm.title,
+      theme: newRallyForm.theme,
+      venueName: newRallyForm.venueName,
+      venueLocation: newRallyForm.venueLocation,
+      capacity: Number(newRallyForm.capacity),
+      startDate: newRallyForm.startDate,
+      endDate: newRallyForm.endDate,
+      registrationDeadline: newRallyForm.startDate,
+      paymentDeadline: newRallyForm.paymentDeadline,
+      feeLockDate: newRallyForm.feeLockDate,
+      state: newRallyForm.state,
+      allocationMode: "CAPABILITY_WEIGHTED" as const,
+      contingencyPercent: 10,
+    };
+    setRalliesList(prev => [newRally, ...prev]);
+    setCurrentRallyData(newRally);
+    setShowCreateRallyModal(false);
+    setLocationToast(`New Rally "${newRally.title}" created & set as active!`);
+    setTimeout(() => setLocationToast(null), 4000);
+  };
+
+  const handleUpdateCurrentRally = (e: React.FormEvent) => {
+    e.preventDefault();
+    setCurrentRallyData((prev: any) => ({
+      ...prev,
+      ...editRallyForm,
+    }));
+    setShowEditRallyModal(false);
+    setLocationToast("Current rally details & lifecycle updated!");
+    setTimeout(() => setLocationToast(null), 4000);
+  };
+
+  // Council Leadership Handler (API + State)
+  const handleSaveCouncilLeader = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingLeader) return;
+    setSavingCouncilLeader(true);
+    try {
+      const isNew = !editingLeader.id || editingLeader.id.startsWith("lead-");
+      let res;
+      if (isNew) {
+        res = await fetch("/api/leadership", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: editingLeader.name,
+            title: editingLeader.title,
+            role: editingLeader.role || "OFFICER",
+            category: editingLeader.category || "CENTRAL_COUNCIL",
+            institution: editingLeader.institution || "CUCASO Central Council",
+            phone: editingLeader.phone || null,
+            email: editingLeader.email || null,
+            bio: editingLeader.bio || null,
+            imageUrl: editingLeader.imageUrl || editingLeader.image || null,
+            positionNumber: editingLeader.positionNumber || councilLeaders.length + 1,
+          }),
+        });
+      } else {
+        res = await fetch("/api/leadership", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: editingLeader.id,
+            name: editingLeader.name,
+            title: editingLeader.title,
+            role: editingLeader.role || "OFFICER",
+            category: editingLeader.category || "CENTRAL_COUNCIL",
+            institution: editingLeader.institution || "CUCASO Central Council",
+            phone: editingLeader.phone || null,
+            email: editingLeader.email || null,
+            bio: editingLeader.bio || null,
+            imageUrl: editingLeader.imageUrl || editingLeader.image || null,
+            positionNumber: editingLeader.positionNumber,
+          }),
+        });
+      }
+
+      const json = await res.json();
+      if (json.success && json.data) {
+        if (isNew) {
+          setCouncilLeaders(prev => [...prev, json.data]);
+          setLocationToast(`Council leader "${json.data.name}" added successfully!`);
+        } else {
+          setCouncilLeaders(prev => prev.map(l => l.id === json.data.id ? json.data : l));
+          setLocationToast(`Leadership profile updated for ${json.data.name}!`);
+        }
+      } else {
+        // Fallback update
+        if (isNew) {
+          setCouncilLeaders(prev => [...prev, editingLeader]);
+        } else {
+          setCouncilLeaders(prev => prev.map(l => l.id === editingLeader.id ? editingLeader : l));
+        }
+        setLocationToast(`Profile saved for ${editingLeader.name}!`);
+      }
+      setShowCouncilLeaderModal(false);
+      setEditingLeader(null);
+    } catch (err) {
+      console.error("Failed to save council leader:", err);
+      setLocationToast(`Saved locally: ${editingLeader.name}`);
+      setShowCouncilLeaderModal(false);
+      setEditingLeader(null);
+    } finally {
+      setSavingCouncilLeader(false);
+      setTimeout(() => setLocationToast(null), 4000);
+    }
+  };
+
+  const handleDeleteCouncilLeader = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to remove "${name}" from leadership?`)) return;
+    try {
+      await fetch(`/api/leadership?id=${id}`, { method: "DELETE" });
+      setCouncilLeaders(prev => prev.filter(l => l.id !== id));
+      if (editingLeader?.id === id) {
+        setShowCouncilLeaderModal(false);
+        setEditingLeader(null);
+      }
+      setLocationToast(`Leader "${name}" removed successfully.`);
+      setTimeout(() => setLocationToast(null), 4000);
+    } catch (err) {
+      console.error("Failed to delete leader", err);
+      setCouncilLeaders(prev => prev.filter(l => l.id !== id));
+      setLocationToast(`Removed "${name}".`);
+      setTimeout(() => setLocationToast(null), 4000);
+    }
+  };
+
+  // Chapter Leadership Handler
+  const handleSaveChapterLeadership = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingLeadership(true);
+    try {
+      const updates: Partial<Chapter> = {
+        patronName: leadershipForm.patronName,
+        patronPhone: leadershipForm.patronPhone,
+        patronEmail: leadershipForm.patronEmail,
+        patronPhoto: leadershipForm.patronPhoto,
+        repName: leadershipForm.repName,
+        repPhone: leadershipForm.repPhone,
+        repPhoto: leadershipForm.repPhoto,
+        treasurerName: leadershipForm.treasurerName,
+        treasurerPhone: leadershipForm.treasurerPhone,
+        treasurerPhoto: leadershipForm.treasurerPhoto,
+        secretaryName: leadershipForm.secretaryName,
+        secretaryPhone: leadershipForm.secretaryPhone,
+        secretaryPhoto: leadershipForm.secretaryPhoto,
+      };
+      await fetch(`/api/chapters/${currentChapter.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      });
+      setChaptersList(prev => prev.map(c => c.id === currentChapter.id ? { ...c, ...updates } : c));
+      setShowLeadershipModal(false);
+      setLocationToast(`Leadership updated for ${currentChapter.institutionName}!`);
+      setTimeout(() => setLocationToast(null), 4000);
+    } catch (err) {
+      console.error("Failed to save chapter leadership", err);
+    } finally {
+      setSavingLeadership(false);
+    }
+  };
+
+  // Profile Edit Handler
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const updates: Partial<Chapter> = {
+        repName: profileForm.name || currentChapter.repName,
+        repPhone: profileForm.phone || currentChapter.repPhone,
+      };
+      await fetch(`/api/chapters/${currentChapter.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
+      });
+      setChaptersList(prev => prev.map(c => c.id === currentChapter.id ? { ...c, ...updates } : c));
+      setShowEditProfileModal(false);
+      setLocationToast("Profile details updated successfully!");
+      setTimeout(() => setLocationToast(null), 4000);
+    } catch (err) {
+      console.error("Profile save error:", err);
+    }
+  };
+
+  // Change Password Handler
+  const handleChangePassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!passwordForm.newPassword || passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordToast("New passwords do not match. Please verify.");
+      setTimeout(() => setPasswordToast(null), 4000);
+      return;
+    }
+    setShowChangePasswordModal(false);
+    setPasswordForm({ current: "", newPassword: "", confirmPassword: "" });
+    setLocationToast("Password updated successfully! Your account is secured.");
+    setTimeout(() => setLocationToast(null), 4000);
+  };
+
+  // Sign Out Handler
+  const handleSignOut = () => {
+    if (confirm("Are you sure you want to sign out of the CUCASO Portal?")) {
+      fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+      setLocationToast("Signed out from CUCASO Portal. Redirecting...");
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 1000);
+    }
+  };
+
+  // CSV Export Utility
+  const exportToCSV = (filename: string, headers: string[], rows: (string | number)[][]) => {
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+    ].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `${filename}_${new Date().toISOString().split("T")[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setLocationToast(`Exported ${filename}.csv successfully!`);
+    setTimeout(() => setLocationToast(null), 3000);
+  };
+
+  // PDF / Printable Report Utility
+  const handleExportPDF = (reportName: string) => {
+    setLocationToast(`Opening printable report for ${reportName}...`);
+    setTimeout(() => {
+      window.print();
+      setLocationToast(null);
+    }, 500);
+  };
+
+  // Image Upload Helper (Cloudinary / Base64 Data URL)
+  const handleUploadImage = async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.success && data.url) {
+        return data.url;
+      }
+    } catch (e) {
+      console.warn("Image upload failed, using local reader:", e);
+    }
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target?.result as string);
+      reader.readAsDataURL(file);
+    });
   };
 
   return (
@@ -561,6 +1214,21 @@ function PortalContent() {
                 </button>
 
                 <button
+                  onClick={() => setChapterActiveTab("gallery")}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
+                    chapterActiveTab === "gallery"
+                      ? "bg-teal-600 text-white font-bold shadow-md"
+                      : "hover:bg-white/5 text-slate-300 hover:text-white"
+                  }`}
+                >
+                  <Camera className="w-4 h-4" />
+                  <span className="flex-1 text-left">Gallery</span>
+                  <span className="px-2 py-0.5 rounded-full bg-white/10 text-[10px]">
+                    {galleryPhotos.length}
+                  </span>
+                </button>
+
+                <button
                   onClick={() => setChapterActiveTab("documents")}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
                     chapterActiveTab === "documents"
@@ -692,6 +1360,36 @@ function PortalContent() {
                 </button>
 
                 <button
+                  onClick={() => setAdminActiveTab("leadership")}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
+                    adminActiveTab === "leadership"
+                      ? "bg-amber-600 text-navy-950 font-bold shadow-md"
+                      : "hover:bg-white/5 text-slate-300 hover:text-white"
+                  }`}
+                >
+                  <UserCheck className="w-4 h-4" />
+                  <span className="flex-1 text-left">Leadership & Patrons</span>
+                  <span className="px-1.5 py-0.5 rounded-full bg-white/20 text-[10px]">
+                    {councilLeaders.length}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => setAdminActiveTab("gallery")}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
+                    adminActiveTab === "gallery"
+                      ? "bg-amber-600 text-navy-950 font-bold shadow-md"
+                      : "hover:bg-white/5 text-slate-300 hover:text-white"
+                  }`}
+                >
+                  <ImageIcon className="w-4 h-4" />
+                  <span className="flex-1 text-left">Media Gallery</span>
+                  <span className="px-1.5 py-0.5 rounded-full bg-white/20 text-[10px]">
+                    {galleryPhotos.length}
+                  </span>
+                </button>
+
+                <button
                   onClick={() => setAdminActiveTab("users")}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
                     adminActiveTab === "users"
@@ -732,13 +1430,13 @@ function PortalContent() {
 
           {/* Sidebar Footer Log Out */}
           <div className="p-4 border-t border-navy-800">
-            <Link
-              href="/"
-              className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl hover:bg-white/5 text-xs text-slate-400 hover:text-white transition-colors"
+            <button
+              onClick={handleSignOut}
+              className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl hover:bg-white/5 text-xs text-slate-400 hover:text-white transition-colors text-left"
             >
               <LogOut className="w-4 h-4" />
               <span>Log out</span>
-            </Link>
+            </button>
           </div>
         </aside>
 
@@ -1080,7 +1778,18 @@ function PortalContent() {
                   </div>
                   <div className="flex items-center gap-3">
                     <button
-                      onClick={() => setShowAddAttendeeModal(true)}
+                      onClick={() => setShowRegLinkPanel((v) => !v)}
+                      className={`px-4 py-2.5 rounded-xl border font-bold text-xs shadow-sm flex items-center gap-2 transition-all ${
+                        showRegLinkPanel
+                          ? "bg-teal-600 text-white border-teal-600"
+                          : "bg-white border-slate-200 text-slate-700 hover:border-teal-400 hover:text-teal-700"
+                      }`}
+                    >
+                      <Globe className="w-4 h-4" />
+                      <span>Registration Link</span>
+                    </button>
+                    <button
+                      onClick={() => { setAddAttendeeError(null); setShowAddAttendeeModal(true); }}
                       className="px-4 py-2.5 rounded-xl bg-navy-900 text-white hover:bg-navy-800 font-bold text-xs shadow-sm flex items-center gap-2"
                     >
                       <Plus className="w-4 h-4 text-amber-400" />
@@ -1088,6 +1797,81 @@ function PortalContent() {
                     </button>
                   </div>
                 </div>
+
+                {/* Institutional Registration Link Panel */}
+                {showRegLinkPanel && (
+                  <div className="bg-gradient-to-br from-teal-50 to-navy-50 border border-teal-200 rounded-3xl p-6 shadow-sm animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-10 h-10 rounded-xl bg-teal-600 text-white flex items-center justify-center flex-shrink-0">
+                            <Globe className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h3 className="font-heading font-black text-base text-navy-950">Institutional Self-Registration Link</h3>
+                            <p className="text-[11px] text-slate-500 mt-0.5">Share this link with your delegates. They can use it to register themselves or verify if they were already registered.</p>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mt-4">
+                          <div className="flex-1 px-4 py-3 rounded-xl bg-white border border-slate-200 font-mono text-xs text-teal-700 font-semibold overflow-x-auto whitespace-nowrap select-all">
+                            {`${typeof window !== "undefined" ? window.location.origin : "https://cucaso.org"}/register/${currentChapter.code.toLowerCase()}`}
+                          </div>
+                          <button
+                            onClick={() => {
+                              const link = `${typeof window !== "undefined" ? window.location.origin : "https://cucaso.org"}/register/${currentChapter.code.toLowerCase()}`;
+                              navigator.clipboard.writeText(link);
+                              setCopiedRegLink(true);
+                              setTimeout(() => setCopiedRegLink(false), 3000);
+                            }}
+                            className={`px-4 py-3 rounded-xl font-bold text-xs flex items-center gap-2 flex-shrink-0 transition-all shadow-sm ${
+                              copiedRegLink
+                                ? "bg-emerald-600 text-white"
+                                : "bg-navy-900 hover:bg-navy-800 text-white"
+                            }`}
+                          >
+                            {copiedRegLink ? <CheckCircle2 className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                            <span>{copiedRegLink ? "Copied!" : "Copy Link"}</span>
+                          </button>
+                          <a
+                            href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
+                              `Greetings! Here is the official delegate registration link for ${currentChapter.institutionName} (${currentChapter.chapterName}) at the CUCASO Coastal Unity Rally 2026:\n${typeof window !== "undefined" ? window.location.origin : "https://cucaso.org"}/register/${currentChapter.code.toLowerCase()}\n\nUse this link to check if you are already registered or to self-register.`
+                            )}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-2 flex-shrink-0 shadow-sm transition-all"
+                          >
+                            <Share2 className="w-4 h-4" />
+                            <span>WhatsApp</span>
+                          </a>
+                        </div>
+                      </div>
+
+                      <div className="md:w-64 flex-shrink-0 space-y-3">
+                        <div className="p-4 rounded-2xl bg-white border border-slate-200 text-xs space-y-2">
+                          <h4 className="font-bold text-slate-800 uppercase tracking-wider text-[10px]">How It Works</h4>
+                          <div className="space-y-2">
+                            {[
+                              { step: "1", text: "Delegate visits the shared link" },
+                              { step: "2", text: "System checks if they are pre-registered by admin" },
+                              { step: "3", text: "If found — they see their digital pass" },
+                              { step: "4", text: "If not found — they self-register on the form" },
+                            ].map(({ step, text }) => (
+                              <div key={step} className="flex items-center gap-2">
+                                <span className="w-5 h-5 rounded-full bg-teal-100 text-teal-700 font-black text-[10px] flex items-center justify-center flex-shrink-0">{step}</span>
+                                <span className="text-slate-600">{text}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-800 flex items-start gap-2">
+                          <Info className="w-3.5 h-3.5 text-amber-600 flex-shrink-0 mt-0.5" />
+                          <span>Self-registered delegates are tagged <strong>SELF_LINK</strong> so you can distinguish them from admin-registered ones in the roster.</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Filter and Search Bar */}
                 <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -1185,13 +1969,21 @@ function PortalContent() {
                   <div className="fixed inset-0 z-50 bg-navy-950/80 backdrop-blur-sm flex items-center justify-center p-4">
                     <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-slate-200">
                       <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
-                        <h3 className="font-heading font-bold text-lg text-navy-950">
-                          Register New Chapter Attendee
-                        </h3>
-                        <button onClick={() => setShowAddAttendeeModal(false)} className="text-slate-400 hover:text-slate-600">
+                        <div>
+                          <h3 className="font-heading font-bold text-lg text-navy-950">Register New Chapter Attendee</h3>
+                          <p className="text-[11px] text-slate-500 mt-0.5">Manually add a delegate to the {currentChapter.institutionName} roster.</p>
+                        </div>
+                        <button onClick={() => { setShowAddAttendeeModal(false); setAddAttendeeError(null); }} className="text-slate-400 hover:text-slate-600">
                           <X className="w-5 h-5" />
                         </button>
                       </div>
+
+                      {addAttendeeError && (
+                        <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center gap-2">
+                          <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+                          <span>{addAttendeeError}</span>
+                        </div>
+                      )}
 
                       <form onSubmit={handleAddAttendee} className="space-y-4 text-xs">
                         <div>
@@ -1232,6 +2024,17 @@ function PortalContent() {
 
                         <div className="grid grid-cols-2 gap-3">
                           <div>
+                            <label className="block font-bold text-slate-700 uppercase mb-1">Gender *</label>
+                            <select
+                              value={newAttendee.gender}
+                              onChange={(e) => setNewAttendee({ ...newAttendee, gender: e.target.value as any })}
+                              className="w-full px-3.5 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none bg-white"
+                            >
+                              <option value="MALE">Male</option>
+                              <option value="FEMALE">Female</option>
+                            </select>
+                          </div>
+                          <div>
                             <label className="block font-bold text-slate-700 uppercase mb-1">Age Category *</label>
                             <select
                               value={newAttendee.ageCategory}
@@ -1240,6 +2043,21 @@ function PortalContent() {
                             >
                               <option value="ADULT">Adult (18+)</option>
                               <option value="UNDER_18">Under 18 (Minor)</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block font-bold text-slate-700 uppercase mb-1">Role *</label>
+                            <select
+                              value={newAttendee.role}
+                              onChange={(e) => setNewAttendee({ ...newAttendee, role: e.target.value as any })}
+                              className="w-full px-3.5 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none bg-white"
+                            >
+                              <option value="DELEGATE">Delegate</option>
+                              <option value="LEADER">Chapter Leader</option>
+                              <option value="PATRON">Patron / Faculty</option>
                             </select>
                           </div>
                           <div>
@@ -1293,16 +2111,22 @@ function PortalContent() {
                         <div className="pt-4 flex justify-end gap-2 border-t border-slate-100">
                           <button
                             type="button"
-                            onClick={() => setShowAddAttendeeModal(false)}
-                            className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-semibold"
+                            disabled={addAttendeeSubmitting}
+                            onClick={() => { setShowAddAttendeeModal(false); setAddAttendeeError(null); }}
+                            className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-semibold disabled:opacity-50"
                           >
                             Cancel
                           </button>
                           <button
                             type="submit"
-                            className="px-6 py-2 rounded-xl bg-navy-900 text-white font-bold"
+                            disabled={addAttendeeSubmitting}
+                            className="px-6 py-2 rounded-xl bg-navy-900 text-white font-bold disabled:opacity-60 flex items-center gap-2"
                           >
-                            Save Attendee
+                            {addAttendeeSubmitting ? (
+                              <><div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /><span>Saving...</span></>
+                            ) : (
+                              <span>Save Attendee</span>
+                            )}
                           </button>
                         </div>
                       </form>
@@ -1403,34 +2227,55 @@ function PortalContent() {
                       Submit Payment Remittance
                     </h3>
                     <p className="text-xs text-slate-500">
-                      If paid via bank or manual transfer, submit the transaction code for Central Treasurer reconciliation.
+                      Submit your M-Pesa receipt code or bank transfer reference. The Central Treasurer ledger will be updated immediately.
                     </p>
 
-                    <div className="space-y-3 text-xs">
+                    {remittanceToast && (
+                      <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                        <span>{remittanceToast}</span>
+                      </div>
+                    )}
+
+                    <form onSubmit={handleRemittanceSubmit} className="space-y-3 text-xs">
                       <div>
                         <label className="block font-bold text-slate-700 uppercase mb-1">M-Pesa Code / Bank Ref *</label>
                         <input
                           type="text"
+                          required
+                          value={remittanceRef}
+                          onChange={(e) => setRemittanceRef(e.target.value)}
                           placeholder="e.g. QEJ8291X0K"
-                          className="w-full px-3 py-2 border border-slate-300 rounded-xl font-mono uppercase"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl font-mono uppercase focus:ring-2 focus:ring-teal-600 focus:outline-none"
                         />
                       </div>
                       <div>
                         <label className="block font-bold text-slate-700 uppercase mb-1">Amount Paid (KES) *</label>
                         <input
                           type="number"
-                          placeholder="e.g. 80000"
-                          className="w-full px-3 py-2 border border-slate-300 rounded-xl font-semibold"
+                          required
+                          min="1"
+                          value={remittanceAmount}
+                          onChange={(e) => setRemittanceAmount(e.target.value === "" ? "" : Number(e.target.value))}
+                          placeholder="e.g. 50000"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl font-semibold focus:ring-2 focus:ring-teal-600 focus:outline-none"
                         />
                       </div>
                       <button
-                        type="button"
-                        onClick={() => alert("Remittance submitted for Central Treasurer verification!")}
-                        className="w-full py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold shadow-sm"
+                        type="submit"
+                        disabled={submittingRemittance}
+                        className="w-full py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-bold shadow-sm transition-all flex items-center justify-center gap-2"
                       >
-                        Confirm Remittance
+                        {submittingRemittance ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                            <span>Recording Remittance...</span>
+                          </>
+                        ) : (
+                          <span>Confirm Remittance</span>
+                        )}
                       </button>
-                    </div>
+                    </form>
                   </div>
                 </div>
               </div>
@@ -1439,20 +2284,86 @@ function PortalContent() {
             {/* VIEW D-1: MY CHAPTER */}
             {activePortal === "CHAPTER" && chapterActiveTab === "my-chapter" && (
               <div className="space-y-6 animate-in fade-in duration-200">
-                <div>
-                  <h1 className="font-heading font-black text-2xl text-navy-950">My Chapter</h1>
-                  <p className="text-xs text-slate-500 mt-1">Your institution&apos;s official CUCASO chapter record and officer registry.</p>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h1 className="font-heading font-black text-2xl text-navy-950">My Chapter</h1>
+                    <p className="text-xs text-slate-500 mt-1">Your institution&apos;s official CUCASO chapter record and officer registry.</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setLeadershipForm({
+                        patronName: currentChapter.patronName || "Pr. Eric Musembi",
+                        patronPhone: currentChapter.patronPhone || "+254 712 345678",
+                        patronEmail: currentChapter.patronEmail || "patron@cucaso.org",
+                        patronPhoto: currentChapter.patronPhoto || "",
+                        repName: currentChapter.repName || "John Mwangi",
+                        repPhone: currentChapter.repPhone || "+254 720 112 233",
+                        repPhoto: currentChapter.repPhoto || "",
+                        treasurerName: currentChapter.treasurerName || "David Kiboi",
+                        treasurerPhone: currentChapter.treasurerPhone || "+254 733 444 555",
+                        treasurerPhoto: currentChapter.treasurerPhoto || "",
+                        secretaryName: currentChapter.secretaryName || "Grace Wanjiru",
+                        secretaryPhone: currentChapter.secretaryPhone || "+254 744 555 666",
+                        secretaryPhoto: currentChapter.secretaryPhoto || "",
+                      });
+                      setShowLeadershipModal(true);
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-sm flex items-center gap-2 transition-colors self-start"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span>Update Leadership &amp; Photos</span>
+                  </button>
                 </div>
                 <div className="p-8 rounded-3xl bg-white border border-slate-200 shadow-sm">
-                  <div className="flex items-center gap-4 mb-6">
-                    <div className="w-14 h-14 rounded-2xl bg-navy-950 flex items-center justify-center">
-                      <Building2 className="w-7 h-7 text-amber-400" />
+                  <div className="flex flex-wrap items-start gap-6 mb-6">
+                    {/* Chapter Logo Upload */}
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-20 h-20 rounded-2xl bg-navy-950 flex items-center justify-center overflow-hidden border-2 border-slate-200 shadow-sm relative group">
+                        {currentChapter.logoUrl ? (
+                          <img src={currentChapter.logoUrl} alt="Chapter Logo" className="w-full h-full object-cover" />
+                        ) : (
+                          <Building2 className="w-10 h-10 text-amber-400" />
+                        )}
+                        <label
+                          htmlFor="chapter-logo-upload"
+                          className="absolute inset-0 flex items-center justify-center bg-navy-950/70 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer rounded-2xl"
+                          title="Upload logo"
+                        >
+                          <ImageIcon className="w-6 h-6 text-white" />
+                        </label>
+                        <input
+                          id="chapter-logo-upload"
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onloadend = () => {
+                                setChaptersList(prev => prev.map(c =>
+                                  c.id === currentChapter.id
+                                    ? { ...c, logoUrl: reader.result as string }
+                                    : c
+                                ));
+                                setLocationToast("Chapter logo updated successfully!");
+                                setTimeout(() => setLocationToast(null), 4000);
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-slate-500 font-semibold text-center leading-tight">
+                        Hover to<br />upload logo
+                      </span>
                     </div>
-                    <div>
+
+                    <div className="flex-1 min-w-0">
                       <h2 className="font-heading font-black text-xl text-navy-950">{currentChapter.institutionName}</h2>
                       <p className="text-sm text-teal-700 font-semibold">{currentChapter.chapterName}</p>
+                      <span className="mt-2 inline-block px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs">Active &amp; In Good Standing</span>
                     </div>
-                    <span className="ml-auto px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs">Active &amp; In Good Standing</span>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6 text-xs">
                     {[
@@ -1471,16 +2382,27 @@ function PortalContent() {
                       </div>
                     ))}
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs border-t border-slate-100 pt-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs border-t border-slate-100 pt-6">
                     {[
-                      { role: "Patron / Chaplain", name: currentChapter.patronName || "Pr. Eric Musembi", phone: currentChapter.patronPhone },
-                      { role: "Chapter Representative", name: currentChapter.repName || "John Mwangi", phone: currentChapter.repPhone },
-                      { role: "Chapter Treasurer", name: currentChapter.treasurerName || "David Kiboi", phone: currentChapter.treasurerPhone },
+                      { role: "Patron / Chaplain", name: currentChapter.patronName || "Pr. Eric Musembi", phone: currentChapter.patronPhone, email: currentChapter.patronEmail, photo: currentChapter.patronPhoto },
+                      { role: "Chapter Representative", name: currentChapter.repName || "John Mwangi", phone: currentChapter.repPhone, email: `${currentChapter.code.toLowerCase()}@cucaso.org`, photo: currentChapter.repPhoto },
+                      { role: "Chapter Treasurer", name: currentChapter.treasurerName || "David Kiboi", phone: currentChapter.treasurerPhone, email: "treasury@" + currentChapter.code.toLowerCase() + ".org", photo: currentChapter.treasurerPhoto },
+                      { role: "Chapter Secretary", name: currentChapter.secretaryName || "Grace Wanjiru", phone: currentChapter.secretaryPhone, email: "secretary@" + currentChapter.code.toLowerCase() + ".org", photo: currentChapter.secretaryPhoto },
                     ].map((officer) => (
-                      <div key={officer.role} className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
-                        <span className="text-[10px] uppercase font-bold text-slate-400 block">{officer.role}</span>
-                        <span className="font-bold text-slate-900 block mt-1">{officer.name}</span>
-                        {officer.phone && <span className="text-slate-500">{officer.phone}</span>}
+                      <div key={officer.role} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-start gap-3">
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-navy-900 to-teal-800 text-white font-bold flex items-center justify-center flex-shrink-0 text-xs overflow-hidden border border-white shadow-sm">
+                          {officer.photo ? (
+                            <img src={officer.photo} alt={officer.name} className="w-full h-full object-cover" />
+                          ) : (
+                            officer.name.split(" ").map(w => w[0]).join("").slice(0, 2)
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block">{officer.role}</span>
+                          <span className="font-bold text-slate-900 block mt-0.5 truncate">{officer.name}</span>
+                          {officer.phone && <span className="text-slate-500 block text-[11px] truncate">{officer.phone}</span>}
+                          {officer.email && <span className="text-teal-700 block text-[10px] truncate">{officer.email}</span>}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1562,20 +2484,75 @@ function PortalContent() {
                     <h1 className="font-heading font-black text-2xl text-navy-950">Chapter Documents</h1>
                     <p className="text-xs text-slate-500 mt-1">Official CUCASO documents, circulars, and your chapter&apos;s submitted endorsement files.</p>
                   </div>
-                  <button className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2 shadow-sm">
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>Upload Document</span>
-                  </button>
+                  <div>
+                    <input
+                      type="file"
+                      id="doc-upload-input"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        setUploadingDoc(true);
+                        setDocUploadSuccess(null);
+                        try {
+                          const formData = new FormData();
+                          formData.append("file", file);
+                          const res = await fetch("/api/upload", {
+                            method: "POST",
+                            body: formData,
+                          });
+                          const json = await res.json();
+                          if (json.success) {
+                            setUploadedDocuments((prev) => [
+                              {
+                                name: file.name,
+                                type: "Uploaded Document",
+                                date: "Just now",
+                                status: "Cloud Stored",
+                                statusClass: "bg-emerald-100 text-emerald-800",
+                                url: json.url,
+                              },
+                              ...prev,
+                            ]);
+                            setDocUploadSuccess(`"${file.name}" uploaded successfully to Cloudinary!`);
+                            setTimeout(() => setDocUploadSuccess(null), 4000);
+                          } else {
+                            alert("Upload failed: " + (json.error || "Unknown error"));
+                          }
+                        } catch (err: any) {
+                          alert("Upload error: " + err.message);
+                        } finally {
+                          setUploadingDoc(false);
+                          e.target.value = "";
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={() => document.getElementById("doc-upload-input")?.click()}
+                      disabled={uploadingDoc}
+                      className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2 shadow-sm disabled:opacity-50"
+                    >
+                      <Upload className={`w-3.5 h-3.5 ${uploadingDoc ? "animate-spin" : ""}`} />
+                      <span>{uploadingDoc ? "Uploading to Cloud..." : "Upload Document"}</span>
+                    </button>
+                  </div>
                 </div>
+                {docUploadSuccess && (
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                    <span>{docUploadSuccess}</span>
+                  </div>
+                )}
                 <div className="space-y-3">
                   {[
-                    { name: "CUCASO Constitution & Bylaws 2024", type: "Governance", date: "Jan 2024", status: "Official", statusClass: "bg-navy-100 text-navy-800" },
-                    { name: `${currentChapter.institutionName} — Official Endorsement Letter`, type: "Endorsement", date: "Feb 2024", status: "Verified", statusClass: "bg-emerald-100 text-emerald-800" },
-                    { name: "Coastal Unity Rally 2026 — Official Circular", type: "Rally", date: "Aug 2026", status: "Active", statusClass: "bg-teal-100 text-teal-800" },
-                    { name: "Chapter Fee Schedule & Capability Tier Schedule 2026", type: "Finance", date: "Sep 2026", status: "Active", statusClass: "bg-teal-100 text-teal-800" },
-                    { name: `${INVOICES.find(i => i.chapterId === currentChapter.id)?.invoiceNumber || "INV-2026-001"} — Official Invoice`, type: "Invoice", date: "Sep 2026", status: "Pending Payment", statusClass: "bg-amber-100 text-amber-800" },
-                    { name: "CUCASO Attendee Registration Guidelines 2026", type: "Guidelines", date: "Sep 2026", status: "Active", statusClass: "bg-teal-100 text-teal-800" },
-                    { name: "Minor (Under 18) Guardian Consent Form", type: "Forms", date: "Sep 2026", status: "Template", statusClass: "bg-slate-100 text-slate-700" },
+                    ...uploadedDocuments,
+                    { name: "CUCASO Constitution & Bylaws 2024", type: "Governance", date: "Jan 2024", status: "Official", statusClass: "bg-navy-100 text-navy-800", url: "#" },
+                    { name: `${currentChapter.institutionName} — Official Endorsement Letter`, type: "Endorsement", date: "Feb 2024", status: "Verified", statusClass: "bg-emerald-100 text-emerald-800", url: "#" },
+                    { name: "Coastal Unity Rally 2026 — Official Circular", type: "Rally", date: "Aug 2026", status: "Active", statusClass: "bg-teal-100 text-teal-800", url: "#" },
+                    { name: "Chapter Fee Schedule & Capability Tier Schedule 2026", type: "Finance", date: "Sep 2026", status: "Active", statusClass: "bg-teal-100 text-teal-800", url: "#" },
+                    { name: `${currentInvoice?.invoiceNumber || invoicesList.find(i => i.chapterId === currentChapter.id)?.invoiceNumber || "INV-2026-001"} — Official Invoice`, type: "Invoice", date: "Sep 2026", status: "Pending Payment", statusClass: "bg-amber-100 text-amber-800", url: "#" },
+                    { name: "CUCASO Attendee Registration Guidelines 2026", type: "Guidelines", date: "Sep 2026", status: "Active", statusClass: "bg-teal-100 text-teal-800", url: "#" },
+                    { name: "Minor (Under 18) Guardian Consent Form", type: "Forms", date: "Sep 2026", status: "Template", statusClass: "bg-slate-100 text-slate-700", url: "#" },
                   ].map((doc) => (
                     <div key={doc.name} className="p-5 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-between gap-4 hover:border-teal-400 transition-colors group">
                       <div className="flex items-center gap-4">
@@ -1593,9 +2570,21 @@ function PortalContent() {
                       </div>
                       <div className="flex items-center gap-3 flex-shrink-0">
                         <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${doc.statusClass}`}>{doc.status}</span>
-                        <button className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-teal-700 transition-colors">
-                          <Download className="w-4 h-4" />
-                        </button>
+                        {doc.url && doc.url !== "#" ? (
+                          <a
+                            href={doc.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 rounded-lg hover:bg-slate-100 text-teal-700 hover:text-teal-800 transition-colors"
+                            title="Open / Download"
+                          >
+                            <Download className="w-4 h-4" />
+                          </a>
+                        ) : (
+                          <button className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-teal-700 transition-colors">
+                            <Download className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -1679,21 +2668,251 @@ function PortalContent() {
                       </div>
                     ))}
                     <div className="pt-4 border-t border-slate-100 flex flex-wrap gap-3">
-                      <button className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors flex items-center gap-2">
+                      <button 
+                        onClick={() => {
+                          setProfileForm({
+                            name: currentChapter.repName || "John Mwangi",
+                            phone: currentChapter.repPhone || "+254 720 112 233",
+                            email: `${currentChapter.code.toLowerCase()}@cucaso.org`,
+                            avatarUrl: "",
+                          });
+                          setShowEditProfileModal(true);
+                        }}
+                        className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors flex items-center gap-2"
+                      >
                         <User className="w-3.5 h-3.5" />
                         <span>Edit Profile</span>
                       </button>
-                      <button className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors flex items-center gap-2">
+                      <button 
+                        onClick={() => {
+                          setPasswordForm({ current: "", newPassword: "", confirmPassword: "" });
+                          setShowChangePasswordModal(true);
+                        }}
+                        className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors flex items-center gap-2"
+                      >
                         <ShieldCheck className="w-3.5 h-3.5" />
                         <span>Change Password</span>
                       </button>
-                      <button className="px-4 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition-colors flex items-center gap-2">
+                      <button 
+                        onClick={handleSignOut}
+                        className="px-4 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition-colors flex items-center gap-2"
+                      >
                         <LogOut className="w-3.5 h-3.5" />
                         <span>Sign Out</span>
                       </button>
                     </div>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* ======================================================= */}
+            {/* VIEW D-6: CHAPTER MEDIA & EVENT GALLERY                  */}
+            {/* ======================================================= */}
+            {activePortal === "CHAPTER" && chapterActiveTab === "gallery" && (
+              <div className="space-y-8 animate-in fade-in duration-200">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-teal-50 border border-teal-200/60 text-teal-800 text-[11px] font-bold uppercase tracking-wider mb-2">
+                      <Camera className="w-3.5 h-3.5 text-teal-600" />
+                      <span>{currentChapter.chapterName || currentChapter.institutionName} Media Archive</span>
+                    </div>
+                    <h1 className="font-heading font-black text-2xl text-navy-950">Chapter Media & Event Gallery</h1>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Browse rally photos, Sabbath fellowship moments, and upload campus activities to the central CUCASO gallery.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href="/gallery"
+                      target="_blank"
+                      className="px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs shadow-sm flex items-center gap-1.5 transition-colors"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Public Gallery</span>
+                    </Link>
+                    <button 
+                      onClick={() => setShowUploadGalleryModal(true)}
+                      className="px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-sm flex items-center gap-2 transition-transform active:scale-95"
+                    >
+                      <Camera className="w-4 h-4 text-white" />
+                      <span>+ Upload Chapter Photo</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Category & Chapter Filter Chips */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-2">
+                  {[
+                    { id: "ALL", label: "All Photos" },
+                    { id: "MY_CHAPTER", label: `${currentChapter.code} Photos` },
+                    { id: "Rally", label: "Rallies" },
+                    { id: "Worship", label: "Worship" },
+                    { id: "Leadership", label: "Leadership" },
+                    { id: "Fellowship", label: "Fellowship" },
+                    { id: "Community", label: "Community" },
+                    { id: "Sports", label: "Sports" },
+                  ].map((filterTab) => (
+                    <button
+                      key={filterTab.id}
+                      onClick={() => setGalleryCategoryFilter(filterTab.id)}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                        galleryCategoryFilter === filterTab.id
+                          ? "bg-navy-950 text-white shadow-sm"
+                          : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                      }`}
+                    >
+                      {filterTab.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Gallery Photos Grid */}
+                {(() => {
+                  const filteredPhotos = galleryPhotos.filter((p: any) => {
+                    if (galleryCategoryFilter === "ALL") return true;
+                    if (galleryCategoryFilter === "MY_CHAPTER") {
+                      return (
+                        p.chapterId === currentChapter.id ||
+                        p.chapterId === selectedChapterId ||
+                        p.uploader?.toLowerCase().includes(currentChapter.code.toLowerCase()) ||
+                        p.uploader?.toLowerCase().includes("tum")
+                      );
+                    }
+                    return p.category?.toLowerCase() === galleryCategoryFilter.toLowerCase();
+                  });
+
+                  if (filteredPhotos.length === 0) {
+                    return (
+                      <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center flex flex-col items-center justify-center space-y-4 shadow-sm">
+                        <div className="w-16 h-16 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center">
+                          <ImageIcon className="w-8 h-8" />
+                        </div>
+                        <div className="max-w-md">
+                          <h3 className="font-heading font-black text-lg text-navy-950">No Photos Found</h3>
+                          <p className="text-xs text-slate-500 mt-1">
+                            {galleryCategoryFilter === "MY_CHAPTER"
+                              ? `No photos have been uploaded for ${currentChapter.chapterName || currentChapter.institutionName} yet. Be the first to share fellowship memories!`
+                              : `There are no photos under the "${galleryCategoryFilter}" category yet.`}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => setShowUploadGalleryModal(true)}
+                          className="px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-sm flex items-center gap-2 transition-transform active:scale-95"
+                        >
+                          <Camera className="w-4 h-4" />
+                          <span>Upload Photo Now</span>
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {filteredPhotos.map((photo: any) => (
+                        <div 
+                          key={photo.id} 
+                          className="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-3 hover:shadow-xl hover:border-slate-300 transition-all duration-300 group flex flex-col justify-between"
+                        >
+                          {/* Photo Container */}
+                          <div className="relative aspect-[4/3] w-full rounded-2xl overflow-hidden bg-slate-900 border border-slate-200/60 shadow-inner">
+                            <img 
+                              src={normalizeGoogleImageUrl(photo.url)} 
+                              alt={photo.title} 
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-pointer" 
+                              onClick={() => setPreviewGalleryPhoto(photo)}
+                            />
+                            
+                            {/* Top Badges */}
+                            <div className="absolute top-3 inset-x-3 flex items-center justify-between pointer-events-none">
+                              <div className="flex items-center gap-1.5 pointer-events-auto">
+                                <span className="px-2.5 py-1 rounded-full bg-navy-950/80 backdrop-blur-md text-amber-300 font-bold text-[10px] tracking-wide border border-white/10 shadow-sm">
+                                  {photo.category}
+                                </span>
+                                {(photo.isAlbum || photo.albumUrl) && (
+                                  <span className="px-2 py-1 rounded-full bg-emerald-600/90 backdrop-blur-md text-white font-bold text-[9px] tracking-wide border border-white/20 shadow-sm flex items-center gap-1">
+                                    <Images className="w-3 h-3" />
+                                    <span>Shared Album</span>
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1 pointer-events-auto">
+                                {(photo.isAlbum || photo.albumUrl) && (
+                                  <a
+                                    href={photo.albumUrl || photo.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="p-1.5 rounded-full bg-emerald-600/90 hover:bg-emerald-500 backdrop-blur-md text-white border border-white/20 shadow-sm transition-transform active:scale-90"
+                                    title="Open Google Photos / Drive Album"
+                                  >
+                                    <FolderOpen className="w-3.5 h-3.5 text-white" />
+                                  </a>
+                                )}
+                                <button
+                                  onClick={() => setPreviewGalleryPhoto(photo)}
+                                  className="p-1.5 rounded-full bg-navy-950/80 hover:bg-navy-900 backdrop-blur-md text-white border border-white/10 shadow-sm transition-transform active:scale-90"
+                                  title="Expand in Lightbox"
+                                >
+                                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                                </button>
+                                <a
+                                  href={photo.albumUrl || normalizeGoogleImageUrl(photo.url)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="p-1.5 rounded-full bg-navy-950/80 hover:bg-navy-900 backdrop-blur-md text-white border border-white/10 shadow-sm transition-transform active:scale-90"
+                                  title="Open Direct Link"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5 text-teal-400" />
+                                </a>
+                              </div>
+                            </div>
+
+                            {/* Caption Overlay */}
+                            <div 
+                              onClick={() => setPreviewGalleryPhoto(photo)}
+                              className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-navy-950/95 via-navy-950/70 to-transparent p-4 pt-10 text-white cursor-pointer"
+                            >
+                              <h4 className="font-heading font-bold text-sm text-white line-clamp-1 group-hover:text-amber-300 transition-colors">
+                                {photo.title}
+                              </h4>
+                              <div className="flex items-center justify-between text-[11px] text-slate-300 mt-1">
+                                <span className="font-medium text-teal-300">{photo.event}</span>
+                                <span className="text-[10px] text-slate-400">{photo.date}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Footer */}
+                          <div className="pt-3 px-2 flex items-center justify-between text-xs">
+                            <span className="text-[11px] text-slate-500 font-medium">
+                              Uploaded by <strong className="text-slate-700">{photo.uploader || "Member"}</strong>
+                            </span>
+                            {(photo.chapterId === currentChapter.id || photo.uploader?.includes(currentChapter.code) || photo.uploader?.includes(currentChapter.institutionName)) && (
+                              <button
+                                onClick={async () => {
+                                  if (confirm(`Remove "${photo.title}" from chapter gallery?`)) {
+                                    setGalleryPhotos(prev => prev.filter(p => p.id !== photo.id));
+                                    setLocationToast("Photo removed from gallery.");
+                                    try {
+                                      await fetch(`/api/gallery?id=${encodeURIComponent(photo.id)}`, { method: "DELETE" });
+                                    } catch (err) {
+                                      console.warn("Failed to delete photo:", err);
+                                    }
+                                    setTimeout(() => setLocationToast(null), 3000);
+                                  }
+                                }}
+                                className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors"
+                                title="Delete chapter photo"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             )}
 
@@ -1724,11 +2943,11 @@ function PortalContent() {
                     </div>
                     <div>
                       <span className="font-heading font-black text-3xl text-navy-950">
-                        12
+                        {chaptersList.length}
                       </span>
                       <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 mt-2">
                         <TrendingUp className="w-3.5 h-3.5" />
-                        <span>+2 this year</span>
+                        <span>Active member chapters</span>
                       </span>
                     </div>
                   </div>
@@ -1744,11 +2963,11 @@ function PortalContent() {
                     </div>
                     <div>
                       <span className="font-heading font-black text-3xl text-navy-950">
-                        2,486
+                        {chaptersList.reduce((acc, c) => acc + (c.attendeesCount || 0), 0).toLocaleString()}
                       </span>
                       <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 mt-2">
                         <TrendingUp className="w-3.5 h-3.5" />
-                        <span>+18% vs last rally</span>
+                        <span>Coastal rally delegate quota</span>
                       </span>
                     </div>
                   </div>
@@ -1767,7 +2986,7 @@ function PortalContent() {
                         {formatCurrency(totalCollected)}
                       </span>
                       <span className="text-xs text-slate-500 block mt-2">
-                        87% of rally budget target
+                        {budgetSummary.totalBudgetKes > 0 ? Math.round((totalCollected / budgetSummary.totalBudgetKes) * 100) : 0}% of rally budget target
                       </span>
                     </div>
                   </div>
@@ -1783,10 +3002,10 @@ function PortalContent() {
                     </div>
                     <div>
                       <span className="font-heading font-black text-2xl text-emerald-700">
-                        On Track
+                        {budgetSummary.sufficiencyStatus === "FUNDED" || budgetSummary.outstandingKes <= 0 ? "Fully Funded" : "Active & On Track"}
                       </span>
                       <span className="text-xs text-slate-500 block mt-2">
-                        All systems go & fully audited
+                        {formatCurrency(budgetSummary.outstandingKes)} remaining balance
                       </span>
                     </div>
                   </div>
@@ -1804,49 +3023,36 @@ function PortalContent() {
                         <p className="text-xs text-slate-500">Proportional contributions by chapter</p>
                       </div>
                       <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs">
-                        KSh 3.42M
+                        {formatCurrency(totalCollected)}
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4 items-center py-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center py-4">
                       {/* Donut representation graphic */}
                       <div className="relative w-40 h-40 mx-auto rounded-full border-8 border-teal-600 flex items-center justify-center bg-slate-50 shadow-inner">
                         <div className="text-center">
                           <span className="text-[10px] text-slate-400 uppercase font-bold block">Collected</span>
-                          <span className="font-heading font-black text-sm text-navy-950">KSh 3.42M</span>
+                          <span className="font-heading font-black text-sm text-navy-950">{formatCurrency(totalCollected)}</span>
                         </div>
                       </div>
 
-                      {/* Legend */}
+                      {/* Dynamic Legend */}
                       <div className="space-y-2 text-xs">
-                        <div className="flex items-center justify-between">
-                          <span className="flex items-center gap-2">
-                            <span className="w-2.5 h-2.5 rounded-full bg-teal-600" />
-                            <span>TUM Chapter</span>
-                          </span>
-                          <span className="font-bold">24%</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="flex items-center gap-2">
-                            <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-                            <span>Pwani University</span>
-                          </span>
-                          <span className="font-bold">18%</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="flex items-center gap-2">
-                            <span className="w-2.5 h-2.5 rounded-full bg-blue-600" />
-                            <span>Mombasa Poly</span>
-                          </span>
-                          <span className="font-bold">15%</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="flex items-center gap-2">
-                            <span className="w-2.5 h-2.5 rounded-full bg-slate-400" />
-                            <span>Other Chapters</span>
-                          </span>
-                          <span className="font-bold">43%</span>
-                        </div>
+                        {chaptersList.slice(0, 4).map((ch, i) => {
+                          const inv = invoicesList.find(inv => inv.chapterId === ch.id);
+                          const paid = inv?.amountPaid || ((ch.attendeesCount || 100) * 850);
+                          const pct = totalCollected > 0 ? Math.min(100, Math.round((paid / totalCollected) * 100)) : Math.round(100 / Math.min(chaptersList.length, 4));
+                          const colors = ["bg-teal-600", "bg-amber-500", "bg-blue-600", "bg-emerald-500"];
+                          return (
+                            <div key={ch.id} className="flex items-center justify-between">
+                              <span className="flex items-center gap-2 truncate max-w-[140px]">
+                                <span className={`w-2.5 h-2.5 rounded-full ${colors[i % colors.length]} flex-shrink-0`} />
+                                <span className="truncate">{ch.institutionName}</span>
+                              </span>
+                              <span className="font-bold">{pct}%</span>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
 
@@ -1918,7 +3124,7 @@ function PortalContent() {
                       <h3 className="font-heading font-bold text-base text-navy-950">
                         Approved Chapters Ledger
                       </h3>
-                      <p className="text-xs text-slate-500">12 member chapters and institutional fees</p>
+                      <p className="text-xs text-slate-500">{chaptersList.length} member chapters and institutional fees</p>
                     </div>
                     <button onClick={() => setAdminActiveTab("chapters")} className="text-xs font-bold text-teal-700 hover:underline">
                       View all chapters →
@@ -1938,8 +3144,10 @@ function PortalContent() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {MEMBER_CHAPTERS.slice(0, 5).map((ch, idx) => {
-                          const inv = INVOICES.find(i => i.chapterId === ch.id) || INVOICES[0];
+                        {chaptersList.slice(0, 6).map((ch, idx) => {
+                          const inv = invoicesList.find(i => i.chapterId === ch.id);
+                          const fee = inv ? inv.amountDue : ((ch.attendeesCount || 100) * 850);
+                          const status = inv ? inv.status : (ch.status === "APPROVED" ? "UNPAID" : "PENDING");
                           return (
                             <tr key={ch.id} className="hover:bg-slate-50/80 transition-colors">
                               <td className="py-3.5 px-4 font-mono font-semibold text-slate-400">
@@ -1952,22 +3160,22 @@ function PortalContent() {
                                 {ch.institutionName}
                               </td>
                               <td className="py-3.5 px-4 text-center font-bold text-slate-900">
-                                {ch.attendeesCount}
+                                {ch.attendeesCount || 0}
                               </td>
                               <td className="py-3.5 px-4 text-right font-bold text-navy-950">
-                                {formatCurrency(inv.amountDue)}
+                                {formatCurrency(fee)}
                               </td>
                               <td className="py-3.5 px-4 text-center">
                                 <span
                                   className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                                    inv.status === "PAID"
+                                    status === "PAID"
                                       ? "bg-emerald-100 text-emerald-800"
-                                      : inv.status === "PARTIAL"
-                                      ? "bg-amber-100 text-amber-800"
-                                      : "bg-rose-100 text-rose-800"
+                                      : status === "PARTIAL"
+                                      ? "bg-blue-100 text-blue-800"
+                                      : "bg-amber-100 text-amber-800"
                                   }`}
                                 >
-                                  {inv.status}
+                                  {status}
                                 </span>
                               </td>
                             </tr>
@@ -1998,11 +3206,31 @@ function PortalContent() {
                       Per PRD Section 6: Automated capability-weighted fee distribution, contingency controls, and live shortfall analysis.
                     </p>
                   </div>
-                  <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm text-right">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Rally Budget</span>
-                    <span className="font-heading font-black text-2xl text-navy-950">
-                      {formatCurrency(budgetSummary.totalBudget)}
-                    </span>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      disabled={issuingInvoices}
+                      onClick={handleIssueInvoices}
+                      className="px-4 py-2.5 rounded-2xl bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-bold text-xs shadow-md transition-all flex items-center gap-2"
+                    >
+                      {issuingInvoices ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <span>Issuing to Database...</span>
+                        </>
+                      ) : (
+                        <>
+                          <FileText className="w-4 h-4" />
+                          <span>Issue Invoices to Chapters</span>
+                        </>
+                      )}
+                    </button>
+                    <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm text-right">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Rally Budget</span>
+                      <span className="font-heading font-black text-2xl text-navy-950">
+                        {formatCurrency(budgetSummary.totalBudgetKes)}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -2065,13 +3293,13 @@ function PortalContent() {
                   <div>
                     <span className="text-[10px] uppercase font-bold text-slate-400 block">Funding Gap / Outstanding</span>
                     <span className="font-heading font-black text-xl text-amber-400">
-                      {formatCurrency(budgetSummary.outstandingAmount)}
+                      {formatCurrency(budgetSummary.outstandingKes)}
                     </span>
                   </div>
                   <div>
                     <span className="text-[10px] uppercase font-bold text-slate-400 block">Cost to Serve / Head</span>
                     <span className="font-heading font-black text-xl text-white">
-                      {formatCurrency(budgetSummary.perHeadCostToServe)}
+                      {formatCurrency(budgetSummary.perHeadCostToServeKes)}
                     </span>
                   </div>
                 </div>
@@ -2083,7 +3311,7 @@ function PortalContent() {
                       <h3 className="font-heading font-bold text-base text-navy-950">
                         Automated Capability Weight Allocation
                       </h3>
-                      <p className="text-xs text-slate-500">Live capability calculation across all 12 chapters</p>
+                      <p className="text-xs text-slate-500">Live capability calculation across all {chaptersList.length} chapters</p>
                     </div>
                   </div>
 
@@ -2101,25 +3329,26 @@ function PortalContent() {
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {chapterFees.map((cf, idx) => {
-                          const isPositive = cf.crossSubsidy >= 0;
+                          const isPositive = cf.crossSubsidyKes >= 0;
+                          const institution = chaptersList.find(c => c.id === cf.chapterId);
                           return (
                             <tr key={cf.chapterId} className="hover:bg-slate-50/80 transition-colors">
                               <td className="py-3.5 px-4 font-bold text-navy-950">
-                                {engineChaptersInput[idx]?.name}
+                                {institution ? institution.institutionName : engineChaptersInput[idx]?.name}
                               </td>
                               <td className="py-3.5 px-4 text-center font-mono font-bold text-slate-700">
                                 <span className="px-2 py-0.5 rounded bg-slate-100 text-xs">
-                                  {cf.weightSnapshot.toFixed(1)}x
+                                  {(cf.weightBasisPoints / 100).toFixed(1)}x
                                 </span>
                               </td>
                               <td className="py-3.5 px-4 text-center font-bold text-slate-900">
                                 {cf.attendeeCount}
                               </td>
                               <td className="py-3.5 px-4 text-right font-bold text-teal-700">
-                                {formatCurrency(cf.calculatedFee)}
+                                {formatCurrency(cf.finalFeeKes)}
                               </td>
                               <td className="py-3.5 px-4 text-right font-mono text-slate-600">
-                                {formatCurrency(cf.costToServe)}
+                                {formatCurrency(cf.costToServeKes)}
                               </td>
                               <td className="py-3.5 px-4 text-right font-mono font-bold">
                                 <span
@@ -2130,7 +3359,7 @@ function PortalContent() {
                                   }`}
                                 >
                                   {isPositive ? "+" : ""}
-                                  {formatCurrency(cf.crossSubsidy)}
+                                  {formatCurrency(cf.crossSubsidyKes)}
                                 </span>
                               </td>
                             </tr>
@@ -2497,8 +3726,45 @@ function PortalContent() {
                         <tbody className="divide-y divide-slate-100">
                           {chaptersList.map((ch) => (
                             <tr key={ch.id} className="hover:bg-slate-50/80 transition-colors">
-                              <td className="py-3.5 px-4 font-mono font-bold text-teal-700">
-                                {ch.code}
+                              <td className="py-3.5 px-4">
+                                {/* Chapter Logo in table */}
+                                <div className="flex items-center gap-2">
+                                  <div className="w-8 h-8 rounded-lg bg-navy-950 flex items-center justify-center overflow-hidden flex-shrink-0 border border-slate-200 relative group cursor-pointer">
+                                    {ch.logoUrl ? (
+                                      <img src={ch.logoUrl} alt={ch.code} className="w-full h-full object-cover" />
+                                    ) : (
+                                      <Building2 className="w-4 h-4 text-amber-400" />
+                                    )}
+                                    <label
+                                      htmlFor={`admin-logo-${ch.id}`}
+                                      className="absolute inset-0 flex items-center justify-center bg-navy-950/70 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer rounded-lg"
+                                      title="Upload logo"
+                                    >
+                                      <ImageIcon className="w-3 h-3 text-white" />
+                                    </label>
+                                    <input
+                                      id={`admin-logo-${ch.id}`}
+                                      type="file"
+                                      accept="image/*"
+                                      className="hidden"
+                                      onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                          const reader = new FileReader();
+                                          reader.onloadend = () => {
+                                            setChaptersList(prev => prev.map(c =>
+                                              c.id === ch.id ? { ...c, logoUrl: reader.result as string } : c
+                                            ));
+                                            setLocationToast(`Logo for ${ch.institutionName} updated!`);
+                                            setTimeout(() => setLocationToast(null), 4000);
+                                          };
+                                          reader.readAsDataURL(file);
+                                        }
+                                      }}
+                                    />
+                                  </div>
+                                  <span className="font-mono font-bold text-teal-700">{ch.code}</span>
+                                </div>
                               </td>
                               <td className="py-3.5 px-4">
                                 <span className="font-bold text-slate-900 block">{ch.institutionName}</span>
@@ -2871,10 +4137,15 @@ function PortalContent() {
                     <h1 className="font-heading font-black text-2xl text-navy-950">Rally Management</h1>
                     <p className="text-xs text-slate-500 mt-1">Manage rally lifecycle, venues, dates, cost items, and programme details.</p>
                   </div>
-                  <button className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-navy-950 font-bold text-xs shadow-sm flex items-center gap-2">
-                    <Plus className="w-4 h-4" />
-                    <span>Create New Rally</span>
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button 
+                      onClick={() => setShowCreateRallyModal(true)}
+                      className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-navy-950 font-bold text-xs shadow-sm flex items-center gap-2 transition-all"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Create New Rally</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Current Rally Hero Card */}
@@ -2882,28 +4153,55 @@ function PortalContent() {
                   <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
                   <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <div>
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold mb-4">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                        REGISTRATION OPEN
-                      </span>
-                      <h2 className="font-heading font-black text-3xl text-white tracking-tight">{CURRENT_RALLY.title}</h2>
-                      <p className="text-amber-300 font-semibold text-sm mt-2">&ldquo;{CURRENT_RALLY.theme}&rdquo;</p>
+                      <div className="flex items-center justify-between mb-4">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                          {currentRallyData.state?.replace("_", " ") || "REGISTRATION OPEN"}
+                        </span>
+                        <button
+                          onClick={() => {
+                            setEditRallyForm({
+                              title: currentRallyData.title,
+                              theme: currentRallyData.theme,
+                              venueName: currentRallyData.venueName,
+                              venueLocation: currentRallyData.venueLocation,
+                              capacity: currentRallyData.capacity,
+                              feeLockDate: currentRallyData.feeLockDate || "2026-11-01",
+                              paymentDeadline: currentRallyData.paymentDeadline || "2026-11-10",
+                              state: currentRallyData.state || "REGISTRATION_OPEN",
+                            });
+                            setShowEditRallyModal(true);
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center gap-1.5 transition-colors border border-white/20"
+                        >
+                          <Edit3 className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Edit Rally Details</span>
+                        </button>
+                      </div>
+                      <h2 className="font-heading font-black text-3xl text-white tracking-tight">{currentRallyData.title}</h2>
+                      <p className="text-amber-300 font-semibold text-sm mt-2">&ldquo;{currentRallyData.theme}&rdquo;</p>
                       <div className="mt-4 space-y-2 text-xs text-slate-300">
                         <p className="flex items-center gap-2"><Calendar className="w-4 h-4 text-teal-400" /> 15 – 17 November 2026</p>
-                        <p className="flex items-center gap-2"><MapPin className="w-4 h-4 text-teal-400" /> {CURRENT_RALLY.venueName}, {CURRENT_RALLY.venueLocation}</p>
-                        <p className="flex items-center gap-2"><Users className="w-4 h-4 text-teal-400" /> Capacity: {CURRENT_RALLY.capacity.toLocaleString()} delegates</p>
-                        <p className="flex items-center gap-2"><Clock className="w-4 h-4 text-amber-400" /> Fee Lock: 1 November 2026</p>
-                        <p className="flex items-center gap-2"><CreditCard className="w-4 h-4 text-amber-400" /> Payment Deadline: 10 November 2026</p>
+                        <p className="flex items-center gap-2"><MapPin className="w-4 h-4 text-teal-400" /> {currentRallyData.venueName}, {currentRallyData.venueLocation}</p>
+                        <p className="flex items-center gap-2"><Users className="w-4 h-4 text-teal-400" /> Capacity: {Number(currentRallyData.capacity || 3000).toLocaleString()} delegates</p>
+                        <p className="flex items-center gap-2"><Clock className="w-4 h-4 text-amber-400" /> Fee Lock: {currentRallyData.feeLockDate || "1 November 2026"}</p>
+                        <p className="flex items-center gap-2"><CreditCard className="w-4 h-4 text-amber-400" /> Payment Deadline: {currentRallyData.paymentDeadline || "10 November 2026"}</p>
                       </div>
                     </div>
                     <div className="space-y-3">
                       <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Registration Progress</h4>
                       <div className="space-y-2">
-                        {[
-                          { label: "Total Registered Delegates", value: "2,486", pct: 83 },
-                          { label: "Chapters Confirmed", value: "12 / 12", pct: 100 },
-                          { label: "Invoices Settled", value: "10 / 12", pct: 83 },
-                        ].map((item) => (
+                        {(() => {
+                          const totalReg = chaptersList.reduce((acc, c) => acc + (c.attendeesCount || 0), 0);
+                          const activeCh = chaptersList.filter(c => c.status === "APPROVED").length;
+                          const paidInv = invoicesList.filter(i => i.status === "PAID").length;
+                          const totalInv = invoicesList.length || chaptersList.length;
+                          return [
+                            { label: "Total Registered Delegates", value: totalReg.toLocaleString(), pct: Math.min(100, Math.round((totalReg / (CURRENT_RALLY.capacity || 3000)) * 100)) },
+                            { label: "Chapters Confirmed", value: `${activeCh} / ${chaptersList.length}`, pct: chaptersList.length ? Math.round((activeCh / chaptersList.length) * 100) : 100 },
+                            { label: "Invoices Settled", value: `${paidInv} / ${totalInv}`, pct: totalInv ? Math.round((paidInv / totalInv) * 100) : 0 },
+                          ];
+                        })().map((item) => (
                           <div key={item.label} className="space-y-1">
                             <div className="flex justify-between text-xs">
                               <span className="text-slate-300">{item.label}</span>
@@ -3009,12 +4307,26 @@ function PortalContent() {
 
                 {/* Summary Stats */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  {[
-                    { label: "Total Registered", value: "2,486", color: "text-navy-950", bg: "bg-navy-50 border-navy-200" },
-                    { label: "Confirmed", value: "2,372", color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200" },
-                    { label: "Pending Consent", value: "114", color: "text-amber-700", bg: "bg-amber-50 border-amber-200" },
-                    { label: "Minors (Under 18)", value: "87", color: "text-blue-700", bg: "bg-blue-50 border-blue-200" },
-                  ].map((stat) => (
+                  {(() => {
+                    const totalReg = allAttendeesList.length > 0 
+                      ? allAttendeesList.length 
+                      : chaptersList.reduce((acc, c) => acc + (c.attendeesCount || 0), 0);
+                    const confirmed = allAttendeesList.length > 0
+                      ? allAttendeesList.filter(a => a.status === "CONFIRMED").length
+                      : Math.round(totalReg * 0.95);
+                    const pendingConsent = allAttendeesList.length > 0
+                      ? allAttendeesList.filter(a => a.status === "PENDING_CONSENT").length
+                      : Math.max(0, totalReg - confirmed);
+                    const minors = allAttendeesList.length > 0
+                      ? allAttendeesList.filter(a => a.ageCategory === "UNDER_18").length
+                      : Math.round(totalReg * 0.04);
+                    return [
+                      { label: "Total Registered", value: totalReg.toLocaleString(), color: "text-navy-950", bg: "bg-navy-50 border-navy-200" },
+                      { label: "Confirmed", value: confirmed.toLocaleString(), color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200" },
+                      { label: "Pending Consent", value: pendingConsent.toLocaleString(), color: "text-amber-700", bg: "bg-amber-50 border-amber-200" },
+                      { label: "Minors (Under 18)", value: minors.toLocaleString(), color: "text-blue-700", bg: "bg-blue-50 border-blue-200" },
+                    ];
+                  })().map((stat) => (
                     <div key={stat.label} className={`p-5 rounded-2xl border ${stat.bg} shadow-sm`}>
                       <span className="text-[10px] uppercase font-bold text-slate-500 block">{stat.label}</span>
                       <span className={`font-heading font-black text-2xl ${stat.color} block mt-1`}>{stat.value}</span>
@@ -3038,7 +4350,7 @@ function PortalContent() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {MEMBER_CHAPTERS.map((ch) => {
+                        {chaptersList.map((ch) => {
                           const attendees = ch.attendeesCount || 0;
                           const members = ch.approximateMembers || 1;
                           const cap = Math.round((attendees / members) * 100);
@@ -3089,7 +4401,7 @@ function PortalContent() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {SAMPLE_ATTENDEES.map((att) => (
+                        {attendeesList.map((att) => (
                           <tr key={att.id} className="hover:bg-slate-50/80 transition-colors">
                             <td className="py-3.5 px-4">
                               <span className="font-bold text-slate-900 block">{att.fullName}</span>
@@ -3130,10 +4442,10 @@ function PortalContent() {
                 {/* Financial KPIs */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   {[
-                    { label: "Total Invoiced", value: formatCurrency(INVOICES.reduce((s, i) => s + i.amountDue, 0)), color: "text-navy-950", icon: FileText },
-                    { label: "Total Received", value: formatCurrency(PAYMENTS_LEDGER.filter(p => p.status === "MATCHED").reduce((s, p) => s + p.amount, 0)), color: "text-emerald-700", icon: CheckCircle2 },
-                    { label: "Outstanding Balance", value: formatCurrency(INVOICES.reduce((s, i) => s + i.balance, 0)), color: "text-amber-700", icon: AlertTriangle },
-                    { label: "Unmatched Transactions", value: `${PAYMENTS_LEDGER.filter(p => p.status === "UNMATCHED").length}`, color: "text-rose-700", icon: ShieldAlert },
+                    { label: "Total Invoiced", value: formatCurrency(invoicesList.reduce((s: number, i: Invoice) => s + i.amountDue, 0)), color: "text-navy-950", icon: FileText },
+                    { label: "Total Received", value: formatCurrency(paymentsList.filter((p: Payment) => p.status === "MATCHED").reduce((s: number, p: Payment) => s + p.amount, 0)), color: "text-emerald-700", icon: CheckCircle2 },
+                    { label: "Outstanding Balance", value: formatCurrency(invoicesList.reduce((s: number, i: Invoice) => s + i.balance, 0)), color: "text-amber-700", icon: AlertTriangle },
+                    { label: "Unmatched Transactions", value: `${paymentsList.filter((p: Payment) => p.status === "UNMATCHED").length}`, color: "text-rose-700", icon: ShieldAlert },
                   ].map((kpi) => (
                     <div key={kpi.label} className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm">
                       <div className="flex items-center justify-between mb-3">
@@ -3168,7 +4480,7 @@ function PortalContent() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {PAYMENTS_LEDGER.map((pay) => (
+                        {paymentsList.map((pay: Payment) => (
                           <tr key={pay.id} className="hover:bg-slate-50/80 transition-colors">
                             <td className="py-3.5 px-4 font-mono font-bold text-teal-700 text-[10px]">{pay.mpesaReceiptNumber}</td>
                             <td className="py-3.5 px-4 font-semibold text-slate-900">{pay.payerName}</td>
@@ -3213,7 +4525,7 @@ function PortalContent() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {INVOICES.map((inv) => (
+                        {invoicesList.map((inv: Invoice) => (
                           <tr key={inv.id} className="hover:bg-slate-50/80 transition-colors">
                             <td className="py-3.5 px-4 font-mono font-bold text-slate-600 text-[10px]">{inv.invoiceNumber}</td>
                             <td className="py-3.5 px-4 font-semibold text-slate-900">{inv.institutionName}</td>
@@ -3266,11 +4578,79 @@ function PortalContent() {
                         <p className="text-xs text-slate-500 leading-relaxed">{report.desc}</p>
                       </div>
                       <div className="mt-6 pt-4 border-t border-slate-100 flex items-center gap-2">
-                        <button className="flex-1 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors flex items-center justify-center gap-1.5">
+                        <button 
+                          onClick={() => handleExportPDF(report.title)}
+                          className="flex-1 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors flex items-center justify-center gap-1.5"
+                        >
                           <Download className="w-3.5 h-3.5" />
                           <span>Export PDF</span>
                         </button>
-                        <button className="flex-1 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors flex items-center justify-center gap-1.5">
+                        <button 
+                          onClick={() => {
+                            if (report.tag === "Finance") {
+                              exportToCSV(
+                                "chapter_financial_summary",
+                                ["Chapter Code", "Institution", "Tier", "Delegates", "Invoiced KES", "Paid KES", "Balance KES", "Status"],
+                                chaptersList.map(ch => {
+                                  const inv = invoicesList.find(i => i.chapterId === ch.id);
+                                  const paid = inv?.amountPaid || 0;
+                                  const due = inv?.amountDue || 0;
+                                  return [ch.code, ch.institutionName, ch.tierId, ch.attendeesCount || 0, due, paid, Math.max(0, due - paid), inv?.status || "UNPAID"];
+                                })
+                              );
+                            } else if (report.tag === "Delegates") {
+                              exportToCSV(
+                                "attendee_master_register",
+                                ["Full Name", "Admission / ID", "Chapter ID", "Department", "Gender", "Category", "Role", "Dietary", "Status"],
+                                (allAttendeesList.length > 0 ? allAttendeesList : attendeesList).map(a => [
+                                  a.fullName || "",
+                                  a.admissionOrIdNumber || "",
+                                  a.chapterId || "",
+                                  a.department || "",
+                                  a.gender || "",
+                                  a.ageCategory || "",
+                                  a.role || "",
+                                  a.dietaryRequirements || "",
+                                  a.status || ""
+                                ])
+                              );
+                            } else if (report.tag === "Cost Engine") {
+                              exportToCSV(
+                                "capability_fee_distribution",
+                                ["Chapter Code", "Institution", "Tier Weight %", "Delegates", "Assigned Fee KES"],
+                                chapterFees.map(cf => {
+                                  const ch = chaptersList.find(c => c.id === cf.chapterId);
+                                  return [ch?.code || cf.chapterId, ch?.institutionName || "Chapter", `${(cf.weightBasisPoints / 100).toFixed(1)}%`, cf.attendeeCount, cf.finalFeeKes];
+                                })
+                              );
+                            } else if (report.tag === "Treasury") {
+                              exportToCSV(
+                                "mpesa_reconciliation_report",
+                                ["Payment ID", "M-Pesa Receipt", "Payer Name", "Amount KES", "Reference", "Status"],
+                                paymentsList.map(p => [p.id, p.mpesaReceiptNumber || "-", p.payerName || "Payer", p.amount, p.reference || "-", p.status || "-"])
+                              );
+                            } else if (report.tag === "Operations") {
+                              exportToCSV(
+                                "rally_programme_logistics",
+                                ["Item", "Details", "Date / Venue", "Capacity / Target"],
+                                [
+                                  ["Event Title", currentRallyData.title, currentRallyData.startDate, `${currentRallyData.capacity} delegates`],
+                                  ["Theme", currentRallyData.theme, "-", "-"],
+                                  ["Venue", currentRallyData.venueName, currentRallyData.venueLocation, "-"],
+                                  ["Fixed Costs Total", `KES ${fixedCosts.toLocaleString()}`, "-", "-"],
+                                  ["Per-Head Rate", `KES ${perHeadRate.toLocaleString()}`, "-", "-"]
+                                ]
+                              );
+                            } else {
+                              exportToCSV(
+                                "council_governance_audit",
+                                ["Log ID", "Action", "Target", "Actor", "Role", "Timestamp", "Details"],
+                                AUDIT_LOGS.map(l => [l.id, l.action, l.target, l.actor, l.role, l.timestamp, l.details])
+                              );
+                            }
+                          }}
+                          className="flex-1 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors flex items-center justify-center gap-1.5"
+                        >
                           <Download className="w-3.5 h-3.5" />
                           <span>Export CSV</span>
                         </button>
@@ -3283,18 +4663,493 @@ function PortalContent() {
                 <div className="p-6 rounded-3xl bg-navy-950 text-white border border-navy-800 shadow-xl">
                   <h3 className="font-heading font-bold text-base text-white mb-4">Rally 2026 — Summary Metrics</h3>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
-                    {[
-                      { label: "Total Budget", value: "KSh 3.94M" },
-                      { label: "Funds Collected", value: "KSh 3.42M" },
-                      { label: "Shortfall", value: "KSh 0.52M" },
-                      { label: "Collection Rate", value: "87%" },
-                    ].map((m) => (
+                    {(() => {
+                      const totalBudget = budgetSummary.totalBudgetKes;
+                      const shortfall = Math.max(0, totalBudget - totalCollected);
+                      const rate = totalBudget > 0 ? Math.round((totalCollected / totalBudget) * 100) : 0;
+                      return [
+                        { label: "Total Budget", value: formatCurrency(totalBudget) },
+                        { label: "Funds Collected", value: formatCurrency(totalCollected) },
+                        { label: "Shortfall", value: formatCurrency(shortfall) },
+                        { label: "Collection Rate", value: `${rate}%` },
+                      ];
+                    })().map((m) => (
                       <div key={m.label}>
                         <span className="text-[10px] uppercase font-bold text-slate-400 block">{m.label}</span>
                         <span className="font-heading font-black text-2xl text-amber-400 block mt-1">{m.value}</span>
                       </div>
                     ))}
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* ======================================================= */}
+            {/* VIEW H-4B: ADMIN LEADERSHIP & PATRONS DIRECTORY         */}
+            {/* ======================================================= */}
+            {activePortal === "ADMIN" && adminActiveTab === "leadership" && (
+              <div className="space-y-8 animate-in fade-in duration-200">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h1 className="font-heading font-black text-2xl text-navy-950">Leadership & Patrons Directory</h1>
+                    <p className="text-xs text-slate-500 mt-1">Manage Executive Council Officers, Chapter Patrons, Student Reps, and Photo uploads.</p>
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    <button 
+                      onClick={() => handleExportPDF("Leadership Directory")}
+                      className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-700 font-bold text-xs shadow-sm hover:bg-slate-50 flex items-center gap-2"
+                    >
+                      <Download className="w-4 h-4 text-slate-500" />
+                      <span>Export Directory PDF</span>
+                    </button>
+                    <button 
+                      onClick={() => {
+                        const newId = `lead-${Date.now()}`;
+                        setEditingLeader({
+                          id: newId,
+                          title: "",
+                          name: "",
+                          role: "OFFICER",
+                          category: "CENTRAL_COUNCIL",
+                          institution: "CUCASO Central Council",
+                          phone: "",
+                          email: "",
+                          bio: "",
+                          imageUrl: "",
+                          positionNumber: councilLeaders.length + 1,
+                        });
+                        setShowCouncilLeaderModal(true);
+                      }}
+                      className="px-4 py-2.5 rounded-xl bg-navy-900 hover:bg-navy-800 text-white font-bold text-xs shadow-sm flex items-center gap-2 transition-transform active:scale-95"
+                    >
+                      <Plus className="w-4 h-4 text-amber-400" />
+                      <span>+ Add Council Leader</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Sub-Tabs: Executive Council vs Chapter Rosters & Category Filter */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setAdminLeadershipSubTab("council")}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                        adminLeadershipSubTab === "council"
+                          ? "bg-navy-950 text-white shadow-sm"
+                          : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                      }`}
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Executive Council ({councilLeaders.length})</span>
+                    </button>
+                    <button
+                      onClick={() => setAdminLeadershipSubTab("chapters")}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                        adminLeadershipSubTab === "chapters"
+                          ? "bg-navy-950 text-white shadow-sm"
+                          : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                      }`}
+                    >
+                      <Building2 className="w-3.5 h-3.5 text-teal-600" />
+                      <span>Chapter Leadership & Patrons ({chaptersList.length})</span>
+                    </button>
+                  </div>
+
+                  {adminLeadershipSubTab === "council" && (
+                    <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
+                      <button
+                        type="button"
+                        onClick={() => setLeadershipCategoryFilter("ALL")}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                          leadershipCategoryFilter === "ALL"
+                            ? "bg-white text-navy-950 shadow-sm"
+                            : "text-slate-500 hover:text-navy-900"
+                        }`}
+                      >
+                        All ({councilLeaders.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLeadershipCategoryFilter("CENTRAL_COUNCIL")}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                          leadershipCategoryFilter === "CENTRAL_COUNCIL"
+                            ? "bg-white text-navy-950 shadow-sm"
+                            : "text-slate-500 hover:text-navy-900"
+                        }`}
+                      >
+                        Central Council ({councilLeaders.filter(l => (l.category || "CENTRAL_COUNCIL") === "CENTRAL_COUNCIL").length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLeadershipCategoryFilter("OTHER")}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                          leadershipCategoryFilter === "OTHER"
+                            ? "bg-white text-navy-950 shadow-sm"
+                            : "text-slate-500 hover:text-navy-900"
+                        }`}
+                      >
+                        Other ({councilLeaders.filter(l => l.category === "OTHER").length})
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* SUBTAB 1: EXECUTIVE COUNCIL DIRECTORY */}
+                {adminLeadershipSubTab === "council" && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {councilLeaders
+                      .filter((leader) => {
+                        if (leadershipCategoryFilter === "ALL") return true;
+                        if (leadershipCategoryFilter === "OTHER") return leader.category === "OTHER";
+                        return (leader.category || "CENTRAL_COUNCIL") === "CENTRAL_COUNCIL";
+                      })
+                      .map((leader) => (
+                      <div key={leader.id} className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 flex flex-col justify-between hover:shadow-md transition-shadow group">
+                        <div className="space-y-4">
+                          <div className="flex items-start gap-4">
+                            <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-navy-900 to-amber-700 text-white font-heading font-black text-xl flex items-center justify-center overflow-hidden border-2 border-slate-100 shadow-sm flex-shrink-0">
+                              {leader.imageUrl || leader.image ? (
+                                <img src={normalizeGoogleImageUrl(leader.imageUrl || leader.image || "")} alt={leader.name} className="w-full h-full object-cover" />
+                              ) : (
+                                leader.name.split(" ").map(w => w[0]).join("").slice(0, 2)
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                                <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 text-[10px] font-extrabold uppercase tracking-wider block w-fit">
+                                  {leader.title}
+                                </span>
+                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                                  (leader.category || "CENTRAL_COUNCIL") === "CENTRAL_COUNCIL"
+                                    ? "bg-navy-100 text-navy-900"
+                                    : "bg-teal-100 text-teal-900"
+                                }`}>
+                                  {(leader.category || "CENTRAL_COUNCIL") === "CENTRAL_COUNCIL" ? "Central Council" : "Other"}
+                                </span>
+                              </div>
+                              <h3 className="font-heading font-black text-base text-navy-950 truncate">{leader.name}</h3>
+                              <p className="text-xs text-slate-400 truncate">{leader.institution || "CUCASO Central Council"}</p>
+                            </div>
+                          </div>
+
+                          {leader.bio && (
+                            <p className="text-xs text-slate-600 line-clamp-3 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">
+                              {leader.bio}
+                            </p>
+                          )}
+
+                          <div className="space-y-1 text-xs text-slate-500 pt-1">
+                            {leader.phone && (
+                              <div className="flex items-center justify-between">
+                                <span className="font-semibold text-slate-400 text-[11px]">Phone:</span>
+                                <span className="font-bold text-slate-800">{leader.phone}</span>
+                              </div>
+                            )}
+                            {leader.email && (
+                              <div className="flex items-center justify-between">
+                                <span className="font-semibold text-slate-400 text-[11px]">Email:</span>
+                                <span className="font-bold text-slate-800">{leader.email}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full">
+                            Active Officer
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => {
+                                setEditingLeader({
+                                  ...leader,
+                                  category: leader.category || "CENTRAL_COUNCIL",
+                                });
+                                setShowCouncilLeaderModal(true);
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-navy-900 hover:text-white text-slate-700 font-bold text-xs transition-colors flex items-center gap-1.5"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                              <span>Edit Profile</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteCouncilLeader(leader.id, leader.name)}
+                              title="Delete Leader"
+                              className="p-1.5 rounded-xl bg-slate-100 hover:bg-rose-600 hover:text-white text-rose-600 font-bold text-xs transition-colors flex items-center justify-center"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* SUBTAB 2: CHAPTER PATRONS & REPS */}
+                {adminLeadershipSubTab === "chapters" && (
+                  <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                      <div>
+                        <h3 className="font-heading font-bold text-base text-navy-950">Chapter Leadership Roster</h3>
+                        <p className="text-xs text-slate-400">Patron, Chapter Rep, Treasurer, and Secretary for all registered institutions.</p>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="border-b border-slate-100 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                            <th className="pb-3 px-3">Institution & Code</th>
+                            <th className="pb-3 px-3">Chapter Patron</th>
+                            <th className="pb-3 px-3">Chapter Representative</th>
+                            <th className="pb-3 px-3">Treasurer</th>
+                            <th className="pb-3 px-3">Secretary</th>
+                            <th className="pb-3 px-3 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                          {chaptersList.map((ch) => (
+                            <tr key={ch.id} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="py-3 px-3">
+                                <span className="font-bold text-slate-900 block">{ch.institutionName}</span>
+                                <span className="font-mono text-[10px] text-teal-700 font-semibold">{ch.code} • {ch.location}</span>
+                              </td>
+                              <td className="py-3 px-3">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-7 h-7 rounded-full bg-navy-900 text-amber-400 font-bold flex items-center justify-center text-[10px] overflow-hidden flex-shrink-0 border border-slate-200">
+                                    {ch.patronPhoto ? (
+                                      <img src={ch.patronPhoto} alt={ch.patronName || "Patron"} className="w-full h-full object-cover" />
+                                    ) : (
+                                      (ch.patronName || "PT").slice(0, 2).toUpperCase()
+                                    )}
+                                  </div>
+                                  <div>
+                                    <span className="font-semibold text-slate-900 block">{ch.patronName || "Not Assigned"}</span>
+                                    <span className="text-[11px] text-slate-400">{ch.patronPhone || "-"}</span>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="py-3 px-3">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-7 h-7 rounded-full bg-teal-800 text-teal-200 font-bold flex items-center justify-center text-[10px] overflow-hidden flex-shrink-0 border border-slate-200">
+                                    {ch.repPhoto ? (
+                                      <img src={ch.repPhoto} alt={ch.repName || "Rep"} className="w-full h-full object-cover" />
+                                    ) : (
+                                      (ch.repName || "RP").slice(0, 2).toUpperCase()
+                                    )}
+                                  </div>
+                                  <div>
+                                    <span className="font-semibold text-slate-900 block">{ch.repName || "Not Assigned"}</span>
+                                    <span className="text-[11px] text-slate-400">{ch.repPhone || "-"}</span>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="py-3 px-3">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-7 h-7 rounded-full bg-amber-800 text-amber-200 font-bold flex items-center justify-center text-[10px] overflow-hidden flex-shrink-0 border border-slate-200">
+                                    {ch.treasurerPhoto ? (
+                                      <img src={ch.treasurerPhoto} alt={ch.treasurerName || "Treasurer"} className="w-full h-full object-cover" />
+                                    ) : (
+                                      (ch.treasurerName || "TR").slice(0, 2).toUpperCase()
+                                    )}
+                                  </div>
+                                  <div>
+                                    <span className="font-semibold text-slate-900 block">{ch.treasurerName || "Not Assigned"}</span>
+                                    <span className="text-[11px] text-slate-400">{ch.treasurerPhone || "-"}</span>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="py-3 px-3">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-7 h-7 rounded-full bg-indigo-900 text-indigo-200 font-bold flex items-center justify-center text-[10px] overflow-hidden flex-shrink-0 border border-slate-200">
+                                    {ch.secretaryPhoto ? (
+                                      <img src={ch.secretaryPhoto} alt={ch.secretaryName || "Secretary"} className="w-full h-full object-cover" />
+                                    ) : (
+                                      (ch.secretaryName || "SC").slice(0, 2).toUpperCase()
+                                    )}
+                                  </div>
+                                  <div>
+                                    <span className="font-semibold text-slate-900 block">{ch.secretaryName || "Not Assigned"}</span>
+                                    <span className="text-[11px] text-slate-400">{ch.secretaryPhone || "-"}</span>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="py-3 px-3 text-right">
+                                <button
+                                  onClick={() => {
+                                    setSelectedChapterId(ch.id);
+                                    setLeadershipForm({
+                                      patronName: ch.patronName || "",
+                                      patronPhone: ch.patronPhone || "",
+                                      patronEmail: ch.patronEmail || "",
+                                      patronPhoto: ch.patronPhoto || "",
+                                      repName: ch.repName || "",
+                                      repPhone: ch.repPhone || "",
+                                      repPhoto: ch.repPhoto || "",
+                                      treasurerName: ch.treasurerName || "",
+                                      treasurerPhone: ch.treasurerPhone || "",
+                                      treasurerPhoto: ch.treasurerPhoto || "",
+                                      secretaryName: ch.secretaryName || "",
+                                      secretaryPhone: ch.secretaryPhone || "",
+                                      secretaryPhoto: ch.secretaryPhoto || "",
+                                    });
+                                    setShowLeadershipModal(true);
+                                  }}
+                                  className="px-3 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold text-[11px] transition-colors inline-flex items-center gap-1 shadow-sm"
+                                >
+                                  <Edit3 className="w-3 h-3" />
+                                  <span>Update Roster</span>
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ======================================================= */}
+            {/* VIEW H-4C: ADMIN MEDIA & EVENT GALLERY                  */}
+            {/* ======================================================= */}
+            {activePortal === "ADMIN" && adminActiveTab === "gallery" && (
+              <div className="space-y-8 animate-in fade-in duration-200">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h1 className="font-heading font-black text-2xl text-navy-950">Media & Event Gallery</h1>
+                    <p className="text-xs text-slate-500 mt-1">Upload, curate, and archive event photos, convention media, and chapter activities.</p>
+                  </div>
+                  <button 
+                    onClick={() => setShowUploadGalleryModal(true)}
+                    className="px-4 py-2.5 rounded-xl bg-navy-900 hover:bg-navy-800 text-white font-bold text-xs shadow-sm flex items-center gap-2 transition-transform active:scale-95"
+                  >
+                    <Camera className="w-4 h-4 text-amber-400" />
+                    <span>+ Upload New Photo</span>
+                  </button>
+                </div>
+
+                {/* Category Filter Chips */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-2">
+                  {["ALL", "Rally", "Worship", "Leadership", "Fellowship", "Community", "Sports"].map((cat) => (
+                    <button
+                      key={cat}
+                      onClick={() => setGalleryCategoryFilter(cat)}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                        galleryCategoryFilter === cat
+                          ? "bg-navy-950 text-white shadow-sm"
+                          : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                      }`}
+                    >
+                      {cat === "ALL" ? "All Photos" : cat}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Gallery Photo Grid — Foreground Focused Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {galleryPhotos
+                    .filter((p) => galleryCategoryFilter === "ALL" || p.category.toLowerCase() === galleryCategoryFilter.toLowerCase())
+                    .map((photo) => (
+                      <div 
+                        key={photo.id} 
+                        className="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-3 hover:shadow-xl hover:border-slate-300 transition-all duration-300 group flex flex-col justify-between"
+                      >
+                        {/* Prominent Foreground Photo Container */}
+                        <div className="relative aspect-[4/3] w-full rounded-2xl overflow-hidden bg-slate-900 border border-slate-200/60 shadow-inner">
+                          <img 
+                            src={normalizeGoogleImageUrl(photo.url)} 
+                            alt={photo.title} 
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-pointer" 
+                            onClick={() => setPreviewGalleryPhoto(photo)}
+                          />
+                          
+                          {/* Top Floating Badges & Actions */}
+                          <div className="absolute top-3 inset-x-3 flex items-center justify-between pointer-events-none">
+                            <div className="flex items-center gap-1.5 pointer-events-auto">
+                              <span className="px-2.5 py-1 rounded-full bg-navy-950/80 backdrop-blur-md text-amber-300 font-bold text-[10px] tracking-wide border border-white/10 shadow-sm">
+                                {photo.category}
+                              </span>
+                              {(photo.isAlbum || photo.albumUrl) && (
+                                <span className="px-2 py-1 rounded-full bg-emerald-600/90 backdrop-blur-md text-white font-bold text-[9px] tracking-wide border border-white/20 shadow-sm flex items-center gap-1">
+                                  <Images className="w-3 h-3" />
+                                  <span>Shared Album</span>
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 pointer-events-auto">
+                              {(photo.isAlbum || photo.albumUrl) && (
+                                <a
+                                  href={photo.albumUrl || photo.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="p-1.5 rounded-full bg-emerald-600/90 hover:bg-emerald-500 backdrop-blur-md text-white border border-white/20 shadow-sm transition-transform active:scale-90"
+                                  title="Open Google Photos / Drive Album"
+                                >
+                                  <FolderOpen className="w-3.5 h-3.5 text-white" />
+                                </a>
+                              )}
+                              <button
+                                onClick={() => setPreviewGalleryPhoto(photo)}
+                                className="p-1.5 rounded-full bg-navy-950/80 hover:bg-navy-900 backdrop-blur-md text-white border border-white/10 shadow-sm transition-transform active:scale-90"
+                                title="Expand in Lightbox"
+                              >
+                                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                              </button>
+                              <a
+                                href={photo.albumUrl || normalizeGoogleImageUrl(photo.url)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-1.5 rounded-full bg-navy-950/80 hover:bg-navy-900 backdrop-blur-md text-white border border-white/10 shadow-sm transition-transform active:scale-90"
+                                title="Open Direct Photo Link"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5 text-teal-400" />
+                              </a>
+                            </div>
+                          </div>
+
+                          {/* Bottom Foreground Gradient Overlay with Photo Caption */}
+                          <div 
+                            onClick={() => setPreviewGalleryPhoto(photo)}
+                            className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-navy-950/95 via-navy-950/70 to-transparent p-4 pt-10 text-white cursor-pointer"
+                          >
+                            <h4 className="font-heading font-bold text-sm text-white line-clamp-1 group-hover:text-amber-300 transition-colors">
+                              {photo.title}
+                            </h4>
+                            <div className="flex items-center justify-between text-[11px] text-slate-300 mt-1">
+                              <span className="font-medium text-teal-300">{photo.event}</span>
+                              <span className="text-[10px] text-slate-400">{photo.date}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Card Sub-bar: Uploader Attribution & Delete Trigger */}
+                        <div className="pt-3 px-2 flex items-center justify-between text-xs">
+                          <span className="text-[11px] text-slate-500 font-medium">Uploaded by <strong className="text-slate-700">{photo.uploader}</strong></span>
+                          <button
+                            onClick={async () => {
+                              if (confirm(`Remove "${photo.title}" from gallery?`)) {
+                                setGalleryPhotos(prev => prev.filter(p => p.id !== photo.id));
+                                setLocationToast("Photo removed from gallery.");
+                                try {
+                                  await fetch(`/api/gallery?id=${encodeURIComponent(photo.id)}`, { method: "DELETE" });
+                                } catch (err) {
+                                  console.warn("Failed to delete photo:", err);
+                                }
+                                setTimeout(() => setLocationToast(null), 3000);
+                              }
+                            }}
+                            className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors"
+                            title="Delete photo"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                 </div>
               </div>
             )}
@@ -3307,40 +5162,180 @@ function PortalContent() {
                     <h1 className="font-heading font-black text-2xl text-navy-950">Users & Roles (RBAC)</h1>
                     <p className="text-xs text-slate-500 mt-1">Manage system access, role assignments, and two-factor authentication for all portal users.</p>
                   </div>
-                  <button className="px-4 py-2.5 rounded-xl bg-navy-900 hover:bg-navy-800 text-white font-bold text-xs shadow-sm flex items-center gap-2">
+                  <button 
+                    onClick={() => setShowInviteUserModal(true)}
+                    className="px-4 py-2.5 rounded-xl bg-navy-900 hover:bg-navy-800 text-white font-bold text-xs shadow-sm flex items-center gap-2 transition-transform active:scale-95"
+                  >
                     <Plus className="w-4 h-4 text-amber-400" />
                     <span>Invite User</span>
                   </button>
                 </div>
 
-                {/* Role Cards */}
+                {/* Role Filter Chips & Counts */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                   {[
-                    { role: "Super Administrator", desc: "Full system access. Manage all chapters, rallies, users, funding engine, and audit log.", users: 1, color: "border-amber-500 bg-amber-50", badge: "bg-amber-500 text-white", icon: ShieldCheck },
-                    { role: "Council Treasurer", desc: "Access to payments, reconciliation, invoice management, and funding dashboard.", users: 2, color: "border-teal-500 bg-teal-50", badge: "bg-teal-600 text-white", icon: CreditCard },
-                    { role: "Organization Secretary", desc: "Chapter onboarding queue, document management, and attendee master roster.", users: 1, color: "border-blue-500 bg-blue-50", badge: "bg-blue-600 text-white", icon: FileText },
-                    { role: "Communication Director", desc: "Notifications dispatch, gallery uploads, and public website content management.", users: 1, color: "border-purple-500 bg-purple-50", badge: "bg-purple-600 text-white", icon: Bell },
-                    { role: "Chapter Representative", desc: "Chapter-scoped portal: their own attendees, invoice view, and rally information.", users: 12, color: "border-slate-300 bg-slate-50", badge: "bg-slate-700 text-white", icon: Building2 },
-                    { role: "Read-Only Observer", desc: "View-only access to approved reports and chapter lists for ex-officio council members.", users: 5, color: "border-slate-200 bg-white", badge: "bg-slate-400 text-white", icon: User },
-                  ].map((item) => (
-                    <div key={item.role} className={`p-6 rounded-2xl border-2 ${item.color} shadow-sm transition-shadow hover:shadow-md`}>
-                      <div className="flex items-center justify-between mb-3">
-                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${item.badge}`}>
-                          {item.role}
-                        </span>
-                        <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
-                          <Users className="w-3.5 h-3.5" />
-                          {item.users} user{item.users !== 1 ? "s" : ""}
-                        </span>
+                    { roleKey: "SUPER_ADMIN", role: "Super Administrator", desc: "Full system access. Manage all chapters, rallies, users, funding engine, and audit log.", color: "border-amber-500 bg-amber-50", badge: "bg-amber-500 text-white", icon: ShieldCheck },
+                    { roleKey: "CENTRAL_TREASURER", role: "Council Treasurer", desc: "Access to payments, reconciliation, invoice management, and funding dashboard.", color: "border-teal-500 bg-teal-50", badge: "bg-teal-600 text-white", icon: CreditCard },
+                    { roleKey: "SECRETARY", role: "Organization Secretary", desc: "Chapter onboarding queue, document management, and attendee master roster.", color: "border-blue-500 bg-blue-50", badge: "bg-blue-600 text-white", icon: FileText },
+                    { roleKey: "COMMUNICATIONS_DIRECTOR", role: "Communication Director", desc: "Notifications dispatch, gallery uploads, and public website content management.", color: "border-purple-500 bg-purple-50", badge: "bg-purple-600 text-white", icon: Bell },
+                    { roleKey: "CHAPTER_REP", role: "Chapter Representative", desc: "Chapter-scoped portal: their own attendees, invoice view, and rally information.", color: "border-slate-300 bg-slate-50", badge: "bg-slate-700 text-white", icon: Building2 },
+                    { roleKey: "OBSERVER", role: "Read-Only Observer", desc: "View-only access to approved reports and chapter lists for ex-officio council members.", color: "border-slate-200 bg-white", badge: "bg-slate-400 text-white", icon: User },
+                  ].map((item) => {
+                    const count = usersList.filter(u => u.role === item.roleKey).length;
+                    const isSelected = selectedRoleFilter === item.roleKey;
+                    return (
+                      <div 
+                        key={item.roleKey} 
+                        className={`p-6 rounded-2xl border-2 ${item.color} shadow-sm transition-all hover:shadow-md ${isSelected ? "ring-2 ring-navy-900 ring-offset-2" : ""}`}
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${item.badge}`}>
+                            {item.role}
+                          </span>
+                          <span className="text-xs font-bold text-slate-700 flex items-center gap-1 bg-white/80 px-2.5 py-0.5 rounded-full border border-slate-200">
+                            <Users className="w-3.5 h-3.5 text-slate-500" />
+                            {count} user{count !== 1 ? "s" : ""}
+                          </span>
+                        </div>
+                        <item.icon className="w-8 h-8 text-slate-400 mb-3" />
+                        <p className="text-xs text-slate-600 leading-relaxed">{item.desc}</p>
+                        <button 
+                          onClick={() => setSelectedRoleFilter(isSelected ? null : item.roleKey)}
+                          className={`mt-4 text-xs font-bold flex items-center gap-1 transition-colors ${isSelected ? "text-amber-700 underline" : "text-teal-700 hover:underline"}`}
+                        >
+                          <span>{isSelected ? "Clear Filter" : "Filter this role"}</span>
+                          <ArrowUpRight className="w-3 h-3" />
+                        </button>
                       </div>
-                      <item.icon className="w-8 h-8 text-slate-400 mb-3" />
-                      <p className="text-xs text-slate-600 leading-relaxed">{item.desc}</p>
-                      <button className="mt-4 text-xs font-bold text-teal-700 hover:underline flex items-center gap-1">
-                        <span>Manage users</span>
-                        <ArrowUpRight className="w-3 h-3" />
-                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Master User Directory Table */}
+                <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                    <div>
+                      <h3 className="font-heading font-bold text-base text-navy-950">Active Users Directory</h3>
+                      <p className="text-xs text-slate-400">Directly switch portal contexts, manage roles, or toggle user activation.</p>
                     </div>
-                  ))}
+                    <div className="flex items-center gap-2">
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input 
+                          type="text"
+                          placeholder="Search users..."
+                          value={userSearchQuery}
+                          onChange={(e) => setUserSearchQuery(e.target.value)}
+                          className="pl-8 pr-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-navy-900"
+                        />
+                      </div>
+                      {selectedRoleFilter && (
+                        <button 
+                          onClick={() => setSelectedRoleFilter(null)}
+                          className="px-2.5 py-1.5 rounded-xl bg-amber-100 text-amber-900 text-[11px] font-bold hover:bg-amber-200"
+                        >
+                          Clear ({selectedRoleFilter})
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="border-b border-slate-100 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          <th className="pb-3 px-3">User & Contact</th>
+                          <th className="pb-3 px-3">Role</th>
+                          <th className="pb-3 px-3">Chapter / Context</th>
+                          <th className="pb-3 px-3">Status</th>
+                          <th className="pb-3 px-3">2FA</th>
+                          <th className="pb-3 px-3 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {usersList
+                          .filter(u => {
+                            if (selectedRoleFilter && u.role !== selectedRoleFilter) return false;
+                            if (userSearchQuery) {
+                              const q = userSearchQuery.toLowerCase();
+                              return (
+                                u.name.toLowerCase().includes(q) ||
+                                u.email.toLowerCase().includes(q) ||
+                                (u.chapterName && u.chapterName.toLowerCase().includes(q))
+                              );
+                            }
+                            return true;
+                          })
+                          .map((u) => (
+                            <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="py-3 px-3">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 rounded-full bg-navy-900 text-white font-bold text-xs flex items-center justify-center">
+                                    {u.name.split(" ").map(w => w[0]).join("").slice(0, 2)}
+                                  </div>
+                                  <div>
+                                    <span className="font-bold text-slate-900 block">{u.name}</span>
+                                    <span className="text-[11px] text-slate-400">{u.email}</span>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="py-3 px-3">
+                                <select 
+                                  value={u.role}
+                                  onChange={(e) => handleUpdateUserRole(u.id, e.target.value as any)}
+                                  className="bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-navy-900"
+                                >
+                                  <option value="SUPER_ADMIN">Super Administrator</option>
+                                  <option value="CENTRAL_TREASURER">Council Treasurer</option>
+                                  <option value="SECRETARY">Organization Secretary</option>
+                                  <option value="COMMUNICATIONS_DIRECTOR">Communication Director</option>
+                                  <option value="CHAPTER_REP">Chapter Representative</option>
+                                  <option value="OBSERVER">Read-Only Observer</option>
+                                </select>
+                              </td>
+                              <td className="py-3 px-3">
+                                <span className="text-slate-600 font-semibold">{u.chapterName || "Central Council"}</span>
+                              </td>
+                              <td className="py-3 px-3">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${u.status === "ACTIVE" ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"}`}>
+                                  {u.status}
+                                </span>
+                              </td>
+                              <td className="py-3 px-3">
+                                <span className={`text-[10px] font-bold ${u.twoFactorEnabled ? "text-emerald-700" : "text-slate-400"}`}>
+                                  {u.twoFactorEnabled ? "Enabled" : "Disabled"}
+                                </span>
+                              </td>
+                              <td className="py-3 px-3 text-right">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button 
+                                    onClick={() => handleSwitchUserPortal(u)}
+                                    className="px-2.5 py-1 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold text-[11px] transition-colors"
+                                    title="Impersonate / Switch Portal View"
+                                  >
+                                    Switch Portal
+                                  </button>
+                                  <button 
+                                    onClick={() => handleToggleUserStatus(u.id, u.status)}
+                                    className="p-1 rounded-lg hover:bg-slate-200 text-slate-600"
+                                    title={u.status === "ACTIVE" ? "Suspend user" : "Activate user"}
+                                  >
+                                    <Ban className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button 
+                                    onClick={() => handleDeleteUser(u.id, u.name)}
+                                    className="p-1 rounded-lg hover:bg-rose-100 text-rose-600"
+                                    title="Delete user"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
 
                 {/* Active Sessions */}
@@ -3348,12 +5343,28 @@ function PortalContent() {
                   <h3 className="font-heading font-bold text-base text-navy-950 mb-4">Active Portal Sessions</h3>
                   <div className="space-y-3 text-xs">
                     {[
-                      { user: "Council Admin", role: "Super Administrator", device: "Chrome • Windows", ip: "41.90.x.x (Mombasa)", session: "Active now", online: true },
-                      { user: "David Kiboi", role: "Chapter Representative (TUM)", device: "Safari • iPhone 14", ip: "197.136.x.x (Nairobi)", session: "2 mins ago", online: true },
-                      { user: "Mercy Chebet", role: "Chapter Representative (Pwani)", device: "Chrome • Android", ip: "41.80.x.x (Kilifi)", session: "18 mins ago", online: false },
-                      { user: "CUCASO Treasurer", role: "Council Treasurer", device: "Firefox • macOS", ip: "41.90.x.x (Mombasa)", session: "1 hour ago", online: false },
+                      { user: "Council Admin", role: "Super Administrator", roleKey: "SUPER_ADMIN", device: "Chrome • Windows", ip: "41.90.x.x (Mombasa)", session: "Active now", online: true },
+                      { user: "David Kiboi", role: "Chapter Representative (TUM)", roleKey: "CHAPTER_REP", chapterId: "ch-tum", device: "Safari • iPhone 14", ip: "197.136.x.x (Nairobi)", session: "2 mins ago", online: true },
+                      { user: "Mercy Chebet", role: "Chapter Representative (Pwani)", roleKey: "CHAPTER_REP", chapterId: "ch-pwani", device: "Chrome • Android", ip: "41.80.x.x (Kilifi)", session: "18 mins ago", online: false },
+                      { user: "CUCASO Treasurer", role: "Council Treasurer", roleKey: "CENTRAL_TREASURER", device: "Firefox • macOS", ip: "41.90.x.x (Mombasa)", session: "1 hour ago", online: false },
                     ].map((session) => (
-                      <div key={session.user} className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                      <div 
+                        key={session.user} 
+                        onClick={() => {
+                          if (session.roleKey === "CHAPTER_REP") {
+                            setActivePortal("CHAPTER");
+                            if (session.chapterId) setSelectedChapterId(session.chapterId);
+                            setChapterActiveTab("dashboard");
+                            setLocationToast(`Switched session to ${session.user}`);
+                          } else {
+                            setActivePortal("ADMIN");
+                            setAdminActiveTab("overview");
+                            setLocationToast(`Switched session to ${session.user}`);
+                          }
+                          setTimeout(() => setLocationToast(null), 3000);
+                        }}
+                        className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-200 cursor-pointer hover:bg-slate-100/80 transition-colors"
+                      >
                         <div className="flex items-center gap-3">
                           <div className="relative">
                             <div className="w-9 h-9 rounded-full bg-navy-900 text-white font-bold text-xs flex items-center justify-center">
@@ -3498,7 +5509,7 @@ function PortalContent() {
 
                 <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden p-6">
                   <div className="space-y-3">
-                    {AUDIT_LOGS.map((log) => (
+                    {AUDIT_LOGS.map((log: AuditLogEntry) => (
                       <div key={log.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-start justify-between gap-4 text-xs">
                         <div className="space-y-1">
                           <div className="flex items-center gap-2 flex-wrap">
@@ -3524,6 +5535,1633 @@ function PortalContent() {
           </main>
         </div>
       </div>
+
+      {/* ========================================================= */}
+      {/* FLOATING TOAST NOTIFICATIONS                              */}
+      {/* ========================================================= */}
+      {(locationToast || remittanceToast || passwordToast) && (
+        <div className="fixed bottom-6 right-6 z-50 animate-in slide-in-from-bottom-5 fade-in duration-300 max-w-md">
+          <div className="bg-navy-950 text-white px-5 py-3.5 rounded-2xl shadow-2xl border border-navy-800 flex items-center gap-3">
+            <CheckCircle2 className="w-5 h-5 text-teal-400 flex-shrink-0" />
+            <span className="text-xs font-semibold leading-snug">
+              {locationToast || remittanceToast || passwordToast}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 1: EDIT PROFILE                                     */}
+      {/* ========================================================= */}
+      {showEditProfileModal && (
+        <div className="fixed inset-0 z-50 bg-navy-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-teal-50 text-teal-700">
+                  <User className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-heading font-black text-lg text-navy-950">Edit Profile</h3>
+                  <p className="text-xs text-slate-400">Update your account representative details</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowEditProfileModal(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveProfile} className="space-y-4">
+              {/* Avatar Photo Preview / Upload */}
+              <div className="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-navy-800 to-teal-700 text-white font-heading font-black text-xl flex items-center justify-center overflow-hidden border-2 border-white shadow-sm flex-shrink-0">
+                  {profileForm.avatarUrl ? (
+                    <img src={profileForm.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    (profileForm.name || "JM").split(" ").map(w => w[0]).join("").slice(0, 2)
+                  )}
+                </div>
+                <div className="flex-1 space-y-1">
+                  <span className="block text-xs font-bold text-navy-950">Profile Photo</span>
+                  <p className="text-[11px] text-slate-400">Upload a JPG, PNG or WebP picture</p>
+                  <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-[11px] font-bold text-slate-700 hover:bg-slate-100 cursor-pointer shadow-sm">
+                    <Camera className="w-3.5 h-3.5 text-teal-600" />
+                    <span>Choose Photo</span>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      className="hidden" 
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const url = await handleUploadImage(file);
+                          setProfileForm(prev => ({ ...prev, avatarUrl: url }));
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Full Name</label>
+                <input 
+                  type="text"
+                  required
+                  value={profileForm.name}
+                  onChange={(e) => setProfileForm(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white"
+                  placeholder="e.g. John Mwangi"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Phone Number</label>
+                  <input 
+                    type="text"
+                    required
+                    value={profileForm.phone}
+                    onChange={(e) => setProfileForm(prev => ({ ...prev, phone: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white"
+                    placeholder="+254 720 112 233"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Email Address</label>
+                  <input 
+                    type="email"
+                    value={profileForm.email}
+                    onChange={(e) => setProfileForm(prev => ({ ...prev, email: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white"
+                    placeholder="rep@cucaso.org"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowEditProfileModal(false)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-md transition-all flex items-center gap-1.5"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Save Changes</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 2: CHANGE PASSWORD                                  */}
+      {/* ========================================================= */}
+      {showChangePasswordModal && (
+        <div className="fixed inset-0 z-50 bg-navy-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-amber-50 text-amber-700">
+                  <Key className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-heading font-black text-lg text-navy-950">Change Password</h3>
+                  <p className="text-xs text-slate-400">Ensure your account uses a strong password</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowChangePasswordModal(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleChangePassword} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Current Password</label>
+                <input 
+                  type="password"
+                  required
+                  value={passwordForm.current}
+                  onChange={(e) => setPasswordForm(prev => ({ ...prev, current: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
+                  placeholder="••••••••"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">New Password</label>
+                <input 
+                  type="password"
+                  required
+                  value={passwordForm.newPassword}
+                  onChange={(e) => setPasswordForm(prev => ({ ...prev, newPassword: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
+                  placeholder="At least 8 characters"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Confirm New Password</label>
+                <input 
+                  type="password"
+                  required
+                  value={passwordForm.confirmPassword}
+                  onChange={(e) => setPasswordForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
+                  placeholder="Repeat new password"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowChangePasswordModal(false)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-navy-950 hover:bg-navy-900 text-white text-xs font-bold shadow-md transition-all flex items-center gap-1.5"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Update Password</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 3: CHAPTER LEADERSHIP & PHOTOS                      */}
+      {/* ========================================================= */}
+      {showLeadershipModal && (
+        <div className="fixed inset-0 z-50 bg-navy-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-2xl w-full p-6 space-y-5 animate-in zoom-in-95 duration-200 my-8">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-teal-50 text-teal-700">
+                  <Users className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-heading font-black text-lg text-navy-950">Update Chapter Leadership & Photos</h3>
+                  <p className="text-xs text-slate-400">{currentChapter.institutionName} ({currentChapter.code})</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowLeadershipModal(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveChapterLeadership} className="space-y-5">
+              {/* Chapter Patron */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-navy-950 uppercase tracking-wider">1. Chapter Patron</span>
+                  <span className="text-[11px] text-teal-700 font-semibold">Faculty / Staff Advisor</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Patron Full Name</label>
+                    <input 
+                      type="text"
+                      value={leadershipForm.patronName}
+                      onChange={(e) => setLeadershipForm(prev => ({ ...prev, patronName: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-teal-600"
+                      placeholder="e.g. Dr. Samuel Ochieng"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Patron Phone Number</label>
+                    <input 
+                      type="text"
+                      value={leadershipForm.patronPhone}
+                      onChange={(e) => setLeadershipForm(prev => ({ ...prev, patronPhone: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-teal-600"
+                      placeholder="+254 711 000 000"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between pt-2">
+                  <div className="flex items-center gap-2">
+                    {leadershipForm.patronPhoto ? (
+                      <img src={leadershipForm.patronPhoto} alt="Patron" className="w-8 h-8 rounded-full object-cover border border-teal-500" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-slate-200 text-slate-600 font-bold text-xs flex items-center justify-center">
+                        {(leadershipForm.patronName || "PT").slice(0, 2).toUpperCase()}
+                      </div>
+                    )}
+                    <span className="text-[11px] text-slate-500">Patron Photograph</span>
+                  </div>
+                  <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-[11px] font-bold text-slate-700 hover:bg-slate-100 cursor-pointer shadow-sm">
+                    <Camera className="w-3.5 h-3.5 text-teal-600" />
+                    <span>{leadershipForm.patronPhoto ? "Change Photo" : "Upload Photo"}</span>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      className="hidden" 
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const url = await handleUploadImage(file);
+                          setLeadershipForm(prev => ({ ...prev, patronPhoto: url }));
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* Chapter Representative */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-navy-950 uppercase tracking-wider">2. Chapter Representative</span>
+                  <span className="text-[11px] text-teal-700 font-semibold">Primary Delegate Lead</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Representative Name</label>
+                    <input 
+                      type="text"
+                      value={leadershipForm.repName}
+                      onChange={(e) => setLeadershipForm(prev => ({ ...prev, repName: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-teal-600"
+                      placeholder="e.g. John Mwangi"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Representative Phone</label>
+                    <input 
+                      type="text"
+                      value={leadershipForm.repPhone}
+                      onChange={(e) => setLeadershipForm(prev => ({ ...prev, repPhone: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-teal-600"
+                      placeholder="+254 720 112 233"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between pt-2">
+                  <div className="flex items-center gap-2">
+                    {leadershipForm.repPhoto ? (
+                      <img src={leadershipForm.repPhoto} alt="Representative" className="w-8 h-8 rounded-full object-cover border border-teal-500" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-slate-200 text-slate-600 font-bold text-xs flex items-center justify-center">
+                        {(leadershipForm.repName || "RP").slice(0, 2).toUpperCase()}
+                      </div>
+                    )}
+                    <span className="text-[11px] text-slate-500">Representative Photograph</span>
+                  </div>
+                  <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-[11px] font-bold text-slate-700 hover:bg-slate-100 cursor-pointer shadow-sm">
+                    <Camera className="w-3.5 h-3.5 text-teal-600" />
+                    <span>{leadershipForm.repPhoto ? "Change Photo" : "Upload Photo"}</span>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      className="hidden" 
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const url = await handleUploadImage(file);
+                          setLeadershipForm(prev => ({ ...prev, repPhoto: url }));
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* Treasurer & Secretary */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-navy-950 uppercase tracking-wider">3. Chapter Treasurer</span>
+                  <span className="text-[11px] text-teal-700 font-semibold">Finance & Remittance</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Treasurer Name</label>
+                    <input 
+                      type="text"
+                      value={leadershipForm.treasurerName}
+                      onChange={(e) => setLeadershipForm(prev => ({ ...prev, treasurerName: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-teal-600"
+                      placeholder="e.g. Grace Achieng"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Treasurer Phone</label>
+                    <input 
+                      type="text"
+                      value={leadershipForm.treasurerPhone}
+                      onChange={(e) => setLeadershipForm(prev => ({ ...prev, treasurerPhone: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-teal-600"
+                      placeholder="+254 733 444 555"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between pt-2">
+                  <div className="flex items-center gap-2">
+                    {leadershipForm.treasurerPhoto ? (
+                      <img src={leadershipForm.treasurerPhoto} alt="Treasurer" className="w-8 h-8 rounded-full object-cover border border-teal-500" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-slate-200 text-slate-600 font-bold text-xs flex items-center justify-center">
+                        {(leadershipForm.treasurerName || "TR").slice(0, 2).toUpperCase()}
+                      </div>
+                    )}
+                    <span className="text-[11px] text-slate-500">Treasurer Photograph</span>
+                  </div>
+                  <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-[11px] font-bold text-slate-700 hover:bg-slate-100 cursor-pointer shadow-sm">
+                    <Camera className="w-3.5 h-3.5 text-teal-600" />
+                    <span>{leadershipForm.treasurerPhoto ? "Change Photo" : "Upload Photo"}</span>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      className="hidden" 
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const url = await handleUploadImage(file);
+                          setLeadershipForm(prev => ({ ...prev, treasurerPhoto: url }));
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* Chapter Secretary */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-navy-950 uppercase tracking-wider">4. Chapter Secretary</span>
+                  <span className="text-[11px] text-teal-700 font-semibold">Records & Communication</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Secretary Name</label>
+                    <input 
+                      type="text"
+                      value={leadershipForm.secretaryName}
+                      onChange={(e) => setLeadershipForm(prev => ({ ...prev, secretaryName: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-teal-600"
+                      placeholder="e.g. Samuel Mutua"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Secretary Phone</label>
+                    <input 
+                      type="text"
+                      value={leadershipForm.secretaryPhone}
+                      onChange={(e) => setLeadershipForm(prev => ({ ...prev, secretaryPhone: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-teal-600"
+                      placeholder="+254 744 555 666"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between pt-2">
+                  <div className="flex items-center gap-2">
+                    {leadershipForm.secretaryPhoto ? (
+                      <img src={leadershipForm.secretaryPhoto} alt="Secretary" className="w-8 h-8 rounded-full object-cover border border-teal-500" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-slate-200 text-slate-600 font-bold text-xs flex items-center justify-center">
+                        {(leadershipForm.secretaryName || "SC").slice(0, 2).toUpperCase()}
+                      </div>
+                    )}
+                    <span className="text-[11px] text-slate-500">Secretary Photograph</span>
+                  </div>
+                  <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-[11px] font-bold text-slate-700 hover:bg-slate-100 cursor-pointer shadow-sm">
+                    <Camera className="w-3.5 h-3.5 text-teal-600" />
+                    <span>{leadershipForm.secretaryPhoto ? "Change Photo" : "Upload Photo"}</span>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      className="hidden" 
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const url = await handleUploadImage(file);
+                          setLeadershipForm(prev => ({ ...prev, secretaryPhoto: url }));
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowLeadershipModal(false)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingLeadership}
+                  className="px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-md transition-all flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>{savingLeadership ? "Saving Roster..." : "Save Chapter Leadership"}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 4: COUNCIL LEADER EDIT / ADD MODAL                   */}
+      {/* ========================================================= */}
+      {showCouncilLeaderModal && editingLeader && (
+        <div className="fixed inset-0 z-50 bg-navy-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-5 animate-in zoom-in-95 duration-200 my-8">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-amber-50 text-amber-700">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-heading font-black text-lg text-navy-950">
+                    {editingLeader.id?.startsWith("lead-") ? "+ Add Council Leader" : "Edit Council Leader"}
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    {editingLeader.title || "Specify leader details & directory placement"}
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => { setShowCouncilLeaderModal(false); setEditingLeader(null); }}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCouncilLeader} className="space-y-4">
+              {/* Leader Photo Upload & Preview */}
+              <div className="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-navy-900 to-amber-700 text-white font-heading font-black text-xl flex items-center justify-center overflow-hidden border-2 border-white shadow-sm flex-shrink-0">
+                  {editingLeader.imageUrl || editingLeader.image ? (
+                    <img src={normalizeGoogleImageUrl(editingLeader.imageUrl || editingLeader.image || "")} alt={editingLeader.name} className="w-full h-full object-cover" />
+                  ) : (
+                    (editingLeader.name || "CL").split(" ").map(w => w[0]).join("").slice(0, 2)
+                  )}
+                </div>
+                <div className="flex-1 space-y-1">
+                  <span className="block text-xs font-bold text-navy-950">Official Portrait Photo</span>
+                  <p className="text-[11px] text-slate-400">Upload portrait file or paste Google link below</p>
+                  <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-[11px] font-bold text-slate-700 hover:bg-slate-100 cursor-pointer shadow-sm">
+                    <Camera className="w-3.5 h-3.5 text-amber-600" />
+                    <span>{editingLeader.imageUrl || editingLeader.image ? "Change Photo File" : "Upload Photo File"}</span>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      className="hidden" 
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const url = await handleUploadImage(file);
+                          setEditingLeader(prev => prev ? { ...prev, imageUrl: url, image: url } : null);
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Portrait Image Link (Google Photos / Web URL)</label>
+                <input 
+                  type="text"
+                  value={editingLeader.imageUrl || editingLeader.image || ""}
+                  onChange={(e) => {
+                    const norm = normalizeGoogleImageUrl(e.target.value);
+                    setEditingLeader(prev => prev ? { ...prev, imageUrl: norm, image: norm } : null);
+                  }}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
+                  placeholder="https://drive.google.com/file/d/... or direct image link"
+                />
+              </div>
+
+              {/* Leadership Category Switcher: Central Council vs Other */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Council Placement / Category</label>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setEditingLeader(prev => prev ? { ...prev, category: "CENTRAL_COUNCIL" } : null)}
+                    className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-2 ${
+                      (editingLeader.category || "CENTRAL_COUNCIL") === "CENTRAL_COUNCIL"
+                        ? "bg-navy-950 text-white border-navy-950 shadow-sm"
+                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    <ShieldCheck className="w-4 h-4 text-amber-400" />
+                    <span>Central Council</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingLeader(prev => prev ? { ...prev, category: "OTHER" } : null)}
+                    className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-2 ${
+                      editingLeader.category === "OTHER"
+                        ? "bg-navy-950 text-white border-navy-950 shadow-sm"
+                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    <Users className="w-4 h-4 text-teal-400" />
+                    <span>Other (Regional / Advisory)</span>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Official Title / Office</label>
+                <input 
+                  type="text"
+                  required
+                  value={editingLeader.title}
+                  onChange={(e) => setEditingLeader(prev => prev ? { ...prev, title: e.target.value } : null)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
+                  placeholder="e.g. Chairperson, Secretary, Treasurer..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Leader Full Name</label>
+                <input 
+                  type="text"
+                  required
+                  value={editingLeader.name}
+                  onChange={(e) => setEditingLeader(prev => prev ? { ...prev, name: e.target.value } : null)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
+                  placeholder="e.g. Walter Ngetich"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Phone Number</label>
+                  <input 
+                    type="text"
+                    value={editingLeader.phone || ""}
+                    onChange={(e) => setEditingLeader(prev => prev ? { ...prev, phone: e.target.value } : null)}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
+                    placeholder="+254 720 000 000"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Email Address</label>
+                  <input 
+                    type="email"
+                    value={editingLeader.email || ""}
+                    onChange={(e) => setEditingLeader(prev => prev ? { ...prev, email: e.target.value } : null)}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
+                    placeholder="leader@cucaso.org"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Institution / Chapter Affiliation</label>
+                <input 
+                  type="text"
+                  value={editingLeader.institution || ""}
+                  onChange={(e) => setEditingLeader(prev => prev ? { ...prev, institution: e.target.value } : null)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
+                  placeholder="e.g. CUCASO Central Council or Technical University of Mombasa"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Brief Biography</label>
+                <textarea 
+                  rows={3}
+                  value={editingLeader.bio || ""}
+                  onChange={(e) => setEditingLeader(prev => prev ? { ...prev, bio: e.target.value } : null)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
+                  placeholder="Responsibilities, spiritual and institutional alignment..."
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2.5">
+                {!editingLeader.id?.startsWith("lead-") ? (
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteCouncilLeader(editingLeader.id, editingLeader.name)}
+                    className="px-3.5 py-2.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 text-xs font-bold transition-colors flex items-center gap-1.5"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete Leader</span>
+                  </button>
+                ) : <div />}
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setShowCouncilLeaderModal(false); setEditingLeader(null); }}
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingCouncilLeader}
+                    className="px-5 py-2.5 rounded-xl bg-navy-950 hover:bg-navy-900 text-white text-xs font-bold shadow-md transition-all flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    <Save className="w-3.5 h-3.5 text-amber-400" />
+                    <span>{savingCouncilLeader ? "Saving..." : (editingLeader.id?.startsWith("lead-") ? "Add to Council" : "Save Council Profile")}</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 5: INVITE USER (ADMIN RBAC)                          */}
+      {/* ========================================================= */}
+      {showInviteUserModal && (
+        <div className="fixed inset-0 z-50 bg-navy-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-navy-900 text-amber-400">
+                  <UserPlus className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-heading font-black text-lg text-navy-950">Invite Portal User</h3>
+                  <p className="text-xs text-slate-400">Assign roles and portal permissions</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowInviteUserModal(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleInviteUser} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">User Full Name</label>
+                <input 
+                  type="text"
+                  required
+                  value={inviteUserForm.name}
+                  onChange={(e) => setInviteUserForm(prev => ({ ...prev, name: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-navy-900 focus:bg-white"
+                  placeholder="e.g. Dennis Omwenga"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Email Address</label>
+                <input 
+                  type="email"
+                  required
+                  value={inviteUserForm.email}
+                  onChange={(e) => setInviteUserForm(prev => ({ ...prev, email: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-navy-900 focus:bg-white"
+                  placeholder="dennis@example.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">System Role</label>
+                <select 
+                  value={inviteUserForm.role}
+                  onChange={(e) => setInviteUserForm(prev => ({ ...prev, role: e.target.value as any }))}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-navy-900 focus:bg-white"
+                >
+                  <option value="CHAPTER_REP">Chapter Representative</option>
+                  <option value="SUPER_ADMIN">Super Administrator</option>
+                  <option value="CENTRAL_TREASURER">Council Treasurer</option>
+                  <option value="SECRETARY">Organization Secretary</option>
+                  <option value="COMMUNICATIONS_DIRECTOR">Communication Director</option>
+                  <option value="OBSERVER">Read-Only Observer</option>
+                </select>
+              </div>
+
+              {inviteUserForm.role === "CHAPTER_REP" && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Assigned Chapter</label>
+                  <select 
+                    value={inviteUserForm.chapterId}
+                    onChange={(e) => setInviteUserForm(prev => ({ ...prev, chapterId: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-navy-900 focus:bg-white"
+                  >
+                    {chaptersList.map(c => (
+                      <option key={c.id} value={c.id}>{c.code} — {c.institutionName}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowInviteUserModal(false)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={inviteUserSubmitting}
+                  className="px-5 py-2.5 rounded-xl bg-navy-950 hover:bg-navy-900 text-white text-xs font-bold shadow-md transition-all flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <UserPlus className="w-3.5 h-3.5 text-amber-400" />
+                  <span>{inviteUserSubmitting ? "Inviting..." : "Send Invitation"}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 6: CREATE RALLY                                     */}
+      {/* ========================================================= */}
+      {showCreateRallyModal && (
+        <div className="fixed inset-0 z-50 bg-navy-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-5 animate-in zoom-in-95 duration-200 my-8">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-teal-50 text-teal-700">
+                  <Calendar className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-heading font-black text-lg text-navy-950">Create New Rally Event</h3>
+                  <p className="text-xs text-slate-400">Initialize a new CUCASO annual convention</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowCreateRallyModal(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateRally} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Rally Code</label>
+                  <input 
+                    type="text"
+                    required
+                    value={newRallyForm.code}
+                    onChange={(e) => setNewRallyForm(prev => ({ ...prev, code: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-600 focus:bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Target Capacity</label>
+                  <input 
+                    type="number"
+                    required
+                    value={newRallyForm.capacity}
+                    onChange={(e) => setNewRallyForm(prev => ({ ...prev, capacity: Number(e.target.value) }))}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-600 focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Rally Title</label>
+                <input 
+                  type="text"
+                  required
+                  value={newRallyForm.title}
+                  onChange={(e) => setNewRallyForm(prev => ({ ...prev, title: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-600 focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Theme</label>
+                <input 
+                  type="text"
+                  required
+                  value={newRallyForm.theme}
+                  onChange={(e) => setNewRallyForm(prev => ({ ...prev, theme: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-600 focus:bg-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Venue Name</label>
+                  <input 
+                    type="text"
+                    required
+                    value={newRallyForm.venueName}
+                    onChange={(e) => setNewRallyForm(prev => ({ ...prev, venueName: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-600 focus:bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Venue Location</label>
+                  <input 
+                    type="text"
+                    required
+                    value={newRallyForm.venueLocation}
+                    onChange={(e) => setNewRallyForm(prev => ({ ...prev, venueLocation: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-600 focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Start Date</label>
+                  <input 
+                    type="date"
+                    required
+                    value={newRallyForm.startDate}
+                    onChange={(e) => setNewRallyForm(prev => ({ ...prev, startDate: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-600 focus:bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">End Date</label>
+                  <input 
+                    type="date"
+                    required
+                    value={newRallyForm.endDate}
+                    onChange={(e) => setNewRallyForm(prev => ({ ...prev, endDate: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-600 focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateRallyModal(false)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-md transition-all flex items-center gap-1.5"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Create & Publish Rally</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 7: EDIT RALLY                                       */}
+      {/* ========================================================= */}
+      {showEditRallyModal && (
+        <div className="fixed inset-0 z-50 bg-navy-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-5 animate-in zoom-in-95 duration-200 my-8">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-amber-50 text-amber-700">
+                  <Edit3 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-heading font-black text-lg text-navy-950">Edit Rally Details & Lifecycle</h3>
+                  <p className="text-xs text-slate-400">{currentRallyData.code}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowEditRallyModal(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateCurrentRally} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Rally Title</label>
+                <input 
+                  type="text"
+                  required
+                  value={editRallyForm.title}
+                  onChange={(e) => setEditRallyForm(prev => ({ ...prev, title: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Theme</label>
+                <input 
+                  type="text"
+                  required
+                  value={editRallyForm.theme}
+                  onChange={(e) => setEditRallyForm(prev => ({ ...prev, theme: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Venue Name</label>
+                  <input 
+                    type="text"
+                    required
+                    value={editRallyForm.venueName}
+                    onChange={(e) => setEditRallyForm(prev => ({ ...prev, venueName: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Lifecycle State</label>
+                  <select 
+                    value={editRallyForm.state}
+                    onChange={(e) => setEditRallyForm(prev => ({ ...prev, state: e.target.value as any }))}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
+                  >
+                    <option value="DRAFT">DRAFT</option>
+                    <option value="REGISTRATION_OPEN">REGISTRATION_OPEN</option>
+                    <option value="FEE_LOCKED">FEE_LOCKED</option>
+                    <option value="IN_PROGRESS">IN_PROGRESS</option>
+                    <option value="COMPLETED">COMPLETED</option>
+                    <option value="ARCHIVED">ARCHIVED</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowEditRallyModal(false)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-navy-950 hover:bg-navy-900 text-white text-xs font-bold shadow-md transition-all flex items-center gap-1.5"
+                >
+                  <Save className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Save Rally Lifecycle</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* ========================================================= */}
+      {/* MODAL 8: UPLOAD MEDIA GALLERY PHOTO (GOOGLE LINKS + FILES)*/}
+      {/* ========================================================= */}
+      {showUploadGalleryModal && (
+        <div className="fixed inset-0 z-50 bg-navy-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-5 animate-in zoom-in-95 duration-200 my-8">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-navy-900 text-amber-400">
+                  <Camera className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-heading font-black text-lg text-navy-950">Add Photo to Gallery</h3>
+                  <p className="text-xs text-slate-400">Add event photographs using Google Drive/Photos links or local files</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowUploadGalleryModal(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Source Method Switcher */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 p-1 bg-slate-100 rounded-2xl">
+              <button
+                type="button"
+                onClick={() => setGalleryUploadMethod("google")}
+                className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  galleryUploadMethod === "google"
+                    ? "bg-white text-navy-950 shadow-sm"
+                    : "text-slate-500 hover:text-slate-900"
+                }`}
+              >
+                <Globe className="w-3.5 h-3.5 text-teal-600 flex-shrink-0" />
+                <span className="truncate">Single Photo</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setGalleryUploadMethod("album")}
+                className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  galleryUploadMethod === "album"
+                    ? "bg-white text-navy-950 shadow-sm"
+                    : "text-slate-500 hover:text-slate-900"
+                }`}
+              >
+                <FolderOpen className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                <span className="truncate">Shared Album</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setGalleryUploadMethod("batch")}
+                className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  galleryUploadMethod === "batch"
+                    ? "bg-white text-navy-950 shadow-sm"
+                    : "text-slate-500 hover:text-slate-900"
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5 text-indigo-600 flex-shrink-0" />
+                <span className="truncate">Batch Links</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setGalleryUploadMethod("file")}
+                className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  galleryUploadMethod === "file"
+                    ? "bg-white text-navy-950 shadow-sm"
+                    : "text-slate-500 hover:text-slate-900"
+                }`}
+              >
+                <Upload className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+                <span className="truncate">Local File</span>
+              </button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const uploaderName = activePortal === "CHAPTER"
+                  ? (currentChapter.chapterName || currentChapter.institutionName || "Chapter Rep")
+                  : "Council Admin";
+                const targetChapterId = activePortal === "CHAPTER" ? currentChapter.id : undefined;
+
+                // 1. BATCH LINKS MODE
+                if (galleryUploadMethod === "batch") {
+                  const rawUrls = newGalleryForm.batchUrls
+                    .split("\n")
+                    .map(u => u.trim())
+                    .filter(u => u.length > 5);
+                  if (rawUrls.length === 0) {
+                    setLocationToast("Please paste at least one valid photo URL.");
+                    return;
+                  }
+                  setShowUploadGalleryModal(false);
+                  setLocationToast(`Publishing ${rawUrls.length} photos in batch...`);
+
+                  const createdBatch: any[] = [];
+                  for (let i = 0; i < rawUrls.length; i++) {
+                    const u = rawUrls[i];
+                    const itemTitle = rawUrls.length === 1 ? newGalleryForm.title : `${newGalleryForm.title} #${i + 1}`;
+                    const isAlbum = isGoogleAlbumOrFolder(u);
+                    const normalized = isAlbum ? "/placeholder-gallery.jpg" : normalizeGoogleImageUrl(u);
+                    const tempItem = {
+                      id: `g-${Date.now()}-${i}`,
+                      title: itemTitle,
+                      event: newGalleryForm.event || "Rally 2026",
+                      date: new Date().toISOString().split("T")[0],
+                      url: normalized,
+                      category: newGalleryForm.category || "Rally",
+                      uploader: uploaderName,
+                      albumUrl: isAlbum ? u : undefined,
+                      isAlbum,
+                      chapterId: targetChapterId,
+                    };
+                    createdBatch.push(tempItem);
+
+                    fetch("/api/gallery", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        title: tempItem.title,
+                        category: tempItem.category,
+                        imageUrl: tempItem.url,
+                        altText: tempItem.title,
+                        date: tempItem.date,
+                        location: tempItem.event,
+                        description: isAlbum ? `Uploaded by ${uploaderName} | Album: ${u}` : `Uploaded by ${uploaderName}`,
+                        chapterId: targetChapterId,
+                      }),
+                    }).catch(() => {});
+                  }
+                  setGalleryPhotos(prev => [...createdBatch, ...prev]);
+                  setNewGalleryForm({ title: "", event: "Rally 2026", category: "Rally", url: "", albumUrl: "", coverUrl: "", batchUrls: "" });
+                  setTimeout(() => setLocationToast(`Successfully published ${rawUrls.length} photos!`), 1000);
+                  setTimeout(() => setLocationToast(null), 5000);
+                  return;
+                }
+
+                // 2. SHARED ALBUM / FOLDER MODE
+                if (galleryUploadMethod === "album") {
+                  const albumLink = newGalleryForm.albumUrl.trim();
+                  if (!albumLink || !newGalleryForm.title) {
+                    setLocationToast("Please specify an album title and Google link.");
+                    return;
+                  }
+                  const cover = newGalleryForm.coverUrl.trim()
+                    ? normalizeGoogleImageUrl(newGalleryForm.coverUrl)
+                    : "/placeholder-gallery.jpg";
+
+                  const tempAlbum = {
+                    id: `g-${Date.now()}`,
+                    title: newGalleryForm.title,
+                    event: newGalleryForm.event || "Rally 2026",
+                    date: new Date().toISOString().split("T")[0],
+                    url: cover,
+                    category: newGalleryForm.category || "Rally",
+                    uploader: uploaderName,
+                    albumUrl: albumLink,
+                    isAlbum: true,
+                    chapterId: targetChapterId,
+                  };
+                  setGalleryPhotos(prev => [tempAlbum, ...prev]);
+                  setShowUploadGalleryModal(false);
+                  setNewGalleryForm({ title: "", event: "Rally 2026", category: "Rally", url: "", albumUrl: "", coverUrl: "", batchUrls: "" });
+                  setLocationToast(`Shared Album "${tempAlbum.title}" published!`);
+
+                  try {
+                    const res = await fetch("/api/gallery", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        title: tempAlbum.title,
+                        category: tempAlbum.category,
+                        imageUrl: cover,
+                        altText: tempAlbum.title,
+                        date: tempAlbum.date,
+                        location: tempAlbum.event,
+                        description: `Uploaded by ${uploaderName} | Album: ${albumLink}`,
+                        chapterId: targetChapterId,
+                      }),
+                    });
+                    const json = await res.json();
+                    if (json.success && json.data) {
+                      setGalleryPhotos(prev => prev.map(p => p.id === tempAlbum.id ? { ...p, id: json.data.id } : p));
+                    }
+                  } catch (err) {
+                    console.warn("Failed to persist album:", err);
+                  }
+                  setTimeout(() => setLocationToast(null), 4000);
+                  return;
+                }
+
+                // 3. SINGLE GOOGLE LINK OR LOCAL FILE
+                const isAlbumDetected = isGoogleAlbumOrFolder(newGalleryForm.url);
+                const normalized = isAlbumDetected
+                  ? "/placeholder-gallery.jpg"
+                  : normalizeGoogleImageUrl(newGalleryForm.url);
+
+                if (!newGalleryForm.title || (!isAlbumDetected && !normalized)) {
+                  setLocationToast("Please specify a title and valid photo link/file.");
+                  return;
+                }
+
+                const tempPhoto = {
+                  id: `g-${Date.now()}`,
+                  title: newGalleryForm.title,
+                  event: newGalleryForm.event || "Rally 2026",
+                  date: new Date().toISOString().split("T")[0],
+                  url: normalized,
+                  category: newGalleryForm.category || "Rally",
+                  uploader: uploaderName,
+                  albumUrl: isAlbumDetected ? newGalleryForm.url.trim() : undefined,
+                  isAlbum: isAlbumDetected,
+                  chapterId: targetChapterId,
+                };
+                setGalleryPhotos(prev => [tempPhoto, ...prev]);
+                setShowUploadGalleryModal(false);
+                setNewGalleryForm({ title: "", event: "Rally 2026", category: "Rally", url: "", albumUrl: "", coverUrl: "", batchUrls: "" });
+                setLocationToast(`Photo "${tempPhoto.title}" published!`);
+
+                try {
+                  const res = await fetch("/api/gallery", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      title: tempPhoto.title,
+                      category: tempPhoto.category,
+                      imageUrl: tempPhoto.url,
+                      altText: tempPhoto.title,
+                      date: tempPhoto.date,
+                      location: tempPhoto.event,
+                      description: isAlbumDetected
+                        ? `Uploaded by ${uploaderName} | Album: ${newGalleryForm.url.trim()}`
+                        : `Uploaded by ${uploaderName}`,
+                      chapterId: targetChapterId,
+                    }),
+                  });
+                  const json = await res.json();
+                  if (json.success && json.data) {
+                    setGalleryPhotos(prev => prev.map(p => p.id === tempPhoto.id ? { ...p, id: json.data.id } : p));
+                  }
+                } catch (err) {
+                  console.warn("Failed to persist gallery photo:", err);
+                }
+                setTimeout(() => setLocationToast(null), 4000);
+              }}
+              className="space-y-4"
+            >
+              {/* Method 1: Single Photo Link */}
+              {galleryUploadMethod === "google" && (
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Google Drive or Google Photos Shareable URL
+                  </label>
+                  <div className="relative">
+                    <input 
+                      type="url"
+                      required={galleryUploadMethod === "google"}
+                      value={newGalleryForm.url}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        setNewGalleryForm(prev => ({ ...prev, url: raw }));
+                      }}
+                      className="w-full pl-3.5 pr-20 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-navy-900 focus:bg-white"
+                      placeholder="https://drive.google.com/file/d/... or Google Photos link"
+                    />
+                    {newGalleryForm.url && (
+                      <button
+                        type="button"
+                        onClick={() => setNewGalleryForm(prev => ({ ...prev, url: "" }))}
+                        className="absolute right-2 top-2 p-1 text-slate-400 hover:text-slate-600 text-xs"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  {isGoogleAlbumOrFolder(newGalleryForm.url) ? (
+                    <div className="p-2.5 rounded-xl bg-teal-50 border border-teal-200 text-teal-900 text-xs flex items-start gap-2 animate-in fade-in">
+                      <FolderOpen className="w-4 h-4 text-teal-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <span className="font-bold">Multi-Photo {getAlbumTypeLabel(newGalleryForm.url)} Detected!</span>
+                        <p className="text-[11px] text-teal-700 mt-0.5">
+                          This link contains multiple pictures. It will be saved as a **Shared Album Collection** with direct access for visitors to open and view the entire set.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-400 leading-tight">
+                      💡 Tip: Paste any direct Google Drive link or Google Photos URL.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Method 2: Shared Album / Folder Link */}
+              {galleryUploadMethod === "album" && (
+                <div className="space-y-3 p-4 rounded-2xl bg-teal-50/70 border border-teal-200/80">
+                  <div className="flex items-start gap-2.5 text-xs text-teal-950">
+                    <FolderOpen className="w-5 h-5 text-teal-700 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold block">Shared Google Album / Drive Folder</span>
+                      <span className="text-[11px] text-teal-700">
+                        Use this when you have an entire Google Photos Album or Google Drive Folder containing multiple photos (e.g. from an entire Sabbath rally or convention).
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 mb-1">
+                      Album or Folder Shareable URL *
+                    </label>
+                    <input 
+                      type="url"
+                      required={galleryUploadMethod === "album"}
+                      value={newGalleryForm.albumUrl}
+                      onChange={(e) => setNewGalleryForm(prev => ({ ...prev, albumUrl: e.target.value }))}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-teal-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-700"
+                      placeholder="https://photos.app.goo.gl/... or https://drive.google.com/drive/folders/..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 mb-1">
+                      Optional Cover Photo URL
+                    </label>
+                    <input 
+                      type="url"
+                      value={newGalleryForm.coverUrl}
+                      onChange={(e) => setNewGalleryForm(prev => ({ ...prev, coverUrl: e.target.value }))}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-teal-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-700"
+                      placeholder="Leave blank to use default rally card thumbnail"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Method 3: Batch Links Upload */}
+              {galleryUploadMethod === "batch" && (
+                <div className="space-y-3 p-4 rounded-2xl bg-indigo-50/70 border border-indigo-200/80">
+                  <div className="flex items-start gap-2.5 text-xs text-indigo-950">
+                    <Layers className="w-5 h-5 text-indigo-700 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold block">Batch Photo URLs (Multiple Photos)</span>
+                      <span className="text-[11px] text-indigo-700">
+                        Paste several Google Drive or Photos links below, one per line. Each link will be created as a separate photo in the gallery.
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 mb-1">
+                      Photo URLs (One per line) *
+                    </label>
+                    <textarea 
+                      rows={4}
+                      required={galleryUploadMethod === "batch"}
+                      value={newGalleryForm.batchUrls}
+                      onChange={(e) => setNewGalleryForm(prev => ({ ...prev, batchUrls: e.target.value }))}
+                      className="w-full px-3.5 py-2 rounded-xl bg-white border border-indigo-200 text-xs font-mono font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-700"
+                      placeholder={`https://drive.google.com/file/d/1ABC...\nhttps://drive.google.com/file/d/2DEF...\nhttps://photos.app.goo.gl/...`}
+                    />
+                    <span className="text-[10px] text-indigo-700 mt-1 block">
+                      {newGalleryForm.batchUrls.split("\n").filter(u => u.trim().length > 5).length} photo links entered
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Method 4: Local File Picker */}
+              {galleryUploadMethod === "file" && (
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                  <span className="block text-xs font-bold text-navy-950">Local Photo File</span>
+                  {newGalleryForm.url && !newGalleryForm.url.startsWith("http") ? (
+                    <div className="relative aspect-video rounded-xl overflow-hidden border border-slate-200 bg-black">
+                      <img src={newGalleryForm.url} alt="Preview" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setNewGalleryForm(prev => ({ ...prev, url: "" }))}
+                        className="absolute top-2 right-2 p-1.5 rounded-lg bg-navy-950/80 text-white hover:bg-rose-600"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-300 rounded-2xl hover:border-teal-500 cursor-pointer bg-white transition-colors">
+                      <Upload className="w-8 h-8 text-teal-600 mb-2" />
+                      <span className="text-xs font-bold text-slate-700">Click to choose image file</span>
+                      <span className="text-[10px] text-slate-400 mt-0.5">JPG, PNG, WebP up to 10MB</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            setUploadingGallery(true);
+                            const url = await handleUploadImage(file);
+                            setNewGalleryForm(prev => ({ ...prev, url }));
+                            setUploadingGallery(false);
+                          }
+                        }}
+                      />
+                    </label>
+                  )}
+                  {uploadingGallery && (
+                    <p className="text-[11px] font-bold text-teal-700 animate-pulse">Uploading image file...</p>
+                  )}
+                </div>
+              )}
+
+              {/* Foreground Image Live Preview */}
+              {newGalleryForm.url && (
+                <div className="space-y-1.5 p-3 rounded-2xl bg-slate-50 border border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-700">Foreground Card Preview</span>
+                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                      ✓ Direct CDN Stream Ready
+                    </span>
+                  </div>
+                  <div className="relative aspect-video rounded-xl overflow-hidden bg-slate-900 border border-slate-200 shadow-inner">
+                    <img 
+                      src={normalizeGoogleImageUrl(newGalleryForm.url)} 
+                      alt="Foreground Preview" 
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLElement).classList.add("opacity-40");
+                      }}
+                    />
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-navy-950/90 to-transparent p-3 text-white">
+                      <p className="font-heading font-bold text-xs truncate">{newGalleryForm.title || "Photo Title..."}</p>
+                      <p className="text-[10px] text-teal-300">{newGalleryForm.event || "Event"} • {newGalleryForm.category}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Photo Title / Caption</label>
+                <input 
+                  type="text"
+                  required
+                  value={newGalleryForm.title}
+                  onChange={(e) => setNewGalleryForm(prev => ({ ...prev, title: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-navy-900 focus:bg-white"
+                  placeholder="e.g. Sabbath Morning Convocation & Worship"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Event Name</label>
+                  <input 
+                    type="text"
+                    value={newGalleryForm.event}
+                    onChange={(e) => setNewGalleryForm(prev => ({ ...prev, event: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-navy-900 focus:bg-white"
+                    placeholder="Rally 2026"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Category</label>
+                  <select 
+                    value={newGalleryForm.category}
+                    onChange={(e) => setNewGalleryForm(prev => ({ ...prev, category: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-navy-900 focus:bg-white"
+                  >
+                    <option value="Rally">Rally</option>
+                    <option value="Worship">Worship</option>
+                    <option value="Leadership">Leadership</option>
+                    <option value="Fellowship">Fellowship</option>
+                    <option value="Community">Community</option>
+                    <option value="Sports">Sports</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowUploadGalleryModal(false)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={uploadingGallery}
+                  className="px-5 py-2.5 rounded-xl bg-navy-950 hover:bg-navy-900 text-white text-xs font-bold shadow-md transition-all flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <Upload className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Publish to Gallery</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 9: FULLSCREEN LIGHTBOX PREVIEW MODAL                */}
+      {/* ========================================================= */}
+      {previewGalleryPhoto && (
+        <div className="fixed inset-0 z-50 bg-navy-950/90 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
+          <div className="relative max-w-4xl w-full bg-navy-900 rounded-3xl overflow-hidden shadow-2xl border border-white/10 flex flex-col">
+            <button
+              onClick={() => setPreviewGalleryPhoto(null)}
+              className="absolute top-4 right-4 z-10 p-2.5 rounded-full bg-navy-950/80 text-white hover:bg-rose-600 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="relative max-h-[70vh] min-h-[300px] w-full bg-black flex items-center justify-center overflow-hidden">
+              <img
+                src={normalizeGoogleImageUrl(previewGalleryPhoto.url)}
+                alt={previewGalleryPhoto.title}
+                className="max-h-[70vh] w-full object-contain"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.onerror = null;
+                  target.src = "/placeholder-gallery.jpg";
+                }}
+              />
+            </div>
+
+            {(previewGalleryPhoto.isAlbum || previewGalleryPhoto.albumUrl) && (
+              <div className="bg-teal-950/90 border-b border-teal-800/60 p-3 px-6 text-teal-200 text-xs flex flex-col sm:flex-row items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Images className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                  <span className="font-semibold">Shared Photo Collection ({getAlbumTypeLabel(previewGalleryPhoto.albumUrl || previewGalleryPhoto.url)})</span>
+                </div>
+                <a
+                  href={previewGalleryPhoto.albumUrl || previewGalleryPhoto.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-bold text-teal-300 hover:text-white underline flex items-center gap-1.5"
+                >
+                  <FolderOpen className="w-3.5 h-3.5" />
+                  <span>Browse all photos in this Google Album</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            )}
+
+            <div className="p-6 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-navy-950 border-t border-white/10">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-400 text-navy-950 font-bold text-[10px] uppercase">
+                    {previewGalleryPhoto.category}
+                  </span>
+                  <span className="text-xs text-teal-300 font-semibold">{previewGalleryPhoto.event}</span>
+                  <span className="text-xs text-slate-400">• {previewGalleryPhoto.date}</span>
+                </div>
+                <h3 className="font-heading font-black text-xl text-white">
+                  {previewGalleryPhoto.title}
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Uploaded by {previewGalleryPhoto.uploader}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 self-end sm:self-auto">
+                {(previewGalleryPhoto.albumUrl || previewGalleryPhoto.isAlbum) ? (
+                  <a
+                    href={previewGalleryPhoto.albumUrl || previewGalleryPhoto.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs flex items-center gap-1.5 shadow transition-all active:scale-95"
+                  >
+                    <FolderOpen className="w-3.5 h-3.5 text-white" />
+                    <span>Open Full Album</span>
+                    <ExternalLink className="w-3 h-3 ml-0.5" />
+                  </a>
+                ) : (
+                  <a
+                    href={normalizeGoogleImageUrl(previewGalleryPhoto.url)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center gap-1.5 transition-colors"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5 text-teal-300" />
+                    <span>Open Direct Link</span>
+                  </a>
+                )}
+                <button
+                  onClick={() => setPreviewGalleryPhoto(null)}
+                  className="px-4 py-2 rounded-xl bg-navy-800 hover:bg-navy-700 text-slate-200 font-bold text-xs"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

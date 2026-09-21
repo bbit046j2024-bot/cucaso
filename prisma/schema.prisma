@@ -1,14 +1,19 @@
 // CUCASO Database Schema — PRD Section 8
-// Coastal Universities and Colleges Adventist Schools Organization
+// Coastal Universities and Colleges Adventists Students Organization
+// Database: TiDB Cloud (MySQL-compatible) — ADR-001
+// NOTE: relationMode = "prisma" is required for TiDB Cloud (FK enforcement at ORM layer)
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider     = "mysql"
+  url          = env("DATABASE_URL")
+  relationMode = "prisma"
 }
+
+// ─── Enumerations ─────────────────────────────────────────────────────────────
 
 enum InstitutionType {
   UNIVERSITY
@@ -25,9 +30,11 @@ enum InstitutionSector {
 
 enum ChapterStatus {
   PENDING
-  APPROVED
-  REJECTED
+  APPROVED   // Legacy: equivalent to ACTIVE
+  ACTIVE
   SUSPENDED
+  INACTIVE
+  REJECTED   // Legacy: equivalent to rejected application status
 }
 
 enum ApplicationStatus {
@@ -101,8 +108,9 @@ enum InvoiceStatus {
   OVERPAID
 }
 
-enum PaymentMethod {
-  MPESA_DARAJA
+enum PaymentChannel {
+  MPESA_C2B
+  MPESA_STK
   BANK_TRANSFER
   CASH
 }
@@ -111,17 +119,40 @@ enum PaymentStatus {
   MATCHED
   UNMATCHED
   VERIFYING
+  DISPUTED
+  REFUNDED
 }
 
-model CapabilityTier {
-  id          String         @id @default(cuid())
-  name        String         // e.g. Tier 1, Tier 2
-  weight      Float          // e.g. 2.0, 1.5, 1.0, 0.5
-  description String?
-  chapters    ChapterTier[]
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+enum VoteDecision {
+  APPROVE
+  REJECT
+  REQUEST_CHANGES
 }
+
+enum CmsPostStatus {
+  DRAFT
+  UNDER_REVIEW
+  PUBLISHED
+  ARCHIVED
+}
+
+enum CmsPostCategory {
+  NEWS
+  ANNOUNCEMENT
+  STORY
+  DEVOTIONAL
+  TESTIMONY
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  DEAD
+}
+
+// ─── Core Organisation Entities ───────────────────────────────────────────────
 
 model Institution {
   id        String            @id @default(cuid())
@@ -129,29 +160,59 @@ model Institution {
   type      InstitutionType
   sector    InstitutionSector
   location  String
+  county    String?
+  logoUrl   String?
   chapters  Chapter[]
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
+
+  @@index([type])
+  @@index([sector])
+}
+
+model CapabilityTier {
+  id                String        @id @default(cuid())
+  name              String        @unique  // e.g. "Tier 1 — Major University"
+  // Stored as basis points: 200 = 2.0x, 150 = 1.5x, 100 = 1.0x, 50 = 0.5x
+  // Use weightBasisPoints / 100 to get the float weight in the cost engine
+  weightBasisPoints Int           @default(100)  // 50 to 2000 (0.5x to 20x)
+  description       String?       @db.Text
+  chapters          ChapterTier[]
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 }
 
 model Chapter {
   id                 String                     @id @default(cuid())
-  code               String                     @unique // e.g. TUM-01
-  institutionId     String
+  code               String                     @unique  // e.g. TUM-01
+  institutionId      String
   institution        Institution                @relation(fields: [institutionId], references: [id])
-  name               String                     // e.g. TUM Chapter
+  name               String                     // e.g. TUM SDA Chapter
   status             ChapterStatus              @default(PENDING)
   patronName         String?
   patronPhone        String?
   patronEmail        String?
+  repName            String?
+  repPhone           String?
+  treasurerName      String?
+  treasurerPhone     String?
   approximateMembers Int                        @default(0)
+  lat                Float?
+  lng                Float?
+  mapTop             Float?
+  mapLeft            Float?
+  logoUrl            String?
   users              User[]
   tierHistory        ChapterTier[]
   participations     RallyChapterParticipation[]
   attendees          Attendee[]
   invoices           Invoice[]
+  applications       Application[]
   createdAt          DateTime                   @default(now())
   updatedAt          DateTime                   @updatedAt
+
+  @@index([institutionId])
+  @@index([status])
 }
 
 model ChapterTier {
@@ -161,22 +222,64 @@ model ChapterTier {
   tierId      String
   tier        CapabilityTier @relation(fields: [tierId], references: [id])
   effectiveAt DateTime       @default(now())
+  assignedBy  String?        // userId of the Council member who assigned
+  notes       String?        @db.Text
+
+  @@index([chapterId])
+  @@index([tierId])
+  @@index([effectiveAt])
 }
 
+// ─── Users, Auth & Sessions ───────────────────────────────────────────────────
+
 model User {
-  id           String        @id @default(cuid())
-  name         String
-  email        String        @unique
-  phone        String?
-  passwordHash String
-  role         UserRole
-  chapterId    String?
-  chapter      Chapter?      @relation(fields: [chapterId], references: [id])
-  votes        CouncilVote[]
-  auditLogs    AuditLog[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id                  String        @id @default(cuid())
+  name                String
+  email               String        @unique
+  phone               String?
+  passwordHash        String        // argon2id hash
+  role                UserRole
+  chapterId           String?
+  chapter             Chapter?      @relation(fields: [chapterId], references: [id])
+  // TOTP 2FA (required for admin roles: SUPER_ADMIN, COUNCIL_MEMBER, CENTRAL_TREASURER, SECRETARY)
+  totpEnabled         Boolean       @default(false)
+  totpSecret          String?       // encrypted TOTP secret (TOTP URI)
+  // Account lockout
+  loginAttempts       Int           @default(0)
+  lockedUntil         DateTime?
+  // Password reset
+  resetToken          String?       @unique
+  resetTokenExpiresAt DateTime?
+  // Profile
+  avatarUrl           String?
+  lastLoginAt         DateTime?
+  isActive            Boolean       @default(true)
+  votes               CouncilVote[]
+  auditLogs           AuditLog[]
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  @@index([chapterId])
+  @@index([role])
+  @@index([isActive])
 }
+
+// Server-side sessions (iron-session stores in signed cookies; this table allows
+// server-initiated session invalidation e.g. on role change or security events)
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  sessionId String   @unique  // matches the token inside the iron-session cookie
+  ipAddress String?
+  userAgent String?  @db.Text
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// ─── Chapter Applications & Council Voting ────────────────────────────────────
 
 model Application {
   id               String            @id @default(cuid())
@@ -188,44 +291,69 @@ model Application {
   patronName       String
   patronPhone      String
   patronEmail      String
+  chairpersonName  String?
+  chairpersonPhone String?
+  chairpersonEmail String?
+  treasurerName    String?
+  treasurerPhone   String?
   approxMembers    Int
-  endorsementUrl   String?
+  endorsementUrl   String?           @db.Text
   status           ApplicationStatus @default(SUBMITTED)
+  // Tier assigned at Council approval
+  assignedTierId   String?
+  // Linked chapter (populated when approved and chapter record created)
+  chapterId        String?
+  chapter          Chapter?          @relation(fields: [chapterId], references: [id])
+  notes            String?           @db.Text
   votes            CouncilVote[]
+  // KDPA Consent: applicant agreed to data processing notice
+  kdpaConsentAt    DateTime?
+  kdpaNoticeVersion String?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
+
+  @@index([status])
+  @@index([chapterId])
 }
 
 model CouncilVote {
-  id            String      @id @default(cuid())
+  id            String       @id @default(cuid())
   applicationId String
-  application   Application @relation(fields: [applicationId], references: [id])
+  application   Application  @relation(fields: [applicationId], references: [id])
   userId        String
-  user          User        @relation(fields: [userId], references: [id])
-  decision      String      // APPROVED, REJECTED, REQUEST_CHANGES
-  comment       String?
-  createdAt     DateTime    @default(now())
+  user          User         @relation(fields: [userId], references: [id])
+  decision      VoteDecision
+  comment       String?      @db.Text
+  createdAt     DateTime     @default(now())
+
+  @@unique([applicationId, userId])  // one vote per member per application
+  @@index([applicationId])
+  @@index([userId])
 }
+
+// ─── Venues & Rallies ─────────────────────────────────────────────────────────
 
 model Venue {
   id        String   @id @default(cuid())
   name      String
   location  String
+  county    String?
   capacity  Int
   contact   String?
-  notes     String?
+  notes     String?  @db.Text
   rallies   Rally[]
   createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 }
 
 model Rally {
   id                   String                     @id @default(cuid())
-  code                 String                     @unique // e.g. CUR-2026
-  title                String                     // Coastal Unity Rally 2026
-  theme                String
+  code                 String                     @unique  // e.g. CUR-2026
+  title                String
+  theme                String?                    @db.Text
   venueId              String
   venue                Venue                      @relation(fields: [venueId], references: [id])
-  capacity             Int
+  capacity             Int                        @default(0)
   startDate            DateTime
   endDate              DateTime
   registrationDeadline DateTime
@@ -233,7 +361,12 @@ model Rally {
   feeLockDate          DateTime
   state                RallyState                 @default(DRAFT)
   allocationMode       AllocationMode             @default(CAPABILITY_WEIGHTED)
-  contingencyPercent   Float                      @default(10.0)
+  // Contingency stored as basis points: 1000 = 10%, 500 = 5%
+  contingencyBasisPoints Int                      @default(1000)
+  // Fee lock snapshot (populated when fees are locked)
+  feesLockedAt         DateTime?
+  feesLockedBy         String?                    // userId
+  clonedFromRallyId    String?                    // for cloned rallies
   costItems            CostItem[]
   participations       RallyChapterParticipation[]
   attendees            Attendee[]
@@ -241,19 +374,27 @@ model Rally {
   feeAdjustments       FeeAdjustment[]
   createdAt            DateTime                   @default(now())
   updatedAt            DateTime                   @updatedAt
+
+  @@index([state])
+  @@index([venueId])
+  @@index([feeLockDate])
 }
 
 model CostItem {
   id        String   @id @default(cuid())
   rallyId   String
   rally     Rally    @relation(fields: [rallyId], references: [id])
-  category  String   // VENUE, CATERING, ACCOMMODATION, TRANSPORT, LOGISTICS, OTHER
+  category  String   // VENUE, CATERING, ACCOMMODATION, TRANSPORT, LOGISTICS, SECURITY, OTHER
   name      String
   type      CostType
-  amount    Float
+  // Amounts stored as integer KES (whole shillings). No floats.
+  amountKes Int      // For FIXED: total cost. For PER_HEAD/PER_VEHICLE: cost per unit.
   quantity  Int      @default(1)
-  notes     String?
+  notes     String?  @db.Text
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([rallyId])
 }
 
 model RallyChapterParticipation {
@@ -262,100 +403,336 @@ model RallyChapterParticipation {
   rally          Rally    @relation(fields: [rallyId], references: [id])
   chapterId      String
   chapter        Chapter  @relation(fields: [chapterId], references: [id])
-  weightSnapshot Float
+  // Weight snapshotted at fee lock time (basis points: 200 = 2.0x)
+  weightSnapshotBasisPoints Int   @default(100)
   attendeeCount  Int      @default(0)
-  calculatedFee  Float    @default(0)
-  costToServe    Float    @default(0)
-  crossSubsidy   Float    @default(0)
+  attendeeQuota  Int?
+  // All fees stored as integer KES (no floats)
+  calculatedFeeKes  Int   @default(0)
+  costToServeKes    Int   @default(0)
+  crossSubsidyKes   Int   @default(0)  // can be negative
+  status         String   @default("REGISTERED")  // REGISTERED, CONFIRMED, WITHDRAWN
   createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@unique([rallyId, chapterId])
+  @@index([rallyId])
+  @@index([chapterId])
 }
 
+// ─── Attendees ────────────────────────────────────────────────────────────────
+
 model Attendee {
-  id                    String           @id @default(cuid())
+  id                    String          @id @default(cuid())
   rallyId               String
-  rally                 Rally            @relation(fields: [rallyId], references: [id])
+  rally                 Rally           @relation(fields: [rallyId], references: [id])
   chapterId             String
-  chapter               Chapter          @relation(fields: [chapterId], references: [id])
+  chapter               Chapter         @relation(fields: [chapterId], references: [id])
   fullName              String
   admissionOrIdNumber   String
+  department            String?
   gender                Gender
   ageCategory           AgeCategory
   phone                 String?
   emergencyContactName  String
   emergencyContactPhone String
   dietaryRequirements   String?
-  accommodationNeeded   Boolean          @default(false)
-  transportNeeded       Boolean          @default(false)
-  role                  AttendeeRole     @default(DELEGATE)
-  status                AttendeeStatus   @default(CONFIRMED)
+  accommodationNeeded   Boolean         @default(false)
+  transportNeeded       Boolean         @default(false)
+  role                  AttendeeRole    @default(DELEGATE)
+  status                AttendeeStatus  @default(CONFIRMED)
+  registrationSource    String?         @default("ADMIN")
   guardianConsent       GuardianConsent?
-  createdAt             DateTime         @default(now())
+  // KDPA: consent for data processing of this record
+  dataConsentAt         DateTime?
+  dataConsentVersion    String?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  // Cross-chapter duplicate detection index
+  @@unique([rallyId, admissionOrIdNumber])
+  @@index([rallyId])
+  @@index([chapterId])
+  @@index([status])
 }
 
 model GuardianConsent {
-  id            String   @id @default(cuid())
-  attendeeId    String   @unique
-  attendee      Attendee @relation(fields: [attendeeId], references: [id])
-  guardianName  String
-  guardianPhone String
-  consentGiven  Boolean  @default(true)
-  consentDate   DateTime @default(now())
+  id             String   @id @default(cuid())
+  attendeeId     String   @unique
+  attendee       Attendee @relation(fields: [attendeeId], references: [id])
+  guardianName   String
+  guardianPhone  String
+  relationship   String   @default("PARENT")
+  consentGiven   Boolean  @default(true)
+  consentDate    DateTime @default(now())
+  noticeVersion  String?
 }
 
+// ─── Invoicing, Fees & Payments ───────────────────────────────────────────────
+
 model FeeAdjustment {
-  id               String   @id @default(cuid())
-  rallyId          String
-  rally            Rally    @relation(fields: [rallyId], references: [id])
-  chapterId        String
-  type             String   // FIXED_FEE, PARTIAL_SUBSIDY, FULL_WAIVER
-  amount           Float
-  reason           String
-  approvedBy       String
-  fundingTreatment String   // REDISTRIBUTE_REMAINING, EXTERNAL_SPONSOR
-  createdAt        DateTime @default(now())
+  id                String   @id @default(cuid())
+  rallyId           String
+  rally             Rally    @relation(fields: [rallyId], references: [id])
+  chapterId         String
+  type              String   // FIXED_FEE, PARTIAL_SUBSIDY, FULL_WAIVER
+  // Amount stored as integer KES (no floats)
+  amountKes         Int      @default(0)
+  reason            String   @db.Text
+  approvedBy        String   // userId of approving Council member
+  // Treatment when fee is reduced
+  fundingTreatment  String   @default("REDISTRIBUTED")  // REDISTRIBUTED, EXTERNAL_SPONSOR
+  externalSponsorName String?
+  createdAt         DateTime @default(now())
+
+  @@index([rallyId])
+  @@index([chapterId])
 }
 
 model Invoice {
   id               String        @id @default(cuid())
-  invoiceNumber    String        @unique
+  invoiceNumber    String        @unique  // e.g. INV-CUR2026-TUM01
   rallyId          String
   rally            Rally         @relation(fields: [rallyId], references: [id])
   chapterId        String
   chapter          Chapter       @relation(fields: [chapterId], references: [id])
-  amountDue        Float
-  amountPaid       Float         @default(0)
-  balance          Float
-  paymentReference String        @unique // e.g. TUM-01-CUR2026
+  // All amounts stored as integer KES
+  baseAmountKes    Int           @default(0)  // Calculated fee before adjustments
+  adjustmentKes    Int           @default(0)  // negative = credit, positive = surcharge
+  totalDueKes      Int           @default(0)  // baseAmountKes + adjustmentKes
+  amountPaidKes    Int           @default(0)
+  balanceKes       Int           @default(0)  // totalDueKes - amountPaidKes (can be negative if overpaid)
+  // Payment reference format: [ChapterCode]-[RallyCode]
+  paymentReference String        @unique  // e.g. TUM01-CUR2026
   dueDate          DateTime
   status           InvoiceStatus @default(UNPAID)
+  pdfStorageKey    String?       // Storage object key for generated PDF
   payments         Payment[]
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
+
+  @@index([rallyId])
+  @@index([chapterId])
+  @@index([status])
+  @@index([paymentReference])
 }
 
 model Payment {
-  id                 String        @id @default(cuid())
-  invoiceId          String
-  invoice            Invoice       @relation(fields: [invoiceId], references: [id])
-  reference          String
-  amount             Float
-  method             PaymentMethod
-  mpesaReceiptNumber String?
-  payerName          String?
-  payerPhone         String?
-  status             PaymentStatus @default(MATCHED)
-  timestamp          DateTime      @default(now())
+  id                  String         @id @default(cuid())
+  invoiceId           String?        // Null = unmatched payment in queue
+  invoice             Invoice?       @relation(fields: [invoiceId], references: [id])
+  // M-Pesa unique receipt — unique index guarantees idempotency on callbacks
+  mpesaReceiptNumber  String?        @unique
+  // Amount stored as integer KES
+  amountKes           Int
+  senderPhone         String?
+  senderName          String?
+  // The account reference from the M-Pesa callback (should be "[ChapterCode]-[RallyCode]")
+  accountReference    String?
+  channel             PaymentChannel @default(MPESA_C2B)
+  status              PaymentStatus  @default(MATCHED)
+  proofStorageKey     String?        // For manual bank/cash entries
+  matchedByUserId     String?        // Treasurer who matched an unmatched payment
+  transactionTime     DateTime
+  // Raw M-Pesa callback for audit purposes
+  rawCallbackId       String?        // FK to RawCallbackPayload
+  receiptPdfKey       String?        // Storage key for receipt PDF
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  @@index([invoiceId])
+  @@index([status])
+  @@index([transactionTime])
+  @@index([accountReference])
 }
 
+// Raw Daraja callback archiving — stored before processing for audit/replay
+model RawCallbackPayload {
+  id         String   @id @default(cuid())
+  provider   String   @default("DARAJA_C2B")  // DARAJA_C2B, DARAJA_STK
+  rawJson    String   @db.LongText
+  ipAddress  String?
+  signature  String?
+  processed  Boolean  @default(false)
+  receivedAt DateTime @default(now())
+
+  @@index([processed])
+  @@index([receivedAt])
+}
+
+// ─── Audit Trail ──────────────────────────────────────────────────────────────
+
 model AuditLog {
-  id        String   @id @default(cuid())
-  userId    String?
-  user      User?    @relation(fields: [userId], references: [id])
-  actor     String   // Email or System
-  action    String   // e.g. APPLICATION_APPROVED, TIER_CHANGED, FEE_LOCKED
-  entity    String   // e.g. Chapter, Invoice
-  details   String   // JSON string of before/after
-  createdAt DateTime @default(now())
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  actor      String   // Email or "SYSTEM"
+  action     String   // e.g. APPLICATION_APPROVED, TIER_CHANGED, FEE_LOCKED, PAYMENT_MATCHED
+  entityType String   // Chapter, Invoice, Payment, Rally, Application, User, etc.
+  entityId   String?
+  beforeJson String?  @db.LongText  // JSON of entity state before change
+  afterJson  String?  @db.LongText  // JSON of entity state after change
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+// ─── CMS (Content Management) ─────────────────────────────────────────────────
+
+model CmsPost {
+  id               String          @id @default(cuid())
+  slug             String          @unique
+  title            String
+  summary          String?         @db.Text
+  contentHtml      String          @db.LongText
+  category         CmsPostCategory @default(NEWS)
+  featuredImageUrl String?         @db.Text
+  altText          String?         // WCAG: required for featured images
+  status           CmsPostStatus   @default(DRAFT)
+  authorUserId     String?
+  publishedAt      DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([status])
+  @@index([category])
+  @@index([publishedAt])
+}
+
+model Document {
+  id          String   @id @default(cuid())
+  title       String
+  description String?  @db.Text
+  // Access levels: PUBLIC, MEMBERS_ONLY, LEADERS_ONLY
+  accessLevel String   @default("PUBLIC")
+  category    String   // CONSTITUTION, POLICY, FORM, REPORT, MINUTES, OTHER
+  storageKey  String   @db.Text  // Signed URL key in object storage
+  fileSize    Int?     // bytes
+  mimeType    String?
+  uploadedBy  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([accessLevel])
+  @@index([category])
+}
+
+// ─── Media ────────────────────────────────────────────────────────────────────
+
+model GalleryItem {
+  id               String   @id @default(cuid())
+  title            String
+  category         String   // RALLIES, FELLOWSHIP, WORSHIP, LEADERSHIP, GENERAL
+  imageUrl         String   @db.Text
+  altText          String   // Required for WCAG 2.1 AA accessibility
+  date             String
+  location         String?
+  description      String?  @db.Text
+  chapterId        String?
+  // KDPA: Media consent — must be captured before publishing
+  consentRecorded  Boolean  @default(false)
+  consentDetails   String?  @db.Text
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([category])
+  @@index([consentRecorded])
+}
+
+// ─── Prayer Requests ─────────────────────────────────────────────────────────
+
+model PrayerRequest {
+  id                  String   @id @default(cuid())
+  submitterName       String
+  submitterContact    String?  // email or phone
+  requestText         String   @db.Text
+  // isPrivate = true: visible to chaplain only. false: goes through moderation queue.
+  isPrivate           Boolean  @default(false)
+  isModeratedApproved Boolean  @default(false)
+  moderatedBy         String?  // userId of chaplain/comm sec who approved
+  createdAt           DateTime @default(now())
+
+  @@index([isPrivate])
+  @@index([isModeratedApproved])
+}
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+
+model Notification {
+  id          String   @id @default(cuid())
+  recipientId String   // userId
+  channel     String   // SMS, EMAIL, IN_APP
+  templateKey String   // e.g. INVOICE_ISSUED, PAYMENT_RECEIVED, DEADLINE_REMINDER
+  subject     String?
+  body        String   @db.Text
+  // For SMS: phone number; for email: email address
+  to          String
+  // Delivery status
+  status      String   @default("PENDING")  // PENDING, SENT, DELIVERED, FAILED
+  provider    String?  // AFRICAS_TALKING, RESEND, etc.
+  externalId  String?  // Provider's message ID
+  sentAt      DateTime?
+  failedAt    DateTime?
+  errorMsg    String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  @@index([recipientId])
+  @@index([status])
+  @@index([channel])
+}
+
+// ─── Background Job Queue ─────────────────────────────────────────────────────
+// MySQL-compatible lightweight job queue (replaces pg-boss for TiDB compatibility)
+
+model BackgroundJob {
+  id           String    @id @default(cuid())
+  queue        String    // e.g. send-sms, send-email, process-callback, lock-fees
+  payload      String    @db.LongText  // JSON string
+  status       JobStatus @default(PENDING)
+  attempts     Int       @default(0)
+  maxAttempts  Int       @default(5)
+  scheduledAt  DateTime  @default(now())
+  startedAt    DateTime?
+  completedAt  DateTime?
+  failedAt     DateTime?
+  lastError    String?   @db.Text
+  createdAt    DateTime  @default(now())
+
+  @@index([queue, status, scheduledAt])
+  @@index([status])
+}
+
+// ─── Settings ─────────────────────────────────────────────────────────────────
+
+model SystemSetting {
+  key       String   @id  // e.g. council_approval_threshold, daraja_paybill, daraja_passkey
+  value     String   @db.Text
+  updatedBy String?
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Leadership & Council Directory ──────────────────────────────────────────
+
+model Leadership {
+  id             String   @id @default(cuid())
+  name           String
+  title          String
+  role           String   @default("OFFICER")
+  category       String   @default("CENTRAL_COUNCIL") // "CENTRAL_COUNCIL" or "OTHER"
+  institution    String?
+  phone          String?
+  email          String?
+  bio            String?  @db.Text
+  imageUrl       String?  @db.Text
+  positionNumber Int?     @default(1)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([category])
+  @@index([isActive])
 }

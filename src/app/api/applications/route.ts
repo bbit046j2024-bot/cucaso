@@ -3,7 +3,7 @@ import { getApplications, createApplication, updateApplication } from "@/lib/db"
 
 export async function GET() {
   try {
-    const applications = getApplications();
+    const applications = await getApplications();
     return NextResponse.json({ success: true, data: applications });
   } catch (error) {
     return NextResponse.json(
@@ -16,7 +16,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const newApp = createApplication(body);
+    const newApp = await createApplication(body);
     return NextResponse.json({ success: true, data: newApp }, { status: 201 });
   } catch (error) {
     return NextResponse.json(
@@ -32,7 +32,7 @@ export async function PATCH(request: Request) {
     if (!id) {
       return NextResponse.json({ success: false, error: "Missing application id" }, { status: 400 });
     }
-    const updated = updateApplication(id, updates);
+    const updated = await updateApplication(id, updates);
     return NextResponse.json({ success: true, data: updated });
   } catch (error) {
     return NextResponse.json(

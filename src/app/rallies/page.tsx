@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Navbar } from "@/components/navbar";
@@ -31,6 +31,22 @@ import {
 export default function RalliesPage() {
   const [activeTab, setActiveTab] = useState<"overview" | "programme" | "venue" | "fees" | "faqs">("overview");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [currentRally, setCurrentRally] = useState<any>(CURRENT_RALLY);
+
+  useEffect(() => {
+    fetch("/api/rallies")
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.success && json.data) {
+          setCurrentRally(json.data);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const formattedDate = currentRally.startDate ? (
+    `${new Date(currentRally.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${new Date(currentRally.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+  ) : "Nov 15 - 17, 2026";
 
   const faqs = [
     {
@@ -66,14 +82,14 @@ export default function RalliesPage() {
             <div className="bg-gradient-to-r from-navy-900 via-navy-950 to-slate-900 rounded-3xl border border-white/10 overflow-hidden shadow-2xl">
               <div className="grid grid-cols-1 lg:grid-cols-12 items-center">
                 {/* Photo Left */}
-                <div className="lg:col-span-6 relative h-64 sm:h-80 lg:h-96 w-full">
-                  <Image
-                    src="/rally-crowd.jpg"
-                    alt="Coastal Unity Rally 2026"
-                    fill
-                    className="object-cover"
-                    priority
-                  />
+                <div
+                  className="lg:col-span-6 relative h-64 sm:h-80 lg:h-96 w-full"
+                  style={{
+                    backgroundImage: "url('https://static.vecteezy.com/system/resources/thumbnails/027/716/506/small_2x/people-hand-up-in-the-concert-hall-music-event-generative-ai-photo.jpg')",
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                  }}
+                >
                   <div className="absolute inset-0 bg-gradient-to-t from-navy-950/80 via-transparent to-transparent lg:hidden" />
                   <div className="absolute top-4 left-4 bg-navy-900/80 backdrop-blur-md px-3 py-1 rounded-full border border-white/20 text-xs font-bold text-amber-400">
                     NEXT OFFICIAL RALLY
@@ -84,22 +100,22 @@ export default function RalliesPage() {
                 <div className="lg:col-span-6 p-6 sm:p-10 space-y-6">
                   <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-500/20 text-teal-300 text-xs font-bold border border-teal-500/30">
                     <Calendar className="w-3.5 h-3.5 text-teal-400" />
-                    <span>Nov 15 - 17, 2026</span>
+                    <span>{formattedDate}</span>
                   </div>
 
                   <div>
                     <h1 className="font-heading font-black text-3xl sm:text-4xl text-white tracking-tight">
-                      Coastal Unity Rally 2026
+                      {currentRally.title}
                     </h1>
                     <p className="text-sm sm:text-base text-slate-300 mt-2 flex items-center gap-2">
                       <MapPin className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                      <span>Mombasa Sports Complex, Mombasa Island, Kenya</span>
+                      <span>{currentRally.venueName || currentRally.venueLocation || "Mombasa Sports Complex, Mombasa Island, Kenya"}</span>
                     </p>
                   </div>
 
                   {/* Countdown Timer Blocks */}
                   <div className="pt-2">
-                    <RallyCountdown targetDate="2026-11-15T08:00:00" />
+                    <RallyCountdown targetDate={currentRally.startDate || "2026-11-15T08:00:00"} />
                   </div>
 
                   <div className="flex flex-wrap items-center gap-3 pt-2">
@@ -159,10 +175,10 @@ export default function RalliesPage() {
               <div className="space-y-12 animate-in fade-in duration-200">
                 <div className="bg-white rounded-3xl p-6 sm:p-10 border border-slate-200 shadow-sm">
                   <h2 className="font-heading font-black text-2xl text-navy-950 mb-3">
-                    About Coastal Unity Rally 2026
+                    About {currentRally.title}
                   </h2>
                   <p className="text-slate-600 text-sm sm:text-base leading-relaxed max-w-3xl mb-8">
-                    The Coastal Unity Rally is a sacred tri-annual convention uniting Seventh-day Adventist students, educators, and leaders across coastal Kenya. Together we worship, undergo rigorous leadership training, and mobilize for evangelistic community impact under the 2026 theme: <strong>&quot;United for a Greater Mission&quot;</strong>.
+                    The Coastal Unity Rally is a sacred tri-annual convention uniting Seventh-day Adventist students, educators, and leaders across coastal Kenya. Together we worship, undergo rigorous leadership training, and mobilize for evangelistic community impact under the theme: <strong>&quot;{currentRally.theme || "United for a Greater Mission"}&quot;</strong>.
                   </p>
 
                   <h3 className="font-heading font-bold text-lg text-navy-950 mb-4">

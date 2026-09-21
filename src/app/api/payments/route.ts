@@ -5,7 +5,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const invoiceId = searchParams.get("invoiceId");
-    let payments = getPayments();
+    let payments = await getPayments();
     if (invoiceId) {
       payments = payments.filter((p) => p.invoiceId === invoiceId);
     }
@@ -21,7 +21,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const payment = createPayment(body);
+    const payment = await createPayment(body);
     return NextResponse.json({ success: true, data: payment }, { status: 201 });
   } catch (error) {
     return NextResponse.json(

@@ -3,11 +3,12 @@ import { getAllChapters, createChapter } from "@/lib/db";
 
 export async function GET() {
   try {
-    const chapters = getAllChapters();
+    const chapters = await getAllChapters();
     return NextResponse.json({ success: true, data: chapters });
-  } catch (error) {
+  } catch (error: any) {
+    console.error("GET /api/chapters error:", error);
     return NextResponse.json(
-      { success: false, error: "Failed to fetch chapters" },
+      { success: false, error: error?.message || "Failed to fetch chapters" },
       { status: 500 }
     );
   }
@@ -16,7 +17,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const newChapter = createChapter(body);
+    const newChapter = await createChapter(body);
     return NextResponse.json({ success: true, data: newChapter }, { status: 201 });
   } catch (error) {
     return NextResponse.json(
