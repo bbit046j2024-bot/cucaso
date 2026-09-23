@@ -367,6 +367,12 @@ model Rally {
   feesLockedAt         DateTime?
   feesLockedBy         String?                    // userId
   clonedFromRallyId    String?                    // for cloned rallies
+  // Poster / hero image for the rally card and hero banner
+  posterUrl            String?                    @db.Text
+  // Dynamic rally sections (PRD Section 8 / Admin configuration)
+  programmeJson        String?                    @db.Text
+  venueAccessJson      String?                    @db.Text
+  feesInfoJson         String?                    @db.Text
   costItems            CostItem[]
   participations       RallyChapterParticipation[]
   attendees            Attendee[]
@@ -652,12 +658,33 @@ model PrayerRequest {
   requestText         String   @db.Text
   // isPrivate = true: visible to chaplain only. false: goes through moderation queue.
   isPrivate           Boolean  @default(false)
+  isRead              Boolean  @default(false)
   isModeratedApproved Boolean  @default(false)
   moderatedBy         String?  // userId of chaplain/comm sec who approved
   createdAt           DateTime @default(now())
 
   @@index([isPrivate])
+  @@index([isRead])
   @@index([isModeratedApproved])
+}
+
+// ─── Contact / Feedback Messages ─────────────────────────────────────────────
+
+model ContactMessage {
+  id          String   @id @default(cuid())
+  name        String
+  email       String?
+  phone       String?
+  institution String?
+  subject     String   @default("GENERAL_INQUIRY")
+  message     String   @db.Text
+  isRead      Boolean  @default(false)
+  repliedAt   DateTime?
+  repliedBy   String?
+  createdAt   DateTime @default(now())
+
+  @@index([isRead])
+  @@index([subject])
 }
 
 // ─── Notifications ────────────────────────────────────────────────────────────

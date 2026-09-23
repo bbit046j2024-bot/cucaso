@@ -11,7 +11,10 @@ import {
   ChapterApplication,
   AuditLogEntry,
   BudgetSummary,
-  CoastalAreaPreset
+  CoastalAreaPreset,
+  ProgrammeDay,
+  VenueAccessInfo,
+  FeesAndCapitationInfo
 } from '../types';
 
 export const COASTAL_AREA_PRESETS: CoastalAreaPreset[] = [
@@ -304,6 +307,84 @@ export const MEMBER_CHAPTERS: Chapter[] = [
   },
 ];
 
+export const DEFAULT_RALLY_PROGRAMME: ProgrammeDay[] = [
+  {
+    dayNumber: 1,
+    title: "Day 1 — Friday 15 Nov: Arrival, Accreditation & Opening Vesper",
+    date: "Friday, 15 Nov 2026",
+    timeRange: "02:00 PM — 09:30 PM",
+    theme: "Arrival, Registration & Consecration Vesper",
+    items: [
+      "02:00 PM - 05:00 PM: Chapter delegate registration, badge issuance & dormitory allocations.",
+      "05:30 PM - 06:45 PM: Coastal chapter roll call & sunset opening devotion.",
+      "07:00 PM - 09:30 PM: Keynote Address I: \"Anchored in the Storm\" followed by mass prayer vigil."
+    ]
+  },
+  {
+    dayNumber: 2,
+    title: "Day 2 — Saturday 16 Nov: Sabbath Worship, Workshops & Music Extravaganza",
+    date: "Saturday, 16 Nov 2026",
+    timeRange: "08:00 AM — 09:00 PM",
+    theme: "The Main Sabbath Experience & Musical Praise Extravaganza",
+    items: [
+      "08:00 AM - 09:30 AM: Combined Sabbath School Bible study across combined campus panels.",
+      "10:00 AM - 12:30 PM: Divine Service Sermon by Invited Guest Speaker with 2,400+ delegates.",
+      "01:00 PM - 02:30 PM: Fellowship Lunch & Inter-institutional networking in main arena pavilion.",
+      "02:45 PM - 05:00 PM: Breakout Workshops (Campus Leadership, Health Outreach, Career Mentorship).",
+      "05:30 PM - 08:30 PM: Coastal Grand Choir Festival & sunset musical praise concert."
+    ]
+  },
+  {
+    dayNumber: 3,
+    title: "Day 3 — Sunday 17 Nov: Community Impact & Commissioning Service",
+    date: "Sunday, 17 Nov 2026",
+    timeRange: "08:30 AM — 01:00 PM",
+    theme: "Mission Momentum, Evangelism Cleanliness Drive & Closing",
+    items: [
+      "08:30 AM - 10:30 AM: Mombasa town cleanliness drive & literature evangelism distribution.",
+      "11:00 AM - 12:30 PM: Commissioning and Passing of the Mantle to new chapter officers.",
+      "01:00 PM: Final farewell lunch & safe departure of chapter delegations."
+    ]
+  }
+];
+
+export const DEFAULT_VENUE_ACCESS: VenueAccessInfo = {
+  venueTitle: "Mombasa Sports Complex",
+  description: "Centrally situated on Mombasa Island, the Sports Complex provides a safe, covered main auditorium with modern acoustics, separate workshop break-out halls, dining pavilions, and secure parking.",
+  address: "Mnazi Mmoja Rd, Mombasa Island, Coast Region, Kenya",
+  securityInfo: "Controlled badge gate access with 24-hr Kenya Police escort, private security, and round-the-clock CCTV surveillance.",
+  medicalInfo: "Dedicated Red Cross First Aid mobile station, certified EMT triage nurses, and standby ambulance on-site.",
+  directions: "Easily accessible from Likoni Ferry, Makupa Causeway, or Nyali Bridge. Matatus drop at Mnazi Mmoja stage directly opposite the main gate.",
+  parkingInfo: "Secure designated parking for up to 120 institutional buses, vans, and staff vehicles inside Gate 2.",
+  accommodationNotes: "Nearby Adventist guest houses, university hostels (TUM/KMTC), and arranged community lodging available through Chapter Portal request.",
+  imageUrl: "/mombasa-coast.jpg"
+};
+
+export const DEFAULT_FEES_AND_CAPITATION: FeesAndCapitationInfo = {
+  philosophyTitle: "Capability-Based Fair Capitation",
+  philosophyText: "CUCASO does not charge exorbitant individual gates. We calculate an institutional capitation fee based on chapter membership and institutional capability tier so no student is turned away.",
+  paybillNumber: "4082200",
+  accountInstructions: "Paybill 4082200, Account Number: Assigned Chapter Invoice Reference (e.g., CUCASO-TUM-2026)",
+  deadlineText: "Attendee registration lock: 1 November 2026. Full chapter fee settlement: 10 November 2026.",
+  tiers: [
+    {
+      tierName: "Tier 1: Major Universities",
+      range: "KSh 350,000 - 420,000",
+      description: "For large public universities with high student bodies (TUM, Pwani University). Covers main auditorium subsidization."
+    },
+    {
+      tierName: "Tier 2: Tertiary Colleges",
+      range: "KSh 180,000 - 280,000",
+      description: "For polytechnics and medical training colleges (Mombasa Poly, Kenya Medical, Diani College, TTU)."
+    },
+    {
+      tierName: "Tier 3 & 4: Emerging & Secondary",
+      range: "KSh 60,000 - 150,000",
+      description: "Subsidized capitation for secondary school SDA societies, day schools, and newly chartered coastal fellowships."
+    }
+  ]
+};
+
 export const CURRENT_RALLY: Rally = {
   id: 'rally-cur-2026',
   code: 'CUR-2026',
@@ -320,6 +401,9 @@ export const CURRENT_RALLY: Rally = {
   state: 'REGISTRATION_OPEN',
   allocationMode: 'CAPABILITY_WEIGHTED',
   contingencyPercent: 10,
+  programme: DEFAULT_RALLY_PROGRAMME,
+  venueAccess: DEFAULT_VENUE_ACCESS,
+  feesAndCapitation: DEFAULT_FEES_AND_CAPITATION,
 };
 
 export const RALLY_COST_ITEMS: CostItem[] = [

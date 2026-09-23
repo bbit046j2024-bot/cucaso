@@ -3,13 +3,13 @@
 import { useState } from "react";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
-import { 
-  Mail, 
-  Phone, 
-  MapPin, 
-  Clock, 
-  Send, 
-  CheckCircle2, 
+import {
+  Mail,
+  Phone,
+  MapPin,
+  Clock,
+  Send,
+  CheckCircle2,
   Building2,
   ShieldCheck,
   MessageSquare
@@ -17,6 +17,7 @@ import {
 
 export default function ContactPage() {
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -26,9 +27,26 @@ export default function ContactPage() {
     message: ""
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setSubmitted(true);
+      } else {
+        alert("Failed to send message: " + (json.error || "Unknown error. Please try again."));
+      }
+    } catch {
+      alert("Network error. Please check your connection and try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -57,7 +75,7 @@ export default function ContactPage() {
         <section className="py-12 md:py-16">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
-              
+
               {/* Contact Info Left */}
               <div className="lg:col-span-5 space-y-6">
                 <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
@@ -67,24 +85,12 @@ export default function ContactPage() {
 
                   <div className="space-y-4 text-xs sm:text-sm text-slate-600">
                     <div className="flex items-start gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <MapPin className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <span className="font-bold text-navy-950 block">Physical Office:</span>
-                        <span>CUCASO Secretariat Desk, Coast Field Headquarters & Mombasa Sports Complex Liaison, Mombasa, Kenya.</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3">
                       <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center flex-shrink-0 mt-0.5">
                         <Phone className="w-5 h-5" />
                       </div>
                       <div>
                         <span className="font-bold text-navy-950 block">Telephone / WhatsApp:</span>
-                        <span>+254 712 345 678 (Chairperson Desk)</span>
-                        <br />
-                        <span>+254 722 445 566 (Secretariat Records)</span>
+                        <span>+254 706398658</span>
                       </div>
                     </div>
 
@@ -94,23 +100,7 @@ export default function ContactPage() {
                       </div>
                       <div>
                         <span className="font-bold text-navy-950 block">Official Emails:</span>
-                        <span>secretariat@cucaso.org</span>
-                        <br />
-                        <span>treasury@cucaso.org</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <Clock className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <span className="font-bold text-navy-950 block">Office Hours:</span>
-                        <span>Sunday - Thursday: 08:30 AM — 05:00 PM</span>
-                        <br />
-                        <span>Friday: 08:30 AM — 01:00 PM</span>
-                        <br />
-                        <span className="text-amber-700 font-semibold">Saturday: Closed for Holy Sabbath</span>
+                        <span>cucaso2025@gmail.com</span>
                       </div>
                     </div>
                   </div>
@@ -128,7 +118,7 @@ export default function ContactPage() {
                     For urgent chapter logistics, medical emergencies during travel, or immediate chaplaincy liaison:
                   </p>
                   <div className="text-lg font-black font-heading text-amber-400">
-                    +254 700 911 200
+                    +254 706 398 658
                   </div>
                 </div>
               </div>
@@ -257,10 +247,11 @@ export default function ContactPage() {
 
                       <button
                         type="submit"
-                        className="w-full py-3.5 rounded-xl bg-navy-900 hover:bg-navy-800 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2"
+                        disabled={submitting}
+                        className="w-full py-3.5 rounded-xl bg-navy-900 hover:bg-navy-800 disabled:opacity-60 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2"
                       >
                         <Send className="w-4 h-4 text-amber-400" />
-                        <span>Transmit Message to Secretariat</span>
+                        <span>{submitting ? "Sending…" : "Transmit Message to Secretariat"}</span>
                       </button>
                     </form>
                   )}

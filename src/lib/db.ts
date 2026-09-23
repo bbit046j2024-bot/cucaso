@@ -11,10 +11,13 @@ import {
   Payment,
   ChapterApplication,
   UserAccount,
+  NewsPost,
+  ResourceDocument,
 } from "@/types";
 import {
   MEMBER_CHAPTERS as INITIAL_CHAPTERS,
   CURRENT_RALLY as INITIAL_RALLY,
+  RALLY_COST_ITEMS,
 } from "@/lib/data";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -323,32 +326,336 @@ export async function deleteChapter(id: string): Promise<boolean> {
 
 // ─── RALLY ───────────────────────────────────────────────────────────────────
 
-export async function getCurrentRally(): Promise<Rally> {
-  const rally = await prisma.rally.findFirst({
+export async function getCurrentRally(): Promise<Rally | null> {
+  try {
+    let rally = await prisma.rally.findFirst({
+      include: { venue: true, costItems: true },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (!rally) {
+      // Check if rally was intentionally deleted by admin
+      const deletedSetting = await prisma.systemSetting.findUnique({
+        where: { key: "rally_deleted" },
+      }).catch(() => null);
+
+      if (deletedSetting?.value === "true") {
+        return null;
+      }
+
+      // Auto-seed initial rally so the database has live persistent records
+      try {
+        let venue = await prisma.venue.findFirst({
+          where: { name: INITIAL_RALLY.venueName },
+        });
+        if (!venue) {
+          venue = await prisma.venue.create({
+            data: {
+              name: INITIAL_RALLY.venueName,
+              location: INITIAL_RALLY.venueLocation,
+              capacity: INITIAL_RALLY.capacity || 3000,
+            },
+          });
+        }
+
+        rally = await prisma.rally.create({
+          data: {
+            code: INITIAL_RALLY.code,
+            title: INITIAL_RALLY.title,
+            theme: INITIAL_RALLY.theme,
+            venueId: venue.id,
+            capacity: INITIAL_RALLY.capacity,
+            startDate: new Date(INITIAL_RALLY.startDate),
+            endDate: new Date(INITIAL_RALLY.endDate),
+            registrationDeadline: new Date(INITIAL_RALLY.registrationDeadline),
+            paymentDeadline: new Date(INITIAL_RALLY.paymentDeadline),
+            feeLockDate: new Date(INITIAL_RALLY.feeLockDate),
+            state: INITIAL_RALLY.state as any,
+            allocationMode: (INITIAL_RALLY.allocationMode as any) || "CAPABILITY_WEIGHTED",
+            contingencyBasisPoints: (INITIAL_RALLY.contingencyPercent || 10) * 100,
+            programmeJson: JSON.stringify(INITIAL_RALLY.programme ?? []),
+            venueAccessJson: JSON.stringify(INITIAL_RALLY.venueAccess ?? {}),
+            feesInfoJson: JSON.stringify(INITIAL_RALLY.feesAndCapitation ?? {}),
+          },
+          include: { venue: true, costItems: true },
+        });
+
+        // Seed initial cost items
+        if (RALLY_COST_ITEMS && RALLY_COST_ITEMS.length > 0) {
+          await prisma.costItem.createMany({
+            data: RALLY_COST_ITEMS.map((c) => ({
+              rallyId: rally!.id,
+              category: c.category as any,
+              name: c.name,
+              type: c.type as any,
+              amountKes: c.amount,
+              quantity: c.quantity || 1,
+              notes: c.notes || null,
+            })),
+          }).catch(() => {});
+        }
+      } catch (seedErr) {
+        console.warn("Could not auto-seed rally in DB, returning fallback:", seedErr);
+        return INITIAL_RALLY;
+      }
+    }
+
+    if (!rally) return null;
+
+    let parsedProgramme = INITIAL_RALLY.programme;
+    if (rally.programmeJson) {
+      try {
+        parsedProgramme = JSON.parse(rally.programmeJson);
+      } catch {}
+    }
+
+    let parsedVenueAccess = INITIAL_RALLY.venueAccess;
+    if (rally.venueAccessJson) {
+      try {
+        parsedVenueAccess = JSON.parse(rally.venueAccessJson);
+      } catch {}
+    }
+
+    let parsedFeesAndCapitation = INITIAL_RALLY.feesAndCapitation;
+    if (rally.feesInfoJson) {
+      try {
+        parsedFeesAndCapitation = JSON.parse(rally.feesInfoJson);
+      } catch {}
+    }
+
+    const costItems = rally.costItems && rally.costItems.length > 0
+      ? rally.costItems.map((c: any) => ({
+          id: c.id,
+          rallyId: c.rallyId,
+          category: c.category as any,
+          name: c.name,
+          type: c.type as any,
+          amount: c.amountKes,
+          quantity: c.quantity,
+          notes: c.notes ?? undefined,
+        }))
+      : undefined;
+
+    return {
+      id: rally.id,
+      code: rally.code,
+      title: rally.title,
+      theme: rally.theme ?? "",
+      venueName: rally.venue?.name || INITIAL_RALLY.venueName,
+      venueLocation: rally.venue?.location || INITIAL_RALLY.venueLocation,
+      capacity: rally.capacity,
+      startDate: rally.startDate ? rally.startDate.toISOString().split("T")[0] : INITIAL_RALLY.startDate,
+      endDate: rally.endDate ? rally.endDate.toISOString().split("T")[0] : INITIAL_RALLY.endDate,
+      registrationDeadline: rally.registrationDeadline ? rally.registrationDeadline.toISOString().split("T")[0] : INITIAL_RALLY.registrationDeadline,
+      paymentDeadline: rally.paymentDeadline ? rally.paymentDeadline.toISOString().split("T")[0] : INITIAL_RALLY.paymentDeadline,
+      feeLockDate: rally.feeLockDate ? rally.feeLockDate.toISOString().split("T")[0] : INITIAL_RALLY.feeLockDate,
+      state: rally.state as Rally["state"],
+      allocationMode: rally.allocationMode as Rally["allocationMode"],
+      contingencyPercent: Math.round((rally.contingencyBasisPoints || 1000) / 100),
+      posterUrl: (rally as any).posterUrl ?? undefined,
+      programme: parsedProgramme,
+      venueAccess: parsedVenueAccess,
+      feesAndCapitation: parsedFeesAndCapitation,
+      costItems,
+    };
+  } catch (err) {
+    console.error("getCurrentRally error:", err);
+    return INITIAL_RALLY;
+  }
+}
+
+export async function updateCurrentRally(updates: Partial<Rally>): Promise<Rally> {
+  // Clear the deleted flag whenever an admin saves/updates a rally
+  await prisma.systemSetting.upsert({
+    where: { key: "rally_deleted" },
+    update: { value: "false" },
+    create: { key: "rally_deleted", value: "false" },
+  }).catch(() => {});
+
+  let current = await prisma.rally.findFirst({
     include: { venue: true },
     orderBy: { createdAt: "desc" },
   });
 
-  if (!rally) return INITIAL_RALLY;
+  // If no rally exists in DB, upsert by creating a new rally with updates merged
+  if (!current) {
+    return createRally({
+      ...INITIAL_RALLY,
+      ...updates,
+    });
+  }
 
-  return {
-    id: rally.id,
-    code: rally.code,
-    title: rally.title,
-    theme: rally.theme ?? "",
-    venueName: rally.venue.name,
-    venueLocation: rally.venue.location,
-    capacity: rally.capacity,
-    startDate: rally.startDate.toISOString().split("T")[0],
-    endDate: rally.endDate.toISOString().split("T")[0],
-    registrationDeadline: rally.registrationDeadline.toISOString().split("T")[0],
-    paymentDeadline: rally.paymentDeadline.toISOString().split("T")[0],
-    feeLockDate: rally.feeLockDate.toISOString().split("T")[0],
-    state: rally.state as Rally["state"],
-    allocationMode: rally.allocationMode as Rally["allocationMode"],
-    contingencyPercent: Math.round(rally.contingencyBasisPoints / 100),
-  };
+  // Update venue details if venueName or venueLocation supplied
+  if (updates.venueName || updates.venueLocation) {
+    await prisma.venue.update({
+      where: { id: current.venueId },
+      data: {
+        ...(updates.venueName ? { name: updates.venueName } : {}),
+        ...(updates.venueLocation ? { location: updates.venueLocation } : {}),
+      },
+    }).catch(() => {});
+  }
+
+  // Build Prisma Rally update object
+  const data: any = {};
+  if (updates.title) data.title = updates.title;
+  if (updates.theme !== undefined) data.theme = updates.theme;
+  if (updates.capacity !== undefined) data.capacity = Number(updates.capacity);
+  if (updates.startDate) data.startDate = new Date(updates.startDate);
+  if (updates.endDate) data.endDate = new Date(updates.endDate);
+  if (updates.registrationDeadline) data.registrationDeadline = new Date(updates.registrationDeadline);
+  if (updates.paymentDeadline) data.paymentDeadline = new Date(updates.paymentDeadline);
+  if (updates.feeLockDate) data.feeLockDate = new Date(updates.feeLockDate);
+  if (updates.state) data.state = updates.state;
+  if (updates.allocationMode) data.allocationMode = updates.allocationMode;
+  if (updates.contingencyPercent !== undefined) {
+    data.contingencyBasisPoints = Math.round(Number(updates.contingencyPercent) * 100);
+  }
+
+  // Poster image URL
+  if (updates.posterUrl !== undefined) {
+    data.posterUrl = updates.posterUrl;
+  }
+  // Dynamic content JSON
+  if (updates.programme !== undefined) {
+    data.programmeJson = JSON.stringify(updates.programme);
+  }
+  if (updates.venueAccess !== undefined) {
+    data.venueAccessJson = JSON.stringify(updates.venueAccess);
+  }
+  if (updates.feesAndCapitation !== undefined) {
+    data.feesInfoJson = JSON.stringify(updates.feesAndCapitation);
+  }
+
+  await prisma.rally.update({
+    where: { id: current.id },
+    data,
+  });
+
+  // Record Audit Trail
+  await prisma.auditLog.create({
+    data: {
+      actor: "Executive Council / Admin",
+      action: "RALLY_UPDATED",
+      entityType: "Rally",
+      entityId: current.id,
+      afterJson: JSON.stringify(updates),
+    },
+  }).catch(() => {});
+
+  const updatedRally = await getCurrentRally();
+  return updatedRally || (INITIAL_RALLY as Rally);
 }
+
+export async function createRally(data: Partial<Rally>): Promise<Rally> {
+  // Clear the deleted flag
+  await prisma.systemSetting.upsert({
+    where: { key: "rally_deleted" },
+    update: { value: "false" },
+    create: { key: "rally_deleted", value: "false" },
+  }).catch(() => {});
+
+  let venue = await prisma.venue.findFirst({
+    where: { name: data.venueName || "Mombasa Sports Complex" },
+  });
+  if (!venue) {
+    venue = await prisma.venue.create({
+      data: {
+        name: data.venueName || "Convention Grounds",
+        location: data.venueLocation || "Coast Region, Kenya",
+        capacity: data.capacity || 3000,
+      },
+    });
+  }
+
+  const code = data.code || `CUR-${new Date().getFullYear() + 1}`;
+  await prisma.rally.create({
+    data: {
+      code,
+      title: data.title || "New Coastal Rally",
+      theme: data.theme || "",
+      venueId: venue.id,
+      capacity: data.capacity ? Number(data.capacity) : 3000,
+      startDate: data.startDate ? new Date(data.startDate) : new Date("2027-05-15T08:00:00Z"),
+      endDate: data.endDate ? new Date(data.endDate) : new Date("2027-05-17T17:00:00Z"),
+      registrationDeadline: data.registrationDeadline ? new Date(data.registrationDeadline) : new Date("2027-05-01T23:59:59Z"),
+      paymentDeadline: data.paymentDeadline ? new Date(data.paymentDeadline) : new Date("2027-05-10T23:59:59Z"),
+      feeLockDate: data.feeLockDate ? new Date(data.feeLockDate) : new Date("2027-05-01T23:59:59Z"),
+      state: (data.state as any) || "DRAFT",
+      posterUrl: data.posterUrl || null,
+      programmeJson: data.programme ? JSON.stringify(data.programme) : null,
+      venueAccessJson: data.venueAccess ? JSON.stringify(data.venueAccess) : null,
+      feesInfoJson: data.feesAndCapitation ? JSON.stringify(data.feesAndCapitation) : null,
+    },
+  });
+
+  const createdRally = await getCurrentRally();
+  return createdRally || (INITIAL_RALLY as Rally);
+}
+
+export async function deleteRally(id?: string): Promise<boolean> {
+  try {
+    let targetRally = null;
+    if (id && id.trim()) {
+      targetRally = await prisma.rally.findUnique({ where: { id } }).catch(() => null);
+      if (!targetRally) {
+        targetRally = await prisma.rally.findFirst({
+          where: { OR: [{ code: id }, { title: id }] },
+        }).catch(() => null);
+      }
+    }
+    if (!targetRally) {
+      targetRally = await prisma.rally.findFirst({ orderBy: { createdAt: "desc" } }).catch(() => null);
+    }
+
+    if (targetRally) {
+      const targetRallyId = targetRally.id;
+
+      // 1. Fee adjustments
+      await prisma.feeAdjustment.deleteMany({ where: { rallyId: targetRallyId } }).catch(() => {});
+      // 2. Cost items
+      await prisma.costItem.deleteMany({ where: { rallyId: targetRallyId } }).catch(() => {});
+      // 3. Participations
+      await prisma.rallyChapterParticipation.deleteMany({ where: { rallyId: targetRallyId } }).catch(() => {});
+
+      // 4. Invoices and payments
+      const invs = await prisma.invoice.findMany({ where: { rallyId: targetRallyId }, select: { id: true } }).catch(() => []);
+      const invIds = invs.map((i: any) => i.id);
+      if (invIds.length > 0) {
+        await prisma.payment.deleteMany({ where: { invoiceId: { in: invIds } } }).catch(() => {});
+        await prisma.invoice.deleteMany({ where: { id: { in: invIds } } }).catch(() => {});
+      }
+
+      // 5. Attendees & guardian consents
+      const atts = await prisma.attendee.findMany({ where: { rallyId: targetRallyId }, select: { id: true } }).catch(() => []);
+      const attIds = atts.map((a: any) => a.id);
+      if (attIds.length > 0) {
+        await prisma.guardianConsent.deleteMany({ where: { attendeeId: { in: attIds } } }).catch(() => {});
+        await prisma.attendee.deleteMany({ where: { rallyId: targetRallyId } }).catch(() => {});
+      }
+
+      // 6. Audit logs
+      await prisma.auditLog.deleteMany({ where: { entityId: targetRallyId } }).catch(() => {});
+
+      // 7. Finally delete the rally
+      await prisma.rally.delete({ where: { id: targetRallyId } }).catch(() => {});
+    }
+
+    // Set deleted flag so system doesn't auto-reseed until created or updated
+    await prisma.systemSetting.upsert({
+      where: { key: "rally_deleted" },
+      update: { value: "true" },
+      create: { key: "rally_deleted", value: "true" },
+    }).catch(() => {});
+
+    return true;
+  } catch (error) {
+    console.error("Error deleting rally:", error);
+    return false;
+  }
+}
+
+
 
 // ─── ATTENDEES ───────────────────────────────────────────────────────────────
 
@@ -1132,3 +1439,334 @@ export async function deleteUser(id: string): Promise<boolean> {
   IN_MEMORY_USERS = IN_MEMORY_USERS.filter((u) => u.id !== id);
   return IN_MEMORY_USERS.length < prevLen;
 }
+
+// ─── NEWS & CMS ─────────────────────────────────────────────────────────────
+
+let IN_MEMORY_NEWS: NewsPost[] = [
+  {
+    id: "news-1",
+    slug: "q1-2026-spiritual-rally-venue",
+    category: "ANNOUNCEMENT",
+    title: "Administration Council Finalizes Q1 2026 Coastal Spiritual Rally Venue",
+    summary: "Delegates from 12 member chapters will convene at Technical University of Mombasa (TUM) for an unforgettable weekend of faith, prayer, and choral ministry.",
+    content: "The Executive Council is delighted to announce that after careful venue inspection and prayerful consideration, Technical University of Mombasa has been selected as the official host venue for the upcoming rally.",
+    contentHtml: "<p>The Executive Council is delighted to announce that after careful venue inspection and prayerful consideration, Technical University of Mombasa has been selected as the official host venue for the upcoming rally.</p>",
+    publishedAt: "2026-09-18",
+    createdAt: "2026-09-18",
+    author: "Secretariat & Comms Office",
+    status: "PUBLISHED",
+    readTime: "3 min read",
+  },
+  {
+    id: "news-2",
+    slug: "capability-weighted-capitation-framework",
+    category: "FINANCE",
+    title: "Central Treasury Publishes Capability-Weighted Capitation Framework",
+    summary: "In accordance with PRD Section 6, the capability cost engine has been ratified to ensure fair financial sharing between large universities and technical institutes.",
+    content: "The newly adopted tiered capitation framework guarantees that all chapters contribute proportionally to their institutional strength, eliminating unfair head-tax barriers.",
+    contentHtml: "<p>The newly adopted tiered capitation framework guarantees that all chapters contribute proportionally to their institutional strength, eliminating unfair head-tax barriers.</p>",
+    publishedAt: "2026-09-12",
+    createdAt: "2026-09-12",
+    author: "Central Treasurer",
+    status: "PUBLISHED",
+    readTime: "4 min read",
+  },
+  {
+    id: "news-3",
+    slug: "pastoral-letter-academic-pressures",
+    category: "SPIRITUAL",
+    title: "Pastoral Letter: Anchored in Faith Amidst Academic Pressures",
+    summary: "A heartfelt message from the CUCASO Chaplaincy to all tertiary students preparing for continuous assessment tests and end-of-semester examinations.",
+    content: "As exams approach across our coastal campuses, remember that your worth is found in Christ. Strive for academic excellence while keeping Sabbath holy.",
+    contentHtml: "<p>As exams approach across our coastal campuses, remember that your worth is found in Christ. Strive for academic excellence while keeping Sabbath holy.</p>",
+    publishedAt: "2026-09-05",
+    createdAt: "2026-09-05",
+    author: "Pastor Eric Musembi (Patron & Chaplain)",
+    status: "PUBLISHED",
+    readTime: "5 min read",
+  },
+  {
+    id: "news-4",
+    slug: "pwani-medical-camp-kilifi",
+    category: "STORY",
+    title: "Pwani University Chapter Holds Successful Medical Camp in Kilifi",
+    summary: "Over 350 residents received free blood pressure screenings, optical checks, and Christian literature through joint student volunteer efforts.",
+    content: "Student health volunteers from Pwani University spent Sunday morning providing medical checkups to the local community in Kilifi town.",
+    contentHtml: "<p>Student health volunteers from Pwani University spent Sunday morning providing medical checkups to the local community in Kilifi town.</p>",
+    publishedAt: "2026-08-28",
+    createdAt: "2026-08-28",
+    author: "Pwani SDA Comms Secretary",
+    status: "PUBLISHED",
+    readTime: "3 min read",
+  }
+];
+
+export async function getNewsPosts(): Promise<NewsPost[]> {
+  try {
+    const posts = await prisma.cmsPost.findMany({
+      orderBy: { createdAt: "desc" },
+    });
+    if (posts.length > 0) {
+      return posts.map(p => ({
+        id: p.id,
+        slug: p.slug,
+        title: p.title,
+        summary: p.summary ?? undefined,
+        content: p.contentHtml,
+        contentHtml: p.contentHtml,
+        category: p.category,
+        featuredImageUrl: p.featuredImageUrl ?? undefined,
+        altText: p.altText ?? undefined,
+        status: p.status,
+        author: p.authorUserId || "Council Admin",
+        publishedAt: p.publishedAt ? p.publishedAt.toISOString().split("T")[0] : undefined,
+        createdAt: p.createdAt ? p.createdAt.toISOString().split("T")[0] : undefined,
+      }));
+    }
+  } catch (e) {
+    console.warn("Prisma cmsPost fetch error, using in-memory store:", e);
+  }
+  return IN_MEMORY_NEWS;
+}
+
+export async function createNewsPost(data: Partial<NewsPost>): Promise<NewsPost> {
+  const slug = data.slug || (data.title || "post").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") + "-" + Date.now().toString(36);
+  const newPost: NewsPost = {
+    id: `post-${Date.now().toString(36)}`,
+    slug,
+    title: data.title || "Untitled Announcement",
+    summary: data.summary || "",
+    content: data.content || data.contentHtml || "",
+    contentHtml: data.contentHtml || data.content || "",
+    category: (data.category as any) || "NEWS",
+    featuredImageUrl: data.featuredImageUrl,
+    status: data.status || "PUBLISHED",
+    author: data.author || "Council Admin",
+    publishedAt: data.publishedAt || new Date().toISOString().split("T")[0],
+    createdAt: new Date().toISOString().split("T")[0],
+    readTime: data.readTime || "3 min read",
+  };
+
+  try {
+    const validCategories = ["NEWS", "ANNOUNCEMENT", "STORY", "DEVOTIONAL", "TESTIMONY"];
+    const cat = validCategories.includes(newPost.category) ? (newPost.category as any) : "NEWS";
+    const created = await prisma.cmsPost.create({
+      data: {
+        slug: newPost.slug,
+        title: newPost.title,
+        summary: newPost.summary ?? null,
+        contentHtml: newPost.content || "",
+        category: cat,
+        featuredImageUrl: newPost.featuredImageUrl ?? null,
+        status: (newPost.status === "PUBLISHED" ? "PUBLISHED" : "DRAFT") as any,
+        authorUserId: newPost.author,
+        publishedAt: new Date(),
+      },
+    });
+    newPost.id = created.id;
+  } catch (e) {
+    console.warn("Prisma cmsPost create error, saved in-memory:", e);
+  }
+
+  IN_MEMORY_NEWS = [newPost, ...IN_MEMORY_NEWS];
+  return newPost;
+}
+
+export async function updateNewsPost(id: string, updates: Partial<NewsPost>): Promise<NewsPost | null> {
+  try {
+    await prisma.cmsPost.update({
+      where: { id },
+      data: {
+        ...(updates.title ? { title: updates.title } : {}),
+        ...(updates.summary !== undefined ? { summary: updates.summary } : {}),
+        ...(updates.content || updates.contentHtml ? { contentHtml: updates.content || updates.contentHtml } : {}),
+        ...(updates.featuredImageUrl !== undefined ? { featuredImageUrl: updates.featuredImageUrl } : {}),
+        ...(updates.status ? { status: updates.status as any } : {}),
+      },
+    });
+  } catch (e) {
+    console.warn("Prisma cmsPost update error:", e);
+  }
+
+  const idx = IN_MEMORY_NEWS.findIndex(p => p.id === id);
+  if (idx !== -1) {
+    IN_MEMORY_NEWS[idx] = { ...IN_MEMORY_NEWS[idx], ...updates };
+    return IN_MEMORY_NEWS[idx];
+  }
+  return null;
+}
+
+export async function deleteNewsPost(id: string): Promise<boolean> {
+  try {
+    await prisma.cmsPost.delete({ where: { id } });
+  } catch (e) {
+    console.warn("Prisma cmsPost delete error:", e);
+  }
+  const prevLen = IN_MEMORY_NEWS.length;
+  IN_MEMORY_NEWS = IN_MEMORY_NEWS.filter(p => p.id !== id);
+  return IN_MEMORY_NEWS.length < prevLen;
+}
+
+// ─── DOCUMENTS & RESOURCES ───────────────────────────────────────────────────
+
+let IN_MEMORY_DOCUMENTS: ResourceDocument[] = [
+  {
+    id: "doc-1",
+    title: "CUCASO Official Constitution & Bylaws (Revised 2024)",
+    description: "The supreme governing document of the Coastal Universities and Colleges Adventist Students Organization.",
+    category: "CONSTITUTION",
+    accessLevel: "PUBLIC",
+    fileSize: "1.4 MB",
+    mimeType: "application/pdf",
+    url: "/resources/constitution.pdf",
+    uploadedBy: "Executive Secretariat",
+    createdAt: "2024-09-01",
+  },
+  {
+    id: "doc-2",
+    title: "Rally Financial Policy & Capability-Weighted Capitation Framework",
+    description: "Official capitation model guidelines detailing institutional tiers, cost sharing formulas, and paybill remittance protocols.",
+    category: "POLICY",
+    accessLevel: "PUBLIC",
+    fileSize: "820 KB",
+    mimeType: "application/pdf",
+    url: "/resources/financial-policy.pdf",
+    uploadedBy: "Central Treasury",
+    createdAt: "2024-08-15",
+  },
+  {
+    id: "doc-3",
+    title: "Chapter Chartering Application & Endorsement Guide",
+    description: "Step-by-step checklist and institutional endorsement procedures for newly affiliated campus fellowships.",
+    category: "FORM",
+    accessLevel: "PUBLIC",
+    fileSize: "540 KB",
+    mimeType: "application/pdf",
+    url: "/resources/chapter-charter-guide.pdf",
+    uploadedBy: "Secretariat",
+    createdAt: "2024-07-20",
+  },
+  {
+    id: "doc-4",
+    title: "Under-18 Minor Attendee Guardian Consent Form",
+    description: "Statutory KDPA-compliant parental/guardian authorization form for all delegates below 18 years.",
+    category: "FORM",
+    accessLevel: "PUBLIC",
+    fileSize: "310 KB",
+    mimeType: "application/pdf",
+    url: "/resources/guardian-consent.pdf",
+    uploadedBy: "Legal & Compliance",
+    createdAt: "2026-01-10",
+  },
+  {
+    id: "doc-5",
+    title: "Executive Council Minutes & Resolutions (Tier Approvals)",
+    description: "Official minutes from the Executive Council quarterly deliberations on chapter capability tier allocations.",
+    category: "MINUTES",
+    accessLevel: "MEMBERS_ONLY",
+    fileSize: "2.1 MB",
+    mimeType: "application/pdf",
+    url: "/resources/council-minutes.pdf",
+    uploadedBy: "Executive Secretary",
+    createdAt: "2025-11-28",
+  },
+  {
+    id: "doc-6",
+    title: "Rally Venue Safety, Medical & Emergency Preparedness Protocol",
+    description: "Comprehensive emergency evacuation and triage protocol designed in partnership with Red Cross Kenya.",
+    category: "POLICY",
+    accessLevel: "LEADERS_ONLY",
+    fileSize: "1.1 MB",
+    mimeType: "application/pdf",
+    url: "/resources/safety-protocol.pdf",
+    uploadedBy: "Logistics Directorate",
+    createdAt: "2026-02-14",
+  },
+  {
+    id: "doc-7",
+    title: "Christ in the Sanctuary: Youth Study Series",
+    description: "Comprehensive 8-part Bible study series exploring the Sanctuary doctrine and Christ's high-priestly ministry.",
+    category: "SPIRITUAL",
+    accessLevel: "PUBLIC",
+    fileSize: "3.2 MB",
+    mimeType: "application/pdf",
+    url: "/resources/sanctuary-study.pdf",
+    uploadedBy: "Chaplaincy",
+    createdAt: "2026-03-01",
+  }
+];
+
+export async function getDocumentResources(): Promise<ResourceDocument[]> {
+  try {
+    const docs = await prisma.document.findMany({
+      orderBy: { createdAt: "desc" },
+    });
+    if (docs.length > 0) {
+      return docs.map(d => ({
+        id: d.id,
+        title: d.title,
+        description: d.description ?? undefined,
+        category: d.category,
+        accessLevel: d.accessLevel,
+        storageKey: d.storageKey,
+        url: d.storageKey,
+        fileSize: d.fileSize ? `${(d.fileSize / 1024 / 1024).toFixed(1)} MB` : undefined,
+        mimeType: d.mimeType ?? undefined,
+        uploadedBy: d.uploadedBy ?? undefined,
+        createdAt: d.createdAt ? d.createdAt.toISOString().split("T")[0] : undefined,
+      }));
+    }
+  } catch (e) {
+    console.warn("Prisma document fetch error, using in-memory store:", e);
+  }
+  return IN_MEMORY_DOCUMENTS;
+}
+
+export async function createDocumentResource(data: Partial<ResourceDocument>): Promise<ResourceDocument> {
+  const newDoc: ResourceDocument = {
+    id: `doc-${Date.now().toString(36)}`,
+    title: data.title || "Untitled Document",
+    description: data.description || "",
+    category: data.category || "OTHER",
+    accessLevel: data.accessLevel || "PUBLIC",
+    storageKey: data.url || data.storageKey || "#",
+    url: data.url || data.storageKey || "#",
+    fileSize: data.fileSize || "1.0 MB",
+    mimeType: data.mimeType || "application/pdf",
+    uploadedBy: data.uploadedBy || "Council Admin",
+    createdAt: new Date().toISOString().split("T")[0],
+  };
+
+  try {
+    const created = await prisma.document.create({
+      data: {
+        title: newDoc.title,
+        description: newDoc.description ?? null,
+        category: newDoc.category,
+        accessLevel: newDoc.accessLevel,
+        storageKey: newDoc.url || "#",
+        fileSize: 1048576,
+        mimeType: newDoc.mimeType,
+        uploadedBy: newDoc.uploadedBy,
+      },
+    });
+    newDoc.id = created.id;
+  } catch (e) {
+    console.warn("Prisma document create error, saved in-memory:", e);
+  }
+
+  IN_MEMORY_DOCUMENTS = [newDoc, ...IN_MEMORY_DOCUMENTS];
+  return newDoc;
+}
+
+export async function deleteDocumentResource(id: string): Promise<boolean> {
+  try {
+    await prisma.document.delete({ where: { id } });
+  } catch (e) {
+    console.warn("Prisma document delete error:", e);
+  }
+  const prevLen = IN_MEMORY_DOCUMENTS.length;
+  IN_MEMORY_DOCUMENTS = IN_MEMORY_DOCUMENTS.filter(d => d.id !== id);
+  return IN_MEMORY_DOCUMENTS.length < prevLen;
+}
+

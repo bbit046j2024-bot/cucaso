@@ -305,69 +305,148 @@ export default function HomePage() {
         {/* ========================================================= */}
         <section id="rally" className="py-12 md:py-16 bg-slate-50 border-b border-slate-200">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div
-              className="relative rounded-3xl border border-slate-800/30 shadow-2xl overflow-hidden"
-              style={{
-                backgroundImage: "url('https://static.vecteezy.com/system/resources/thumbnails/027/716/506/small_2x/people-hand-up-in-the-concert-hall-music-event-generative-ai-photo.jpg')",
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-              }}
-            >
-              <div className="absolute inset-0 bg-gradient-to-r from-navy-950/95 via-navy-950/85 to-navy-950/55" />
+            {currentRally ? (
+              <div
+                className="relative rounded-3xl border border-slate-800/30 shadow-2xl overflow-hidden"
+                style={{
+                  backgroundImage: `url('${currentRally.posterUrl || "https://static.vecteezy.com/system/resources/thumbnails/027/716/506/small_2x/people-hand-up-in-the-concert-hall-music-event-generative-ai-photo.jpg"}')`,
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                }}
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-navy-950/95 via-navy-950/85 to-navy-950/55" />
 
-              <div className="relative z-10 p-6 sm:p-10 lg:p-12 max-w-2xl">
-                <div className="flex items-center gap-3 mb-3">
-                  <span className="px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 font-bold text-xs uppercase tracking-wider backdrop-blur-sm">
-                    Featured Rally
-                  </span>
-                  <span className="px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 font-bold text-xs flex items-center gap-1.5 backdrop-blur-sm">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    Registration Open
-                  </span>
-                </div>
-
-                <h3 className="font-heading font-black text-2xl sm:text-3xl lg:text-4xl text-white mb-2 tracking-tight">
-                  {currentRally.title}
-                </h3>
-
-                <div className="flex flex-wrap items-center gap-4 text-xs sm:text-sm text-slate-300 mb-6">
-                  <div className="flex items-center gap-1.5">
-                    <Calendar className="w-4 h-4 text-amber-400" />
-                    <span className="text-slate-200 font-medium">
-                      {currentRally.startDate
-                        ? new Date(currentRally.startDate).toLocaleDateString("en-KE", { day: "numeric", month: "long", year: "numeric" })
-                        : "15 – 17 November 2026"}
+                <div className="relative z-10 p-6 sm:p-10 lg:p-12 max-w-2xl">
+                  <div className="flex items-center gap-3 mb-3">
+                    <span className="px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 font-bold text-xs uppercase tracking-wider backdrop-blur-sm">
+                      Official Rally
+                    </span>
+                    <span
+                      className={`px-3 py-1 rounded-full border text-xs font-bold flex items-center gap-1.5 backdrop-blur-sm ${
+                        currentRally.state === "REGISTRATION_OPEN"
+                          ? "bg-emerald-500/20 border-emerald-400/30 text-emerald-300"
+                          : currentRally.state === "FEES_LOCKED"
+                          ? "bg-amber-500/20 border-amber-400/30 text-amber-300"
+                          : currentRally.state === "IN_PROGRESS"
+                          ? "bg-purple-500/20 border-purple-400/30 text-purple-300"
+                          : currentRally.state === "COMPLETED"
+                          ? "bg-blue-500/20 border-blue-400/30 text-blue-300"
+                          : "bg-slate-500/20 border-slate-400/30 text-slate-300"
+                      }`}
+                    >
+                      <span
+                        className={`w-2 h-2 rounded-full ${
+                          currentRally.state === "REGISTRATION_OPEN"
+                            ? "bg-emerald-400 animate-pulse"
+                            : "bg-slate-400"
+                        }`}
+                      />
+                      {(currentRally.state || "REGISTRATION OPEN").replace(/_/g, " ")}
                     </span>
                   </div>
-                  <span className="text-slate-500">•</span>
-                  <div className="flex items-center gap-1.5">
-                    <MapPin className="w-4 h-4 text-amber-400" />
-                    <span className="text-slate-200 font-medium">{currentRally.venueName}</span>
+
+                  <h3 className="font-heading font-black text-2xl sm:text-3xl lg:text-4xl text-white mb-2 tracking-tight">
+                    {currentRally.title}
+                  </h3>
+
+                  {currentRally.theme && (
+                    <p className="text-amber-300 font-semibold text-sm sm:text-base italic mb-4">
+                      &ldquo;{currentRally.theme}&rdquo;
+                    </p>
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-4 text-xs sm:text-sm text-slate-300 mb-6">
+                    <div className="flex items-center gap-1.5">
+                      <Calendar className="w-4 h-4 text-amber-400" />
+                      <span className="text-slate-200 font-medium">
+                        {currentRally.startDate
+                          ? new Date(currentRally.startDate).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" })
+                          : "Dates TBA"}
+                        {currentRally.endDate
+                          ? ` – ${new Date(currentRally.endDate).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" })}`
+                          : ""}
+                      </span>
+                    </div>
+                    <span className="text-slate-500">•</span>
+                    <div className="flex items-center gap-1.5">
+                      <MapPin className="w-4 h-4 text-amber-400" />
+                      <span className="text-slate-200 font-medium">{currentRally.venueName || currentRally.venueLocation || "Mombasa, Kenya"}</span>
+                    </div>
+                    {currentRally.capacity ? (
+                      <>
+                        <span className="text-slate-500">•</span>
+                        <div className="flex items-center gap-1.5">
+                          <Users className="w-4 h-4 text-amber-400" />
+                          <span className="text-slate-200 font-medium">{Number(currentRally.capacity).toLocaleString()} Delegates</span>
+                        </div>
+                      </>
+                    ) : null}
+                  </div>
+
+                  {currentRally.startDate && (
+                    <div className="mb-6">
+                      <RallyCountdown targetDate={currentRally.startDate} variant="dark" />
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-4 pt-2">
+                    {currentRally.state === "REGISTRATION_OPEN" ? (
+                      <Link
+                        href="/apply"
+                        className="px-8 py-3.5 rounded-full bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold text-sm shadow-lg hover:shadow-amber-500/25 transition-all flex items-center gap-2"
+                      >
+                        <span>Register Now</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </Link>
+                    ) : (
+                      <Link
+                        href="/rallies"
+                        className="px-7 py-3.5 rounded-full bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm shadow-lg transition-all flex items-center gap-2"
+                      >
+                        <span>View Programme & Details</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </Link>
+                    )}
+
+                    <Link
+                      href="/rallies"
+                      className="text-sm font-semibold text-slate-200 hover:text-white transition-colors"
+                    >
+                      View Full Details & Schedule →
+                    </Link>
                   </div>
                 </div>
-
-                <div className="mb-6">
-                  <RallyCountdown targetDate={currentRally.startDate} variant="dark" />
-                </div>
-
-                <div className="flex flex-wrap items-center gap-4 pt-2">
-                  <Link
-                    href="/apply"
-                    className="px-8 py-3.5 rounded-full bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold text-sm shadow-lg hover:shadow-amber-500/25 transition-all flex items-center gap-2"
-                  >
-                    <span>Register Now</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </Link>
-
-                  <Link
-                    href="/rallies"
-                    className="text-sm font-semibold text-slate-200 hover:text-white transition-colors"
-                  >
-                    View Full Details & Schedule →
-                  </Link>
+              </div>
+            ) : (
+              <div className="relative rounded-3xl bg-gradient-to-br from-navy-950 via-slate-900 to-navy-900 border border-slate-800 p-8 sm:p-12 text-white shadow-2xl overflow-hidden">
+                <div className="max-w-2xl space-y-4">
+                  <span className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-300 font-bold text-xs uppercase tracking-wider">
+                    Official Notice
+                  </span>
+                  <h3 className="font-heading font-black text-2xl sm:text-3xl text-white">
+                    No Active Rally Currently Scheduled
+                  </h3>
+                  <p className="text-slate-300 text-sm leading-relaxed">
+                    The CUCASO Executive Council is planning the upcoming coastal convention. Official dates, venue details, and delegate registration information will be published here once gazetted.
+                  </p>
+                  <div className="pt-2 flex flex-wrap items-center gap-4">
+                    <Link
+                      href="/rallies"
+                      className="px-6 py-3 rounded-full bg-white/10 hover:bg-white/20 text-white font-bold text-xs border border-white/20 transition-all flex items-center gap-2"
+                    >
+                      <span>Explore Past Rallies Archive</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </Link>
+                    <Link
+                      href="/contact"
+                      className="text-xs text-amber-300 hover:text-amber-200 font-semibold"
+                    >
+                      Contact Council Secretariat →
+                    </Link>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         </section>
 

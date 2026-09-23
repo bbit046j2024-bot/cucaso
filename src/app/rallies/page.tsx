@@ -37,16 +37,16 @@ export default function RalliesPage() {
     fetch("/api/rallies")
       .then((res) => res.json())
       .then((json) => {
-        if (json.success && json.data) {
+        if (json.success) {
           setCurrentRally(json.data);
         }
       })
       .catch(() => {});
   }, []);
 
-  const formattedDate = currentRally.startDate ? (
-    `${new Date(currentRally.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${new Date(currentRally.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
-  ) : "Nov 15 - 17, 2026";
+  const formattedDate = currentRally?.startDate ? (
+    `${new Date(currentRally.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${currentRally.endDate ? new Date(currentRally.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : ""}`
+  ) : "Dates TBA";
 
   const faqs = [
     {
@@ -79,63 +79,126 @@ export default function RalliesPage() {
         {/* Banner with Photo & Countdown (Directly matching Rally Information (Public) in image1/image2) */}
         <section className="bg-navy-950 text-white py-12 md:py-16 relative overflow-hidden">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-            <div className="bg-gradient-to-r from-navy-900 via-navy-950 to-slate-900 rounded-3xl border border-white/10 overflow-hidden shadow-2xl">
-              <div className="grid grid-cols-1 lg:grid-cols-12 items-center">
-                {/* Photo Left */}
-                <div
-                  className="lg:col-span-6 relative h-64 sm:h-80 lg:h-96 w-full"
-                  style={{
-                    backgroundImage: "url('https://static.vecteezy.com/system/resources/thumbnails/027/716/506/small_2x/people-hand-up-in-the-concert-hall-music-event-generative-ai-photo.jpg')",
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
-                  }}
-                >
-                  <div className="absolute inset-0 bg-gradient-to-t from-navy-950/80 via-transparent to-transparent lg:hidden" />
-                  <div className="absolute top-4 left-4 bg-navy-900/80 backdrop-blur-md px-3 py-1 rounded-full border border-white/20 text-xs font-bold text-amber-400">
-                    NEXT OFFICIAL RALLY
-                  </div>
-                </div>
-
-                {/* Details Right */}
-                <div className="lg:col-span-6 p-6 sm:p-10 space-y-6">
-                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-500/20 text-teal-300 text-xs font-bold border border-teal-500/30">
-                    <Calendar className="w-3.5 h-3.5 text-teal-400" />
-                    <span>{formattedDate}</span>
+            {currentRally ? (
+              <div className="bg-gradient-to-r from-navy-900 via-navy-950 to-slate-900 rounded-3xl border border-white/10 overflow-hidden shadow-2xl">
+                <div className="grid grid-cols-1 lg:grid-cols-12 items-center">
+                  {/* Photo Left */}
+                  <div
+                    className="lg:col-span-6 relative h-64 sm:h-80 lg:h-96 w-full"
+                    style={{
+                      backgroundImage: `url('${currentRally.posterUrl || "https://static.vecteezy.com/system/resources/thumbnails/027/716/506/small_2x/people-hand-up-in-the-concert-hall-music-event-generative-ai-photo.jpg"}')`,
+                      backgroundSize: "cover",
+                      backgroundPosition: "center",
+                    }}
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-t from-navy-950/80 via-transparent to-transparent lg:hidden" />
+                    <div className="absolute top-4 left-4 bg-navy-900/80 backdrop-blur-md px-3 py-1 rounded-full border border-white/20 text-xs font-bold text-amber-400">
+                      OFFICIAL CONVENTION
+                    </div>
                   </div>
 
-                  <div>
-                    <h1 className="font-heading font-black text-3xl sm:text-4xl text-white tracking-tight">
-                      {currentRally.title}
-                    </h1>
-                    <p className="text-sm sm:text-base text-slate-300 mt-2 flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                      <span>{currentRally.venueName || currentRally.venueLocation || "Mombasa Sports Complex, Mombasa Island, Kenya"}</span>
-                    </p>
-                  </div>
+                  {/* Details Right */}
+                  <div className="lg:col-span-6 p-6 sm:p-10 space-y-5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-500/20 text-teal-300 text-xs font-bold border border-teal-500/30">
+                        <Calendar className="w-3.5 h-3.5 text-teal-400" />
+                        <span>{formattedDate}</span>
+                      </div>
+                      <span
+                        className={`px-3 py-1 rounded-full border text-xs font-bold flex items-center gap-1.5 ${
+                          currentRally.state === "REGISTRATION_OPEN"
+                            ? "bg-emerald-500/20 border-emerald-400/30 text-emerald-300"
+                            : currentRally.state === "FEES_LOCKED"
+                            ? "bg-amber-500/20 border-amber-400/30 text-amber-300"
+                            : currentRally.state === "IN_PROGRESS"
+                            ? "bg-purple-500/20 border-purple-400/30 text-purple-300"
+                            : currentRally.state === "COMPLETED"
+                            ? "bg-blue-500/20 border-blue-400/30 text-blue-300"
+                            : "bg-slate-500/20 border-slate-400/30 text-slate-300"
+                        }`}
+                      >
+                        <span
+                          className={`w-2 h-2 rounded-full ${
+                            currentRally.state === "REGISTRATION_OPEN" ? "bg-emerald-400 animate-pulse" : "bg-slate-400"
+                          }`}
+                        />
+                        {(currentRally.state || "REGISTRATION OPEN").replace(/_/g, " ")}
+                      </span>
+                    </div>
 
-                  {/* Countdown Timer Blocks */}
-                  <div className="pt-2">
-                    <RallyCountdown targetDate={currentRally.startDate || "2026-11-15T08:00:00"} />
-                  </div>
+                    <div>
+                      <h1 className="font-heading font-black text-3xl sm:text-4xl text-white tracking-tight">
+                        {currentRally.title}
+                      </h1>
+                      {currentRally.theme && (
+                        <p className="text-amber-300 font-semibold text-sm sm:text-base italic mt-1">
+                          &ldquo;{currentRally.theme}&rdquo;
+                        </p>
+                      )}
+                      <p className="text-sm sm:text-base text-slate-300 mt-2 flex items-center gap-2">
+                        <MapPin className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                        <span>{currentRally.venueName || currentRally.venueLocation || "Mombasa Sports Complex, Mombasa Island, Kenya"}</span>
+                      </p>
+                    </div>
 
-                  <div className="flex flex-wrap items-center gap-3 pt-2">
-                    <Link
-                      href="/apply"
-                      className="px-7 py-3 rounded-full bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold text-xs shadow-lg transition-all flex items-center gap-2"
-                    >
-                      <span>Register Now</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </Link>
-                    <Link
-                      href="/portal"
-                      className="px-6 py-3 rounded-full bg-white/10 hover:bg-white/20 text-white font-semibold text-xs border border-white/20 transition-all"
-                    >
-                      Chapter Rep Portal
-                    </Link>
+                    {/* Countdown Timer Blocks */}
+                    {currentRally.startDate && (
+                      <div className="pt-1">
+                        <RallyCountdown targetDate={currentRally.startDate} />
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap items-center gap-3 pt-2">
+                      {currentRally.state === "REGISTRATION_OPEN" ? (
+                        <Link
+                          href="/apply"
+                          className="px-7 py-3 rounded-full bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold text-xs shadow-lg transition-all flex items-center gap-2"
+                        >
+                          <span>Register Now</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </Link>
+                      ) : (
+                        <span className="px-5 py-2.5 rounded-full bg-slate-800 text-slate-300 text-xs font-semibold border border-slate-700">
+                          Registration Closed
+                        </span>
+                      )}
+                      <Link
+                        href="/portal"
+                        className="px-6 py-3 rounded-full bg-white/10 hover:bg-white/20 text-white font-semibold text-xs border border-white/20 transition-all"
+                      >
+                        Chapter Rep Portal
+                      </Link>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="bg-gradient-to-r from-navy-900 via-navy-950 to-slate-900 rounded-3xl border border-white/10 p-8 sm:p-12 text-center max-w-3xl mx-auto shadow-2xl">
+                <span className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-300 font-bold text-xs uppercase tracking-wider inline-block mb-3">
+                  Official Communication
+                </span>
+                <h1 className="font-heading font-black text-3xl sm:text-4xl text-white tracking-tight mb-3">
+                  No Official Rally Currently Scheduled
+                </h1>
+                <p className="text-slate-300 text-sm leading-relaxed mb-6">
+                  There is no active rally in the system at this time. The CUCASO Council Secretariat is coordinating with institutional chapters to schedule the upcoming regional convention.
+                </p>
+                <div className="flex items-center justify-center gap-3">
+                  <Link
+                    href="/"
+                    className="px-6 py-2.5 rounded-full bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold text-xs shadow transition-all"
+                  >
+                    Return to Homepage
+                  </Link>
+                  <Link
+                    href="/portal"
+                    className="px-6 py-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white font-semibold text-xs border border-white/20 transition-all"
+                  >
+                    Admin / Rep Portal
+                  </Link>
+                </div>
+              </div>
+            )}
           </div>
         </section>
 
@@ -276,77 +339,82 @@ export default function RalliesPage() {
             {/* 2. PROGRAMME TAB */}
             {activeTab === "programme" && (
               <div className="bg-white rounded-3xl p-6 sm:p-10 border border-slate-200 shadow-sm space-y-8 animate-in fade-in duration-200">
-                <div>
-                  <h2 className="font-heading font-black text-2xl text-navy-950 mb-2">
-                    Official 3-Day Rally Programme
-                  </h2>
-                  <p className="text-sm text-slate-500">
-                    Structured schedule for delegates, choirs, chapter leaders, and institutional heads.
-                  </p>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h2 className="font-heading font-black text-2xl text-navy-950 mb-2">
+                      Official Rally Programme
+                    </h2>
+                    <p className="text-sm text-slate-500">
+                      Structured schedule for delegates, choirs, chapter leaders, and institutional heads.
+                    </p>
+                  </div>
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-50 text-teal-800 text-xs font-bold border border-teal-200 self-start sm:self-auto">
+                    <Clock className="w-3.5 h-3.5 text-teal-600" />
+                    <span>Live Official Schedule</span>
+                  </span>
                 </div>
 
                 <div className="space-y-6">
-                  {/* Day 1 */}
-                  <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200">
-                    <div className="flex items-center gap-3 mb-3">
-                      <span className="w-8 h-8 rounded-lg bg-navy-950 text-white font-bold text-xs flex items-center justify-center">
-                        D1
-                      </span>
-                      <div>
-                        <h4 className="font-heading font-bold text-base text-navy-950">
-                          Day 1 — Friday 15 Nov: Arrival, Accreditation & Opening Vesper
-                        </h4>
-                        <span className="text-xs text-teal-700 font-semibold">02:00 PM — 09:30 PM</span>
-                      </div>
+                  {(currentRally.programme && currentRally.programme.length > 0) ? (
+                    currentRally.programme.map((day: any, dIdx: number) => {
+                      const dayNumber = day.dayNumber || dIdx + 1;
+                      const isSabbath = dayNumber === 2;
+                      return (
+                        <div
+                          key={dayNumber}
+                          className={`p-6 rounded-2xl border transition-all ${
+                            isSabbath
+                              ? "bg-amber-50/50 border-amber-200"
+                              : "bg-slate-50 border-slate-200"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 mb-3">
+                            <span
+                              className={`w-8 h-8 rounded-lg font-bold text-xs flex items-center justify-center text-white ${
+                                isSabbath ? "bg-amber-600" : "bg-navy-950"
+                              }`}
+                            >
+                              D{dayNumber}
+                            </span>
+                            <div>
+                              <h4 className="font-heading font-bold text-base text-navy-950">
+                                {day.title || `Day ${dayNumber}`}
+                              </h4>
+                              <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                                {day.timeRange && (
+                                  <span
+                                    className={`text-xs font-semibold ${
+                                      isSabbath ? "text-amber-800" : "text-teal-700"
+                                    }`}
+                                  >
+                                    {day.timeRange}
+                                  </span>
+                                )}
+                                {day.theme && (
+                                  <span className="text-xs text-slate-500 font-medium">
+                                    • {day.theme}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          {day.items && day.items.length > 0 && (
+                            <ul className="space-y-2 text-xs text-slate-700 ml-11 list-disc list-outside">
+                              {day.items.map((item: string, iIdx: number) => (
+                                <li key={iIdx} className="leading-relaxed">
+                                  {item}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="p-8 text-center text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                      Detailed programme schedule will be published by the Council Secretariat soon.
                     </div>
-                    <ul className="space-y-2 text-xs text-slate-600 ml-11 list-disc list-outside">
-                      <li><strong>02:00 PM - 05:00 PM:</strong> Chapter delegate registration, badge issuance & dormitory allocations.</li>
-                      <li><strong>05:30 PM - 06:45 PM:</strong> Coastal chapter roll call & sunset opening devotion.</li>
-                      <li><strong>07:00 PM - 09:30 PM:</strong> Keynote Address I: <em>&quot;Anchored in the Storm&quot;</em> followed by mass prayer.</li>
-                    </ul>
-                  </div>
-
-                  {/* Day 2 */}
-                  <div className="p-6 rounded-2xl bg-amber-50/50 border border-amber-200">
-                    <div className="flex items-center gap-3 mb-3">
-                      <span className="w-8 h-8 rounded-lg bg-amber-600 text-white font-bold text-xs flex items-center justify-center">
-                        D2
-                      </span>
-                      <div>
-                        <h4 className="font-heading font-bold text-base text-navy-950">
-                          Day 2 — Saturday 16 Nov: Sabbath Worship, Workshops & Music Extravaganza
-                        </h4>
-                        <span className="text-xs text-amber-800 font-semibold">08:00 AM — 09:00 PM</span>
-                      </div>
-                    </div>
-                    <ul className="space-y-2 text-xs text-slate-700 ml-11 list-disc list-outside">
-                      <li><strong>08:00 AM - 09:30 AM:</strong> Sabbath School Bible study across combined campus panels.</li>
-                      <li><strong>10:00 AM - 12:30 PM:</strong> Divine Service Sermon by Invited Guest Speaker with 2,400+ delegates.</li>
-                      <li><strong>01:00 PM - 02:30 PM:</strong> Fellowship Lunch & Inter-institutional networking.</li>
-                      <li><strong>02:45 PM - 05:00 PM:</strong> Breakout Workshops (Campus Leadership, Health Outreach, Career Mentorship).</li>
-                      <li><strong>05:30 PM - 08:30 PM:</strong> Coastal Grand Choir Festival & sunset musical praise.</li>
-                    </ul>
-                  </div>
-
-                  {/* Day 3 */}
-                  <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200">
-                    <div className="flex items-center gap-3 mb-3">
-                      <span className="w-8 h-8 rounded-lg bg-navy-950 text-white font-bold text-xs flex items-center justify-center">
-                        D3
-                      </span>
-                      <div>
-                        <h4 className="font-heading font-bold text-base text-navy-950">
-                          Day 3 — Sunday 17 Nov: Community Impact & Commissioning Service
-                        </h4>
-                        <span className="text-xs text-teal-700 font-semibold">08:30 AM — 01:00 PM</span>
-                      </div>
-                    </div>
-                    <ul className="space-y-2 text-xs text-slate-600 ml-11 list-disc list-outside">
-                      <li><strong>08:30 AM - 10:30 AM:</strong> Mombasa town cleanliness drive & literature distribution.</li>
-                      <li><strong>11:00 AM - 12:30 PM:</strong> Commissioning and Passing of the Mantle to new chapter officers.</li>
-                      <li><strong>01:00 PM:</strong> Lunch & Departure of delegations.</li>
-                    </ul>
-                  </div>
+                  )}
                 </div>
               </div>
             )}
@@ -354,31 +422,66 @@ export default function RalliesPage() {
             {/* 3. VENUE TAB */}
             {activeTab === "venue" && (
               <div className="bg-white rounded-3xl p-6 sm:p-10 border border-slate-200 shadow-sm space-y-6 animate-in fade-in duration-200">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-                  <div>
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                  <div className="lg:col-span-7 space-y-4">
                     <span className="text-xs font-bold uppercase tracking-widest text-teal-700 bg-teal-50 px-3 py-1 rounded-full border border-teal-200">
-                      Rally Location
+                      Rally Location & Access
                     </span>
-                    <h2 className="font-heading font-black text-2xl text-navy-950 mt-3 mb-3">
-                      Mombasa Sports Complex
+                    <h2 className="font-heading font-black text-2xl text-navy-950 mt-1">
+                      {currentRally.venueAccess?.venueTitle || currentRally.venueName || "Mombasa Sports Complex"}
                     </h2>
-                    <p className="text-sm text-slate-600 leading-relaxed mb-4">
-                      Centrally situated on Mombasa Island, the Sports Complex provides a safe, covered main auditorium with modern acoustics, separate workshop break-out halls, dining pavilions, and secure parking.
+                    <p className="text-sm text-slate-600 leading-relaxed">
+                      {currentRally.venueAccess?.description ||
+                        "Centrally situated on Mombasa Island, the Sports Complex provides a safe, covered main auditorium with modern acoustics, separate workshop break-out halls, dining pavilions, and secure parking."}
                     </p>
-                    <div className="space-y-2 text-xs text-slate-700 bg-slate-50 p-4 rounded-2xl border border-slate-200">
-                      <p><strong>Address:</strong> Mnazi Mmoja Rd, Mombasa Island, Kenya</p>
-                      <p><strong>Security:</strong> Controlled badge gate access with 24-hr security and CCTV</p>
-                      <p><strong>Medical:</strong> Dedicated Red Cross first-aid tent and standby ambulance</p>
+
+                    <div className="space-y-3 text-xs text-slate-700 bg-slate-50 p-5 rounded-2xl border border-slate-200">
+                      <p className="flex items-start gap-2">
+                        <strong className="text-navy-950 whitespace-nowrap min-w-[85px]">Address:</strong>
+                        <span>{currentRally.venueAccess?.address || currentRally.venueLocation || "Mnazi Mmoja Rd, Mombasa Island, Coast Region, Kenya"}</span>
+                      </p>
+                      <p className="flex items-start gap-2">
+                        <strong className="text-navy-950 whitespace-nowrap min-w-[85px]">Security:</strong>
+                        <span>{currentRally.venueAccess?.securityInfo || "Controlled badge gate access with 24-hr Kenya Police escort, private security, and round-the-clock CCTV surveillance."}</span>
+                      </p>
+                      <p className="flex items-start gap-2">
+                        <strong className="text-navy-950 whitespace-nowrap min-w-[85px]">Medical:</strong>
+                        <span>{currentRally.venueAccess?.medicalInfo || "Dedicated Red Cross First Aid mobile station, certified EMT triage nurses, and standby ambulance on-site."}</span>
+                      </p>
+                      {currentRally.venueAccess?.directions && (
+                        <p className="flex items-start gap-2">
+                          <strong className="text-navy-950 whitespace-nowrap min-w-[85px]">Directions:</strong>
+                          <span>{currentRally.venueAccess.directions}</span>
+                        </p>
+                      )}
+                      {currentRally.venueAccess?.parkingInfo && (
+                        <p className="flex items-start gap-2">
+                          <strong className="text-navy-950 whitespace-nowrap min-w-[85px]">Parking:</strong>
+                          <span>{currentRally.venueAccess.parkingInfo}</span>
+                        </p>
+                      )}
+                      {currentRally.venueAccess?.accommodationNotes && (
+                        <p className="flex items-start gap-2">
+                          <strong className="text-navy-950 whitespace-nowrap min-w-[85px]">Lodging:</strong>
+                          <span>{currentRally.venueAccess.accommodationNotes}</span>
+                        </p>
+                      )}
                     </div>
                   </div>
 
-                  <div className="relative h-72 rounded-2xl overflow-hidden border border-slate-200 shadow-md">
-                    <Image
-                      src="/mombasa-coast.jpg"
-                      alt="Mombasa Sports Complex Surroundings"
-                      fill
-                      className="object-cover"
-                    />
+                  <div className="lg:col-span-5 space-y-3">
+                    <div className="relative h-72 rounded-2xl overflow-hidden border border-slate-200 shadow-md">
+                      <Image
+                        src={currentRally.venueAccess?.imageUrl || "/mombasa-coast.jpg"}
+                        alt={currentRally.venueAccess?.venueTitle || "Venue"}
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
+                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-500 flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                      <span>{currentRally.venueAccess?.address || currentRally.venueLocation || "Mombasa Island, Kenya"}</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -389,37 +492,59 @@ export default function RalliesPage() {
               <div className="bg-white rounded-3xl p-6 sm:p-10 border border-slate-200 shadow-sm space-y-6 animate-in fade-in duration-200">
                 <div>
                   <h2 className="font-heading font-black text-2xl text-navy-950 mb-2">
-                    Capability-Based Fair Capitation
+                    {currentRally.feesAndCapitation?.philosophyTitle || "Capability-Based Fair Capitation"}
                   </h2>
                   <p className="text-sm text-slate-600 max-w-3xl leading-relaxed">
-                    CUCASO does not charge exorbitant individual gates. We calculate an institutional capitation fee based on chapter membership and institutional capability tier so no student is turned away.
+                    {currentRally.feesAndCapitation?.philosophyText ||
+                      "CUCASO does not charge exorbitant individual gates. We calculate an institutional capitation fee based on chapter membership and institutional capability tier so no student is turned away."}
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
-                  <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200">
-                    <span className="text-xs font-bold text-teal-700 uppercase">Tier 1: Major Universities</span>
-                    <h4 className="font-heading font-black text-xl text-navy-950 mt-1 mb-2">KSh 350,000 - 420,000</h4>
-                    <p className="text-xs text-slate-500">For universities with large student bodies (TUM, Pwani University). Covers main auditorium subsidization.</p>
-                  </div>
-
-                  <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200">
-                    <span className="text-xs font-bold text-amber-700 uppercase">Tier 2: Tertiary Colleges</span>
-                    <h4 className="font-heading font-black text-xl text-navy-950 mt-1 mb-2">KSh 180,000 - 280,000</h4>
-                    <p className="text-xs text-slate-500">For polytechnics and medical training colleges (Mombasa Poly, Kenya Medical, Diani College).</p>
-                  </div>
-
-                  <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200">
-                    <span className="text-xs font-bold text-blue-700 uppercase">Tier 3 & 4: Emerging & Schools</span>
-                    <h4 className="font-heading font-black text-xl text-navy-950 mt-1 mb-2">KSh 80,000 - 150,000</h4>
-                    <p className="text-xs text-slate-500">Subsidized capitation for secondary institutions and newly formed coastal fellowships.</p>
-                  </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+                  {(currentRally.feesAndCapitation?.tiers && currentRally.feesAndCapitation.tiers.length > 0) ? (
+                    currentRally.feesAndCapitation.tiers.map((tier: any, tIdx: number) => {
+                      const colors = [
+                        { tag: "text-teal-700", border: "border-slate-200" },
+                        { tag: "text-amber-700", border: "border-slate-200" },
+                        { tag: "text-blue-700", border: "border-slate-200" },
+                      ];
+                      const style = colors[tIdx % colors.length];
+                      return (
+                        <div key={tier.tierName || tIdx} className={`p-6 rounded-2xl bg-slate-50 border ${style.border}`}>
+                          <span className={`text-xs font-bold uppercase ${style.tag}`}>
+                            {tier.tierName}
+                          </span>
+                          <h4 className="font-heading font-black text-xl text-navy-950 mt-1 mb-2">
+                            {tier.range}
+                          </h4>
+                          <p className="text-xs text-slate-500 leading-relaxed">
+                            {tier.description}
+                          </p>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="col-span-3 p-6 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-500">
+                      Capitation details configured by Council Secretariat.
+                    </div>
+                  )}
                 </div>
 
                 <div className="p-4 rounded-2xl bg-teal-50 border border-teal-200 text-xs text-teal-900 flex items-center gap-3">
                   <CreditCard className="w-5 h-5 text-teal-700 flex-shrink-0" />
-                  <span>Payments are made strictly to Centralized Paybill <strong>4082200</strong> with Account Number assigned on the Chapter Invoice.</span>
+                  <span>
+                    Payments are made strictly to Centralized Paybill{" "}
+                    <strong>{currentRally.feesAndCapitation?.paybillNumber || "4082200"}</strong>.{" "}
+                    {currentRally.feesAndCapitation?.accountInstructions || "Account Number: Assigned on Chapter Invoice."}
+                  </span>
                 </div>
+
+                {currentRally.feesAndCapitation?.deadlineText && (
+                  <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-amber-700 flex-shrink-0" />
+                    <span>{currentRally.feesAndCapitation.deadlineText}</span>
+                  </div>
+                )}
               </div>
             )}
 

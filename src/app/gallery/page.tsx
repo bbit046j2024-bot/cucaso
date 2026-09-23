@@ -64,19 +64,19 @@ export default function GalleryPage() {
           setItems(json.data);
         }
       })
-      .catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+      .catch(() => { });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCategory]);
 
   const filteredItems =
     activeCategory === "All"
       ? items
       : items.filter((item) => {
-          const itemCat = item.category?.toLowerCase() || "";
-          const activeCat = activeCategory.toLowerCase();
-          if (activeCat.startsWith("rall") && itemCat.startsWith("rall")) return true;
-          return itemCat === activeCat;
-        });
+        const itemCat = item.category?.toLowerCase() || "";
+        const activeCat = activeCategory.toLowerCase();
+        if (activeCat.startsWith("rall") && itemCat.startsWith("rall")) return true;
+        return itemCat === activeCat;
+      });
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 font-body">
@@ -87,10 +87,6 @@ export default function GalleryPage() {
         <section className="bg-navy-950 text-white py-14 md:py-20 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 border border-white/20 text-teal-300 text-xs font-bold uppercase tracking-wider mb-4">
-              <ImageIcon className="w-3.5 h-3.5 text-amber-400" />
-              <span>Coastal Photo Archive</span>
-            </div>
             <h1 className="font-heading font-black text-3xl sm:text-5xl text-white tracking-tight leading-tight mb-3">
               Gallery: Moments that Inspire
             </h1>
@@ -110,11 +106,10 @@ export default function GalleryPage() {
                 <button
                   key={cat}
                   onClick={() => setActiveCategory(cat)}
-                  className={`px-5 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all ${
-                    activeCategory === cat
+                  className={`px-5 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all ${activeCategory === cat
                       ? "bg-navy-900 text-white shadow-sm"
                       : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                  }`}
+                    }`}
                 >
                   {cat}
                 </button>

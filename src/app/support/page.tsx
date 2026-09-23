@@ -3,15 +3,15 @@
 import Link from "next/link";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
-import { 
-  Heart, 
-  ShieldCheck, 
-  Building2, 
-  Users, 
-  Sparkles, 
-  CheckCircle2, 
-  CreditCard, 
-  Phone, 
+import {
+  Heart,
+  ShieldCheck,
+  Building2,
+  Users,
+  Sparkles,
+  CheckCircle2,
+  CreditCard,
+  Phone,
   HelpCircle,
   FileText,
   DollarSign
@@ -52,7 +52,7 @@ export default function SupportPage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
             <div className="max-w-3xl">
               <span className="text-xs font-bold uppercase tracking-widest text-amber-400 bg-white/10 px-3.5 py-1.5 rounded-full border border-white/20">
-                Proposal §20: Giving & Stewardship
+                Giving & Stewardship
               </span>
               <h1 className="font-heading font-black text-4xl sm:text-5xl lg:text-6xl text-white mt-4 mb-4">
                 Support the Mission <br />

@@ -7,7 +7,7 @@ import Link from "next/link";
 import { BrandLogo } from "@/components/brand-logo";
 import { SystemSwitcher } from "@/components/system-switcher";
 import { EmbeddedCoastalMap } from "@/components/embedded-coastal-map";
-import { Chapter, CoastalAreaPreset, UserAccount, ExecutiveLeader } from "@/types";
+import { Chapter, CoastalAreaPreset, UserAccount, ExecutiveLeader, NewsPost, ResourceDocument } from "@/types";
 import { 
   MEMBER_CHAPTERS, 
   CURRENT_RALLY, 
@@ -79,7 +79,19 @@ import {
   QrCode,
   Images,
   FolderOpen,
-  Layers
+  Layers,
+  Newspaper,
+  FolderArchive,
+  Coins,
+  RotateCcw,
+  BookOpen,
+  Bookmark,
+  Tag,
+  Eye,
+  Inbox,
+  MessageSquare,
+  Mail,
+  Heart
 } from "lucide-react";
 
 function PortalContent() {
@@ -91,12 +103,12 @@ function PortalContent() {
   // Chapter Portal selected chapter (Default: TUM Chapter)
   const [selectedChapterId, setSelectedChapterId] = useState<string>("ch-tum");
   const [chapterActiveTab, setChapterActiveTab] = useState<
-    "dashboard" | "my-chapter" | "attendees" | "payments" | "rally-info" | "gallery" | "documents" | "notifications" | "profile"
+    "dashboard" | "my-chapter" | "attendees" | "payments" | "rally-info" | "gallery" | "documents" | "news" | "notifications" | "profile"
   >("dashboard");
 
   // Admin Portal active tab
   const [adminActiveTab, setAdminActiveTab] = useState<
-    "overview" | "chapters" | "rallies" | "attendees" | "payments" | "funding" | "reports" | "leadership" | "gallery" | "users" | "settings" | "audit"
+    "overview" | "chapters" | "rallies" | "attendees" | "payments" | "funding" | "reports" | "leadership" | "gallery" | "news" | "resources" | "inbox" | "users" | "settings" | "audit"
   >("overview");
 
   useEffect(() => {
@@ -241,6 +253,8 @@ function PortalContent() {
   const [currentRallyData, setCurrentRallyData] = useState<any>(CURRENT_RALLY);
   const [showCreateRallyModal, setShowCreateRallyModal] = useState(false);
   const [showEditRallyModal, setShowEditRallyModal] = useState(false);
+  const [savingRally, setSavingRally] = useState(false);
+  const [editRallyTab, setEditRallyTab] = useState<"basic" | "programme" | "venue" | "fees">("basic");
   const [newRallyForm, setNewRallyForm] = useState({
     code: "CUR-2027",
     title: "Kilifi Fellowship Rally 2027",
@@ -260,10 +274,279 @@ function PortalContent() {
     venueName: CURRENT_RALLY.venueName,
     venueLocation: CURRENT_RALLY.venueLocation,
     capacity: CURRENT_RALLY.capacity,
+    startDate: "2026-11-15",
+    endDate: "2026-11-17",
+    registrationDeadline: "2026-11-01",
     feeLockDate: "2026-11-01",
     paymentDeadline: "2026-11-10",
     state: CURRENT_RALLY.state,
+    posterUrl: CURRENT_RALLY.posterUrl ?? "",
+    // Dynamic sections stored as JSON strings for editing
+    programmeJson: JSON.stringify(CURRENT_RALLY.programme ?? [], null, 2),
+    venueAddress: CURRENT_RALLY.venueAccess?.address ?? "",
+    venueDescription: CURRENT_RALLY.venueAccess?.description ?? "",
+    venueDirections: CURRENT_RALLY.venueAccess?.directions ?? "",
+    venueParkingInfo: CURRENT_RALLY.venueAccess?.parkingInfo ?? "",
+    venueSecurityInfo: CURRENT_RALLY.venueAccess?.securityInfo ?? "",
+    venueMedicalInfo: CURRENT_RALLY.venueAccess?.medicalInfo ?? "",
+    venueAccommodationNotes: CURRENT_RALLY.venueAccess?.accommodationNotes ?? "",
+    feesPaybillNumber: CURRENT_RALLY.feesAndCapitation?.paybillNumber ?? "4082200",
+    feesAccountInstructions: CURRENT_RALLY.feesAndCapitation?.accountInstructions ?? "",
+    feesDeadlineText: CURRENT_RALLY.feesAndCapitation?.deadlineText ?? "",
+    feesPhilosophyTitle: CURRENT_RALLY.feesAndCapitation?.philosophyTitle ?? "",
+    feesPhilosophyText: CURRENT_RALLY.feesAndCapitation?.philosophyText ?? "",
+    feeTiersJson: JSON.stringify(CURRENT_RALLY.feesAndCapitation?.tiers ?? [], null, 2),
   });
+
+  // Poster upload mode: "url" = paste a link, "file" = upload a file
+  const [posterUploadMode, setPosterUploadMode] = useState<"url" | "file">("url");
+  const [posterUploading, setPosterUploading] = useState(false);
+
+  const handlePosterFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPosterUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      const json = await res.json();
+      if (json.success && json.url) {
+        setEditRallyForm(prev => ({ ...prev, posterUrl: json.url }));
+        setLocationToast("Poster image uploaded successfully!");
+        setTimeout(() => setLocationToast(null), 3000);
+      } else {
+        alert("Upload failed: " + (json.error || "Unknown error"));
+      }
+    } catch (err: any) {
+      alert("Upload error: " + err.message);
+    } finally {
+      setPosterUploading(false);
+    }
+  };
+
+  // Dynamic Programme Days (No JSON needed for managers)
+  const [programmeDays, setProgrammeDays] = useState<any[]>(CURRENT_RALLY.programme || []);
+
+  // Dynamic Fee Tiers (No JSON needed for managers)
+  const [feeTiersList, setFeeTiersList] = useState<Array<{
+    tierName: string;
+    range: string;
+    description: string;
+  }>>(CURRENT_RALLY.feesAndCapitation?.tiers || []);
+
+  // Dynamic Rally History
+  const [rallyHistoryList, setRallyHistoryList] = useState([
+    { id: "hist-2024", title: "Coastal Unity Rally 2024", venue: "Mombasa Sports Complex", date: "Nov 2024", status: "Completed", statusClass: "bg-slate-200 text-slate-700", attendees: "2,105" },
+    { id: "hist-2025-mid", title: "Coast Fellowship Rally 2025 (Mid-Year)", venue: "Pwani University Grounds, Kilifi", date: "Jun 2025", status: "Completed", statusClass: "bg-slate-200 text-slate-700", attendees: "1,880" },
+    { id: "hist-2025", title: "Coastal Unity Rally 2025", venue: "Mombasa Sports Complex", date: "Nov 2025", status: "Completed", statusClass: "bg-slate-200 text-slate-700", attendees: "2,310" },
+    { id: "hist-2026", title: "Coastal Unity Rally 2026", venue: "Mombasa Sports Complex", date: "Nov 15–17, 2026", status: "Active", statusClass: "bg-emerald-100 text-emerald-800 border border-emerald-300", attendees: "2,486 (ongoing)" },
+    { id: "hist-2027", title: "Kilifi Fellowship Rally 2027", venue: "Pwani University Grounds", date: "May 2027", status: "Planned", statusClass: "bg-amber-100 text-amber-800", attendees: "—" },
+  ]);
+
+  // Dynamic News & Bulletins State
+  const [newsList, setNewsList] = useState<NewsPost[]>([]);
+  const [newsFilter, setNewsFilter] = useState<string>("ALL");
+  const [showCreateNewsModal, setShowCreateNewsModal] = useState(false);
+  const [editingNewsId, setEditingNewsId] = useState<string | null>(null);
+  const [newsSubmitting, setNewsSubmitting] = useState(false);
+  const [viewingNewsArticle, setViewingNewsArticle] = useState<NewsPost | null>(null);
+  const [newsForm, setNewsForm] = useState({
+    title: "",
+    category: "NEWS",
+    author: "Council Admin",
+    summary: "",
+    content: "",
+    featuredImageUrl: "",
+    status: "PUBLISHED",
+  });
+
+  // Dynamic Resources & Documents State
+  const [resourcesList, setResourcesList] = useState<ResourceDocument[]>([]);
+  const [resourceFilter, setResourceFilter] = useState<string>("ALL");
+  const [showCreateResourceModal, setShowCreateResourceModal] = useState(false);
+  const [resourceSubmitting, setResourceSubmitting] = useState(false);
+  const [resourceForm, setResourceForm] = useState({
+    title: "",
+    category: "POLICY",
+    accessLevel: "PUBLIC",
+    description: "",
+    url: "",
+    fileSize: "1.2 MB",
+    mimeType: "application/pdf",
+  });
+  const [uploadingResourceFile, setUploadingResourceFile] = useState(false);
+
+  // Fetch live rally, news, and resources data from API on mount
+  useEffect(() => {
+    fetch("/api/rallies")
+      .then(r => r.json())
+      .then(j => {
+        if (j.success && j.data) {
+          const d = j.data;
+          setCurrentRallyData(d);
+          setRalliesList([d]);
+          if (d.programme && Array.isArray(d.programme)) {
+            setProgrammeDays(d.programme);
+          }
+          if (d.feesAndCapitation?.tiers && Array.isArray(d.feesAndCapitation.tiers)) {
+            setFeeTiersList(d.feesAndCapitation.tiers);
+          }
+          // Pre-populate edit form with ALL live values from DB
+          setEditRallyForm(prev => ({
+            ...prev,
+            title: d.title || prev.title,
+            theme: d.theme || prev.theme,
+            venueName: d.venueName || prev.venueName,
+            venueLocation: d.venueLocation || prev.venueLocation,
+            capacity: d.capacity || prev.capacity,
+            startDate: d.startDate ? d.startDate.split("T")[0] : prev.startDate,
+            endDate: d.endDate ? d.endDate.split("T")[0] : prev.endDate,
+            registrationDeadline: d.registrationDeadline ? d.registrationDeadline.split("T")[0] : prev.registrationDeadline,
+            feeLockDate: d.feeLockDate ? d.feeLockDate.split("T")[0] : prev.feeLockDate,
+            paymentDeadline: d.paymentDeadline ? d.paymentDeadline.split("T")[0] : prev.paymentDeadline,
+            state: d.state || prev.state,
+            programmeJson: d.programme ? JSON.stringify(d.programme, null, 2) : prev.programmeJson,
+            venueAddress: d.venueAccess?.address || prev.venueAddress,
+            venueDescription: d.venueAccess?.description || prev.venueDescription,
+            venueDirections: d.venueAccess?.directions || prev.venueDirections,
+            venueParkingInfo: d.venueAccess?.parkingInfo || prev.venueParkingInfo,
+            venueSecurityInfo: d.venueAccess?.securityInfo || prev.venueSecurityInfo,
+            venueMedicalInfo: d.venueAccess?.medicalInfo || prev.venueMedicalInfo,
+            venueAccommodationNotes: d.venueAccess?.accommodationNotes || prev.venueAccommodationNotes,
+            feesPaybillNumber: d.feesAndCapitation?.paybillNumber || prev.feesPaybillNumber,
+            feesAccountInstructions: d.feesAndCapitation?.accountInstructions || prev.feesAccountInstructions,
+            feesDeadlineText: d.feesAndCapitation?.deadlineText || prev.feesDeadlineText,
+            feesPhilosophyTitle: d.feesAndCapitation?.philosophyTitle || prev.feesPhilosophyTitle,
+            feesPhilosophyText: d.feesAndCapitation?.philosophyText || prev.feesPhilosophyText,
+            feeTiersJson: d.feesAndCapitation?.tiers ? JSON.stringify(d.feesAndCapitation.tiers, null, 2) : prev.feeTiersJson,
+          }));
+        }
+      })
+      .catch(() => {});
+
+    fetch("/api/news")
+      .then(r => r.json())
+      .then(j => {
+        if (j.success && Array.isArray(j.data)) setNewsList(j.data);
+      })
+      .catch(() => {});
+
+    fetch("/api/resources")
+      .then(r => r.json())
+      .then(j => {
+        if (j.success && Array.isArray(j.data)) setResourcesList(j.data);
+      })
+      .catch(() => {});
+
+    fetchInboxData();
+  }, []);
+
+  // Admin Inbox (Contact feedback + Prayer requests)
+  const [contactMessages, setContactMessages] = useState<any[]>([]);
+  const [prayerRequests, setPrayerRequests] = useState<any[]>([]);
+  const [inboxSubTab, setInboxSubTab] = useState<"feedback" | "prayer">("feedback");
+  const [inboxLoading, setInboxLoading] = useState(false);
+  const [inboxSearch, setInboxSearch] = useState("");
+  const [inboxStatusFilter, setInboxStatusFilter] = useState<"ALL" | "UNREAD" | "READ">("ALL");
+  const [activeMessageDetail, setActiveMessageDetail] = useState<any | null>(null);
+
+  const fetchInboxData = async () => {
+    setInboxLoading(true);
+    try {
+      const [msgRes, prayerRes] = await Promise.all([
+        fetch("/api/contact"),
+        fetch("/api/prayer-requests"),
+      ]);
+      const msgJson = await msgRes.json();
+      const prayerJson = await prayerRes.json();
+      if (msgJson.success && Array.isArray(msgJson.data)) {
+        setContactMessages(msgJson.data);
+      }
+      if (prayerJson.success && Array.isArray(prayerJson.data)) {
+        setPrayerRequests(prayerJson.data);
+      }
+    } catch (err) {
+      console.error("Failed to load inbox data", err);
+    } finally {
+      setInboxLoading(false);
+    }
+  };
+
+  const handleToggleMessageRead = async (id: string, currentRead: boolean) => {
+    try {
+      const res = await fetch("/api/contact", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, isRead: !currentRead }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setContactMessages(prev => prev.map(m => m.id === id ? { ...m, isRead: !currentRead } : m));
+      }
+    } catch (err) {
+      console.error("Error updating message", err);
+    }
+  };
+
+  const handleDeleteMessage = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this feedback message?")) return;
+    try {
+      const res = await fetch(`/api/contact?id=${id}`, { method: "DELETE" });
+      const json = await res.json();
+      if (json.success) {
+        setContactMessages(prev => prev.filter(m => m.id !== id));
+        if (activeMessageDetail?.id === id) setActiveMessageDetail(null);
+      }
+    } catch (err) {
+      console.error("Error deleting message", err);
+    }
+  };
+
+  const handleTogglePrayerRead = async (id: string, currentRead: boolean) => {
+    try {
+      const res = await fetch("/api/prayer-requests", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, isRead: !currentRead }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setPrayerRequests(prev => prev.map(p => p.id === id ? { ...p, isRead: !currentRead } : p));
+      }
+    } catch (err) {
+      console.error("Error updating prayer request", err);
+    }
+  };
+
+  const handleTogglePrayerApproved = async (id: string, currentApproved: boolean) => {
+    try {
+      const res = await fetch("/api/prayer-requests", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, isModeratedApproved: !currentApproved }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setPrayerRequests(prev => prev.map(p => p.id === id ? { ...p, isModeratedApproved: !currentApproved } : p));
+      }
+    } catch (err) {
+      console.error("Error moderating prayer request", err);
+    }
+  };
+
+  const handleDeletePrayer = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this prayer request?")) return;
+    try {
+      const res = await fetch(`/api/prayer-requests?id=${id}`, { method: "DELETE" });
+      const json = await res.json();
+      if (json.success) {
+        setPrayerRequests(prev => prev.filter(p => p.id !== id));
+      }
+    } catch (err) {
+      console.error("Error deleting prayer request", err);
+    }
+  };
 
   // Dynamic Council Leadership Directory State
   const [councilLeaders, setCouncilLeaders] = useState<ExecutiveLeader[]>([]);
@@ -307,7 +590,7 @@ function PortalContent() {
   const [savingLeadership, setSavingLeadership] = useState(false);
 
   // Gallery Management State
-  const [galleryPhotos, setGalleryPhotos] = useState([
+  const [galleryPhotos, setGalleryPhotos] = useState<any[]>([
     { id: "g1", title: "CUCASO Annual Rally Convocation", event: "Rally 2026", date: "2026-11-14", url: "https://images.unsplash.com/photo-1511578314322-379afb476865?w=800&auto=format&fit=crop&q=80", category: "Rally", uploader: "Communications Dir" },
     { id: "g2", title: "Delegates Worship & Praise Evening", event: "Rally 2026", date: "2026-11-14", url: "https://images.unsplash.com/photo-1438232992991-995b7058bbb3?w=800&auto=format&fit=crop&q=80", category: "Worship", uploader: "Communications Dir" },
     { id: "g3", title: "Executive Council Strategy Summit", event: "Leadership Retreat", date: "2026-08-20", url: "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=800&auto=format&fit=crop&q=80", category: "Leadership", uploader: "Secretary" },
@@ -820,16 +1103,226 @@ function PortalContent() {
     setTimeout(() => setLocationToast(null), 4000);
   };
 
-  const handleUpdateCurrentRally = (e: React.FormEvent) => {
+  const handleUpdateCurrentRally = async (e: React.FormEvent) => {
     e.preventDefault();
-    setCurrentRallyData((prev: any) => ({
-      ...prev,
-      ...editRallyForm,
-    }));
-    setShowEditRallyModal(false);
-    setLocationToast("Current rally details & lifecycle updated!");
+    setSavingRally(true);
+    try {
+      const payload = {
+        title: editRallyForm.title,
+        theme: editRallyForm.theme,
+        venueName: editRallyForm.venueName,
+        venueLocation: editRallyForm.venueLocation,
+        capacity: Number(editRallyForm.capacity),
+        startDate: editRallyForm.startDate,
+        endDate: editRallyForm.endDate,
+        registrationDeadline: editRallyForm.registrationDeadline,
+        feeLockDate: editRallyForm.feeLockDate,
+        paymentDeadline: editRallyForm.paymentDeadline,
+        state: editRallyForm.state,
+        posterUrl: editRallyForm.posterUrl || null,
+        // Dynamic sections - sent directly from structured input fields!
+        programme: programmeDays,
+        venueAccess: {
+          venueTitle: editRallyForm.venueName,
+          address: editRallyForm.venueAddress,
+          description: editRallyForm.venueDescription,
+          directions: editRallyForm.venueDirections,
+          parkingInfo: editRallyForm.venueParkingInfo,
+          securityInfo: editRallyForm.venueSecurityInfo,
+          medicalInfo: editRallyForm.venueMedicalInfo,
+          accommodationNotes: editRallyForm.venueAccommodationNotes,
+          imageUrl: currentRallyData?.venueAccess?.imageUrl || "/mombasa-coast.jpg",
+        },
+        feesAndCapitation: {
+          philosophyTitle: editRallyForm.feesPhilosophyTitle,
+          philosophyText: editRallyForm.feesPhilosophyText,
+          paybillNumber: editRallyForm.feesPaybillNumber,
+          accountInstructions: editRallyForm.feesAccountInstructions,
+          deadlineText: editRallyForm.feesDeadlineText,
+          tiers: feeTiersList,
+        },
+      };
+
+      const res = await fetch("/api/rallies", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (data.success && data.data) {
+        setCurrentRallyData(data.data);
+        setRalliesList([data.data]);
+        setShowEditRallyModal(false);
+        setLocationToast("Rally details saved to database & live on the website!");
+      } else {
+        // Optimistic local update as fallback
+        setCurrentRallyData((prev: any) => ({ ...prev, ...payload }));
+        setShowEditRallyModal(false);
+        setLocationToast("Rally updated locally (DB sync pending).");
+      }
+    } catch {
+      // Fallback to optimistic local state if network fails
+      setCurrentRallyData((prev: any) => ({ ...prev, ...editRallyForm, programme: programmeDays, feesAndCapitation: { ...currentRallyData?.feesAndCapitation, tiers: feeTiersList } }));
+      setShowEditRallyModal(false);
+      setLocationToast("Rally updated locally (DB sync pending).");
+    } finally {
+      setSavingRally(false);
+      setTimeout(() => setLocationToast(null), 4000);
+    }
+  };
+
+  const handleDeleteRally = async () => {
+    if (!confirm("Are you sure you want to delete this rally? All registrations, attendees, and linked rally data will be permanently removed.")) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/rallies?id=${currentRallyData?.id || ""}`, {
+        method: "DELETE",
+      });
+      const j = await res.json();
+      if (j.success) {
+        setLocationToast("Rally successfully deleted from database.");
+        setCurrentRallyData(null);
+        setRalliesList([]);
+        // Refetch latest rally from DB
+        fetch("/api/rallies")
+          .then(r => r.json())
+          .then(data => {
+            if (data.success && data.data) {
+              setCurrentRallyData(data.data);
+              setRalliesList([data.data]);
+            } else {
+              setCurrentRallyData(null);
+              setRalliesList([]);
+            }
+          });
+      } else {
+        alert("Failed to delete rally: " + (j.error || "Unknown error"));
+      }
+    } catch (err: any) {
+      alert("Error deleting rally: " + err.message);
+    } finally {
+      setTimeout(() => setLocationToast(null), 4000);
+    }
+  };
+
+  const handleDeletePastRallyHistory = (idOrTitle: string) => {
+    if (!confirm(`Are you sure you want to remove "${idOrTitle}" from the rally history?`)) return;
+    setRallyHistoryList(prev => prev.filter(r => r.id !== idOrTitle && r.title !== idOrTitle));
+    setLocationToast(`Removed "${idOrTitle}" from rally history.`);
     setTimeout(() => setLocationToast(null), 4000);
   };
+
+  // News Handlers (Create, Edit, Delete)
+  const handleSaveNews = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setNewsSubmitting(true);
+    try {
+      if (editingNewsId) {
+        const res = await fetch("/api/news", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: editingNewsId, ...newsForm }),
+        });
+        const j = await res.json();
+        if (j.success && j.data) {
+          setNewsList(prev => prev.map(p => p.id === editingNewsId ? j.data : p));
+          setLocationToast("Article updated successfully!");
+        }
+      } else {
+        const res = await fetch("/api/news", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(newsForm),
+        });
+        const j = await res.json();
+        if (j.success && j.data) {
+          setNewsList(prev => [j.data, ...prev]);
+          setLocationToast("Article published successfully!");
+        }
+      }
+      setShowCreateNewsModal(false);
+      setEditingNewsId(null);
+      setNewsForm({
+        title: "",
+        category: "NEWS",
+        author: "Council Admin",
+        summary: "",
+        content: "",
+        featuredImageUrl: "",
+        status: "PUBLISHED",
+      });
+      setTimeout(() => setLocationToast(null), 4000);
+    } catch (err: any) {
+      alert("Error saving article: " + err.message);
+    } finally {
+      setNewsSubmitting(false);
+    }
+  };
+
+  const handleDeleteNews = async (id: string, title: string) => {
+    if (!confirm(`Are you sure you want to delete "${title}"?`)) return;
+    try {
+      const res = await fetch(`/api/news?id=${id}`, { method: "DELETE" });
+      const j = await res.json();
+      if (j.success) {
+        setNewsList(prev => prev.filter(p => p.id !== id));
+        setLocationToast(`Deleted "${title}".`);
+        setTimeout(() => setLocationToast(null), 4000);
+      }
+    } catch (err: any) {
+      alert("Error deleting article: " + err.message);
+    }
+  };
+
+  // Resources Handlers (Save, Delete)
+  const handleSaveResource = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResourceSubmitting(true);
+    try {
+      const res = await fetch("/api/resources", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(resourceForm),
+      });
+      const j = await res.json();
+      if (j.success && j.data) {
+        setResourcesList(prev => [j.data, ...prev]);
+        setShowCreateResourceModal(false);
+        setResourceForm({
+          title: "",
+          category: "POLICY",
+          accessLevel: "PUBLIC",
+          description: "",
+          url: "",
+          fileSize: "1.2 MB",
+          mimeType: "application/pdf",
+        });
+        setLocationToast("Document added to repository!");
+        setTimeout(() => setLocationToast(null), 4000);
+      }
+    } catch (err: any) {
+      alert("Error saving document: " + err.message);
+    } finally {
+      setResourceSubmitting(false);
+    }
+  };
+
+  const handleDeleteResource = async (id: string, title: string) => {
+    if (!confirm(`Are you sure you want to delete "${title}" from documents?`)) return;
+    try {
+      const res = await fetch(`/api/resources?id=${id}`, { method: "DELETE" });
+      const j = await res.json();
+      if (j.success) {
+        setResourcesList(prev => prev.filter(d => d.id !== id));
+        setLocationToast(`Deleted "${title}".`);
+        setTimeout(() => setLocationToast(null), 4000);
+      }
+    } catch (err: any) {
+      alert("Error deleting document: " + err.message);
+    }
+  };
+
 
   // Council Leadership Handler (API + State)
   const handleSaveCouncilLeader = async (e: React.FormEvent) => {
@@ -1229,6 +1722,23 @@ function PortalContent() {
                 </button>
 
                 <button
+                  onClick={() => setChapterActiveTab("news")}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
+                    chapterActiveTab === "news"
+                      ? "bg-teal-600 text-white font-bold shadow-md"
+                      : "hover:bg-white/5 text-slate-300 hover:text-white"
+                  }`}
+                >
+                  <Newspaper className="w-4 h-4" />
+                  <span className="flex-1 text-left">News & Bulletins</span>
+                  {newsList.length > 0 && (
+                    <span className="px-1.5 py-0.5 rounded-full bg-white/20 text-[10px]">
+                      {newsList.length}
+                    </span>
+                  )}
+                </button>
+
+                <button
                   onClick={() => setChapterActiveTab("documents")}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
                     chapterActiveTab === "documents"
@@ -1236,8 +1746,8 @@ function PortalContent() {
                       : "hover:bg-white/5 text-slate-300 hover:text-white"
                   }`}
                 >
-                  <FileText className="w-4 h-4" />
-                  <span>Documents</span>
+                  <FolderArchive className="w-4 h-4" />
+                  <span>Resources & Docs</span>
                 </button>
 
                 <button
@@ -1390,6 +1900,57 @@ function PortalContent() {
                 </button>
 
                 <button
+                  onClick={() => setAdminActiveTab("news")}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
+                    adminActiveTab === "news"
+                      ? "bg-amber-600 text-navy-950 font-bold shadow-md"
+                      : "hover:bg-white/5 text-slate-300 hover:text-white"
+                  }`}
+                >
+                  <Newspaper className="w-4 h-4" />
+                  <span className="flex-1 text-left">News & CMS</span>
+                  <span className="px-1.5 py-0.5 rounded-full bg-white/20 text-[10px]">
+                    {newsList.length}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => setAdminActiveTab("resources")}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
+                    adminActiveTab === "resources"
+                      ? "bg-amber-600 text-navy-950 font-bold shadow-md"
+                      : "hover:bg-white/5 text-slate-300 hover:text-white"
+                  }`}
+                >
+                  <FolderArchive className="w-4 h-4" />
+                  <span className="flex-1 text-left">Resources & Docs</span>
+                  <span className="px-1.5 py-0.5 rounded-full bg-white/20 text-[10px]">
+                    {resourcesList.length}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => setAdminActiveTab("inbox")}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
+                    adminActiveTab === "inbox"
+                      ? "bg-amber-600 text-navy-950 font-bold shadow-md"
+                      : "hover:bg-white/5 text-slate-300 hover:text-white"
+                  }`}
+                >
+                  <Inbox className="w-4 h-4" />
+                  <span className="flex-1 text-left">Inbox & Prayers</span>
+                  {(contactMessages.filter(m => !m.isRead).length + prayerRequests.filter(p => !p.isRead).length) > 0 ? (
+                    <span className="px-1.5 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-bold">
+                      {contactMessages.filter(m => !m.isRead).length + prayerRequests.filter(p => !p.isRead).length}
+                    </span>
+                  ) : (
+                    <span className="px-1.5 py-0.5 rounded-full bg-white/20 text-[10px]">
+                      {contactMessages.length + prayerRequests.length}
+                    </span>
+                  )}
+                </button>
+
+                <button
                   onClick={() => setAdminActiveTab("users")}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
                     adminActiveTab === "users"
@@ -1530,11 +2091,17 @@ function PortalContent() {
                     </div>
                     <div>
                       <span className="font-heading font-black text-3xl text-navy-950">
-                        {currentChapter.attendeesCount}
+                        {attendeesList.length > 0
+                          ? attendeesList.length
+                          : (currentChapter.attendeesCount ?? 0)}
                       </span>
                       <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 mt-2">
                         <TrendingUp className="w-3.5 h-3.5" />
-                        <span>+12% since last rally</span>
+                        <span>
+                          {attendeesList.length > 0
+                            ? `${attendeesList.length} registered delegates`
+                            : "No delegates registered yet"}
+                        </span>
                       </span>
                     </div>
                   </div>
@@ -1654,8 +2221,12 @@ function PortalContent() {
                     </div>
 
                     <div className="pt-4 flex items-center justify-between text-xs text-slate-500">
-                      <span>Target Delegation: 250 Delegates</span>
-                      <span className="text-teal-700 font-bold">99.2% of target reached</span>
+                      <span>Target Delegation: {currentChapter.approximateMembers ?? 250} Members</span>
+                      <span className="text-teal-700 font-bold">
+                        {currentChapter.approximateMembers && currentChapter.approximateMembers > 0
+                          ? `${Math.min(100, Math.round(((attendeesList.length || currentChapter.attendeesCount || 0) / currentChapter.approximateMembers) * 100))}% of target reached`
+                          : attendeesList.length > 0 ? `${attendeesList.length} delegates confirmed` : "Registration ongoing"}
+                      </span>
                     </div>
                   </div>
 
@@ -1670,19 +2241,33 @@ function PortalContent() {
                       </div>
 
                       <div className="my-6">
-                        <span className="font-heading font-black text-5xl text-white block">
-                          42 <span className="text-2xl font-normal text-slate-400">Days</span>
-                        </span>
-                        <div className="space-y-1 mt-4 text-xs text-slate-300">
-                          <p className="flex items-center gap-2">
-                            <Clock className="w-3.5 h-3.5 text-teal-400" />
-                            <span>15 – 17 November 2026</span>
-                          </p>
-                          <p className="flex items-center gap-2">
-                            <MapPin className="w-3.5 h-3.5 text-teal-400" />
-                            <span>Mombasa Sports Complex</span>
-                          </p>
-                        </div>
+                        {(() => {
+                          const rallyStart = currentRallyData?.startDate || "2026-11-15";
+                          const daysLeft = Math.max(0, Math.ceil((new Date(rallyStart).getTime() - Date.now()) / 86400000));
+                          const startFmt = currentRallyData?.startDate
+                            ? new Date(currentRallyData.startDate).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })
+                            : "15 Nov 2026";
+                          const endFmt = currentRallyData?.endDate
+                            ? new Date(currentRallyData.endDate).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })
+                            : "17 Nov 2026";
+                          return (
+                            <>
+                              <span className="font-heading font-black text-5xl text-white block">
+                                {daysLeft} <span className="text-2xl font-normal text-slate-400">Days</span>
+                              </span>
+                              <div className="space-y-1 mt-4 text-xs text-slate-300">
+                                <p className="flex items-center gap-2">
+                                  <Clock className="w-3.5 h-3.5 text-teal-400" />
+                                  <span>{startFmt} – {endFmt}</span>
+                                </p>
+                                <p className="flex items-center gap-2">
+                                  <MapPin className="w-3.5 h-3.5 text-teal-400" />
+                                  <span>{currentRallyData?.venueName || "Mombasa Sports Complex"}</span>
+                                </p>
+                              </div>
+                            </>
+                          );
+                        })()}
                       </div>
                     </div>
 
@@ -2422,16 +3007,26 @@ function PortalContent() {
                   <div className="relative z-10">
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold mb-4">
                       <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                      REGISTRATION OPEN
+                      {currentRallyData?.state?.replace(/_/g, " ") || "REGISTRATION OPEN"}
                     </span>
-                    <h2 className="font-heading font-black text-3xl text-white">{CURRENT_RALLY.title}</h2>
-                    <p className="text-amber-300 font-semibold mt-2">&ldquo;{CURRENT_RALLY.theme}&rdquo;</p>
+                    <h2 className="font-heading font-black text-3xl text-white">{currentRallyData?.title || CURRENT_RALLY.title}</h2>
+                    <p className="text-amber-300 font-semibold mt-2">&ldquo;{currentRallyData?.theme || CURRENT_RALLY.theme}&rdquo;</p>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 text-xs">
                       {[
-                        { label: "Date", value: "15 – 17 Nov 2026" },
-                        { label: "Venue", value: CURRENT_RALLY.venueName },
-                        { label: "Capacity", value: `${CURRENT_RALLY.capacity.toLocaleString()} Delegates` },
-                        { label: "Fee Lock Date", value: "1 November 2026" },
+                        {
+                          label: "Date",
+                          value: currentRallyData?.startDate && currentRallyData?.endDate
+                            ? `${new Date(currentRallyData.startDate).toLocaleDateString("en-US", { day: "numeric", month: "short" })} – ${new Date(currentRallyData.endDate).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })}`
+                            : "15 – 17 Nov 2026",
+                        },
+                        { label: "Venue", value: currentRallyData?.venueName || CURRENT_RALLY.venueName },
+                        { label: "Capacity", value: `${(currentRallyData?.capacity || CURRENT_RALLY.capacity).toLocaleString()} Delegates` },
+                        {
+                          label: "Fee Lock Date",
+                          value: currentRallyData?.feeLockDate
+                            ? new Date(currentRallyData.feeLockDate).toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" })
+                            : "1 November 2026",
+                        },
                       ].map((item) => (
                         <div key={item.label}>
                           <span className="text-[10px] uppercase font-bold text-slate-400 block">{item.label}</span>
@@ -2442,47 +3037,172 @@ function PortalContent() {
                   </div>
                 </div>
                 <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
-                  <h3 className="font-heading font-bold text-base text-navy-950 mb-4">3-Day Programme Overview</h3>
+                  <h3 className="font-heading font-bold text-base text-navy-950 mb-4">Official Rally Programme</h3>
                   <div className="space-y-4 text-xs">
-                    {[
-                      { day: "Friday, 15 Nov", theme: "Arrival & Opening Ceremony", items: ["Chapter delegations arrive & register", "Welcome devotional & cultural showcase", "Opening service & keynote address", "Evening praise concert"] },
-                      { day: "Saturday, 16 Nov — Sabbath", theme: "The Main Sabbath Experience", items: ["Morning devotional & Sabbath School", "Keynote sermon — Convention Hall", "Lunch fellowship (full catering)", "Afternoon Youth Rally & Mission Vigil", "Sabbath closing & praise night"] },
-                      { day: "Sunday, 17 Nov", theme: "Mission Momentum & Closing", items: ["Morning prayer & Bible study", "Chapter breakout sessions (ministry skills)", "Awards & leadership recognition ceremony", "Council announcements & closing commission"] },
-                    ].map((session) => (
-                      <div key={session.day} className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
-                        <div className="flex items-center gap-3 mb-3">
-                          <span className="px-2.5 py-1 rounded-lg bg-navy-900 text-white text-[10px] font-bold">{session.day}</span>
-                          <span className="font-bold text-slate-900">{session.theme}</span>
+                    {(currentRallyData?.programme && currentRallyData.programme.length > 0) ? (
+                      currentRallyData.programme.map((day: any, dIdx: number) => {
+                        const dayNum = day.dayNumber || dIdx + 1;
+                        const isSabbath = dayNum === 2 || (day.title || "").toLowerCase().includes("sabbath");
+                        return (
+                          <div key={dayNum} className={`p-4 rounded-2xl border ${isSabbath ? "bg-amber-50/50 border-amber-200" : "bg-slate-50 border-slate-200"}`}>
+                            <div className="flex items-center gap-3 mb-3">
+                              <span className={`px-2.5 py-1 rounded-lg text-white text-[10px] font-bold ${isSabbath ? "bg-amber-600" : "bg-navy-900"}`}>
+                                Day {dayNum}{day.timeRange ? ` · ${day.timeRange}` : ""}
+                              </span>
+                              <span className="font-bold text-slate-900">{day.title || `Day ${dayNum}`}</span>
+                            </div>
+                            {day.items && day.items.length > 0 && (
+                              <ul className="space-y-1.5">
+                                {day.items.map((item: string, iIdx: number) => (
+                                  <li key={iIdx} className="flex items-center gap-2 text-slate-600">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-teal-500 flex-shrink-0" />
+                                    <span>{item}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        );
+                      })
+                    ) : (
+                      [
+                        { day: "Friday, 15 Nov", theme: "Arrival & Opening Ceremony", items: ["Chapter delegations arrive & register", "Welcome devotional & cultural showcase", "Opening service & keynote address", "Evening praise concert"] },
+                        { day: "Saturday, 16 Nov — Sabbath", theme: "The Main Sabbath Experience", items: ["Morning devotional & Sabbath School", "Keynote sermon — Convention Hall", "Lunch fellowship (full catering)", "Afternoon Youth Rally & Mission Vigil", "Sabbath closing & praise night"] },
+                        { day: "Sunday, 17 Nov", theme: "Mission Momentum & Closing", items: ["Morning prayer & Bible study", "Chapter breakout sessions (ministry skills)", "Awards & leadership recognition ceremony", "Council announcements & closing commission"] },
+                      ].map((session) => (
+                        <div key={session.day} className="p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                          <div className="flex items-center gap-3 mb-3">
+                            <span className="px-2.5 py-1 rounded-lg bg-navy-900 text-white text-[10px] font-bold">{session.day}</span>
+                            <span className="font-bold text-slate-900">{session.theme}</span>
+                          </div>
+                          <ul className="space-y-1.5">
+                            {session.items.map((item) => (
+                              <li key={item} className="flex items-center gap-2 text-slate-600">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-teal-500 flex-shrink-0" />
+                                <span>{item}</span>
+                              </li>
+                            ))}
+                          </ul>
                         </div>
-                        <ul className="space-y-1.5">
-                          {session.items.map((item) => (
-                            <li key={item} className="flex items-center gap-2 text-slate-600">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-teal-500 flex-shrink-0" />
-                              <span>{item}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ))}
+                      ))
+                    )}
                   </div>
                 </div>
                 <div className="p-5 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-3">
                   <Info className="w-4 h-4 text-amber-700 flex-shrink-0 mt-0.5" />
                   <div>
                     <strong className="block mb-1">Important Deadlines</strong>
-                    Attendee registration cutoff: <strong>1 November 2026</strong>. Full invoice payment: <strong>10 November 2026</strong>.
+                    Attendee registration cutoff:{" "}
+                    <strong>
+                      {currentRallyData?.registrationDeadline
+                        ? new Date(currentRallyData.registrationDeadline).toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" })
+                        : "1 November 2026"}
+                    </strong>. Full invoice payment:{" "}
+                    <strong>
+                      {currentRallyData?.paymentDeadline
+                        ? new Date(currentRallyData.paymentDeadline).toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" })
+                        : "10 November 2026"}
+                    </strong>.
                   </div>
                 </div>
               </div>
             )}
 
-            {/* VIEW D-3: CHAPTER DOCUMENTS */}
+            {/* VIEW D-2B: CHAPTER NEWS & BULLETINS */}
+            {activePortal === "CHAPTER" && chapterActiveTab === "news" && (
+              <div className="space-y-6 animate-in fade-in duration-200">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h1 className="font-heading font-black text-2xl text-navy-950">Council Bulletins & News</h1>
+                    <p className="text-xs text-slate-500 mt-1">Official press releases, spiritual devotionals, and rally announcements from CUCASO Central Council.</p>
+                  </div>
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                    {["ALL", "ANNOUNCEMENT", "FINANCE", "SPIRITUAL", "STORY", "NEWS"].map((cat) => (
+                      <button
+                        key={cat}
+                        onClick={() => setNewsFilter(cat)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                          newsFilter === cat
+                            ? "bg-teal-700 text-white shadow-sm"
+                            : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                        }`}
+                      >
+                        {cat === "ALL" ? "All Updates" : cat.replace("_", " ")}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {newsList.length === 0 ? (
+                  <div className="p-12 text-center bg-white rounded-3xl border border-dashed border-slate-200 text-slate-400 text-xs">
+                    <Newspaper className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                    No bulletins published yet. Check back soon for council communications.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {newsList
+                      .filter(n => newsFilter === "ALL" || n.category.toUpperCase() === newsFilter.toUpperCase())
+                      .map((post) => (
+                        <div key={post.id} className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col justify-between hover:shadow-lg hover:border-teal-300 transition-all duration-300 group">
+                          <div>
+                            {post.featuredImageUrl ? (
+                              <div className="aspect-video w-full overflow-hidden bg-slate-900 relative">
+                                <img src={post.featuredImageUrl} alt={post.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-navy-950/80 text-amber-300 backdrop-blur-md">
+                                  {post.category}
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="aspect-[21/9] w-full bg-gradient-to-br from-navy-950 via-teal-950 to-navy-900 p-5 flex flex-col justify-between text-white relative">
+                                <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-white/10 text-amber-300 w-max">
+                                  {post.category}
+                                </span>
+                                <Sparkles className="w-5 h-5 text-amber-400 absolute top-4 right-4" />
+                              </div>
+                            )}
+
+                            <div className="p-5">
+                              <div className="flex items-center gap-2 text-[11px] text-slate-400 mb-2">
+                                <Calendar className="w-3.5 h-3.5 text-teal-600" />
+                                <span>{post.publishedAt || post.createdAt || "Recent"}</span>
+                                <span>•</span>
+                                <span>{post.readTime || "3 min read"}</span>
+                              </div>
+                              <h3 className="font-heading font-black text-base text-navy-950 leading-snug group-hover:text-teal-700 transition-colors">
+                                {post.title}
+                              </h3>
+                              <p className="text-xs text-slate-600 mt-2 line-clamp-3 leading-relaxed">
+                                {post.summary || post.content}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="px-5 pb-5 pt-3 border-t border-slate-100 flex items-center justify-between">
+                            <span className="text-[11px] font-medium text-slate-500">
+                              By <strong className="text-slate-700">{post.author || "Council Admin"}</strong>
+                            </span>
+                            <button
+                              onClick={() => setViewingNewsArticle(post)}
+                              className="px-3 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 text-xs font-bold inline-flex items-center gap-1.5 transition-colors"
+                            >
+                              <span>Read Bulletin</span>
+                              <ArrowRight className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* VIEW D-3: CHAPTER DOCUMENTS & SITE RESOURCES */}
             {activePortal === "CHAPTER" && chapterActiveTab === "documents" && (
               <div className="space-y-6 animate-in fade-in duration-200">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
-                    <h1 className="font-heading font-black text-2xl text-navy-950">Chapter Documents</h1>
-                    <p className="text-xs text-slate-500 mt-1">Official CUCASO documents, circulars, and your chapter&apos;s submitted endorsement files.</p>
+                    <h1 className="font-heading font-black text-2xl text-navy-950">Resources & Documents</h1>
+                    <p className="text-xs text-slate-500 mt-1">Download official CUCASO constitutions, guidelines, and upload your chapter&apos;s records.</p>
                   </div>
                   <div>
                     <input
@@ -2963,11 +3683,17 @@ function PortalContent() {
                     </div>
                     <div>
                       <span className="font-heading font-black text-3xl text-navy-950">
-                        {chaptersList.reduce((acc, c) => acc + (c.attendeesCount || 0), 0).toLocaleString()}
+                        {allAttendeesList.length > 0
+                          ? allAttendeesList.length.toLocaleString()
+                          : chaptersList.reduce((acc, c) => acc + (c.attendeesCount || 0), 0).toLocaleString()}
                       </span>
                       <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 mt-2">
                         <TrendingUp className="w-3.5 h-3.5" />
-                        <span>Coastal rally delegate quota</span>
+                        <span>
+                          {allAttendeesList.length > 0
+                            ? "Registered delegates (live)"
+                            : "Coastal rally delegate quota"}
+                        </span>
                       </span>
                     </div>
                   </div>
@@ -2983,10 +3709,12 @@ function PortalContent() {
                     </div>
                     <div>
                       <span className="font-heading font-black text-3xl text-navy-950">
-                        {formatCurrency(totalCollected)}
+                        {totalCollected > 0 ? formatCurrency(totalCollected) : <span className="text-slate-400 text-base font-semibold">Awaiting initial Paybill remittances</span>}
                       </span>
                       <span className="text-xs text-slate-500 block mt-2">
-                        {budgetSummary.totalBudgetKes > 0 ? Math.round((totalCollected / budgetSummary.totalBudgetKes) * 100) : 0}% of rally budget target
+                        {totalCollected > 0 && budgetSummary.totalBudgetKes > 0
+                          ? `${Math.round((totalCollected / budgetSummary.totalBudgetKes) * 100)}% of rally budget target`
+                          : totalCollected > 0 ? "Funds collected" : "No payments reconciled yet"}
                       </span>
                     </div>
                   </div>
@@ -3001,11 +3729,19 @@ function PortalContent() {
                       </div>
                     </div>
                     <div>
-                      <span className="font-heading font-black text-2xl text-emerald-700">
-                        {budgetSummary.sufficiencyStatus === "FUNDED" || budgetSummary.outstandingKes <= 0 ? "Fully Funded" : "Active & On Track"}
+                      <span className={`font-heading font-black text-2xl ${
+                        budgetSummary.sufficiencyStatus === "FUNDED" || budgetSummary.outstandingKes <= 0
+                          ? "text-emerald-700"
+                          : totalCollected > 0 ? "text-teal-700" : "text-slate-500"
+                      }`}>
+                        {budgetSummary.sufficiencyStatus === "FUNDED" || budgetSummary.outstandingKes <= 0
+                          ? "Fully Funded"
+                          : totalCollected > 0 ? "Collection Active" : "Awaiting Payments"}
                       </span>
                       <span className="text-xs text-slate-500 block mt-2">
-                        {formatCurrency(budgetSummary.outstandingKes)} remaining balance
+                        {budgetSummary.outstandingKes > 0
+                          ? `${formatCurrency(budgetSummary.outstandingKes)} remaining balance`
+                          : totalCollected > 0 ? "All funds covered" : "No remittances recorded yet"}
                       </span>
                     </div>
                   </div>
@@ -3029,30 +3765,46 @@ function PortalContent() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center py-4">
                       {/* Donut representation graphic */}
-                      <div className="relative w-40 h-40 mx-auto rounded-full border-8 border-teal-600 flex items-center justify-center bg-slate-50 shadow-inner">
+                      <div className="relative w-40 h-40 mx-auto rounded-full border-8 flex items-center justify-center bg-slate-50 shadow-inner" style={{ borderColor: totalCollected > 0 ? "#0f766e" : "#e2e8f0" }}>
                         <div className="text-center">
-                          <span className="text-[10px] text-slate-400 uppercase font-bold block">Collected</span>
-                          <span className="font-heading font-black text-sm text-navy-950">{formatCurrency(totalCollected)}</span>
+                          {totalCollected > 0 ? (
+                            <>
+                              <span className="text-[10px] text-slate-400 uppercase font-bold block">Collected</span>
+                              <span className="font-heading font-black text-sm text-navy-950">{formatCurrency(totalCollected)}</span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="text-[10px] text-slate-400 uppercase font-bold block">KES 0</span>
+                              <span className="text-[10px] text-slate-400 block mt-1 leading-tight">No payments<br />recorded yet</span>
+                            </>
+                          )}
                         </div>
                       </div>
 
-                      {/* Dynamic Legend */}
+                      {/* Dynamic Legend — only show real invoice data */}
                       <div className="space-y-2 text-xs">
-                        {chaptersList.slice(0, 4).map((ch, i) => {
-                          const inv = invoicesList.find(inv => inv.chapterId === ch.id);
-                          const paid = inv?.amountPaid || ((ch.attendeesCount || 100) * 850);
-                          const pct = totalCollected > 0 ? Math.min(100, Math.round((paid / totalCollected) * 100)) : Math.round(100 / Math.min(chaptersList.length, 4));
-                          const colors = ["bg-teal-600", "bg-amber-500", "bg-blue-600", "bg-emerald-500"];
-                          return (
-                            <div key={ch.id} className="flex items-center justify-between">
-                              <span className="flex items-center gap-2 truncate max-w-[140px]">
-                                <span className={`w-2.5 h-2.5 rounded-full ${colors[i % colors.length]} flex-shrink-0`} />
-                                <span className="truncate">{ch.institutionName}</span>
-                              </span>
-                              <span className="font-bold">{pct}%</span>
-                            </div>
-                          );
-                        })}
+                        {totalCollected > 0 ? (
+                          chaptersList.slice(0, 4).map((ch, i) => {
+                            const inv = invoicesList.find(inv => inv.chapterId === ch.id);
+                            const paid = inv?.amountPaid ?? 0;
+                            const pct = totalCollected > 0 ? Math.min(100, Math.round((paid / totalCollected) * 100)) : 0;
+                            const colors = ["bg-teal-600", "bg-amber-500", "bg-blue-600", "bg-emerald-500"];
+                            return (
+                              <div key={ch.id} className="flex items-center justify-between">
+                                <span className="flex items-center gap-2 truncate max-w-[140px]">
+                                  <span className={`w-2.5 h-2.5 rounded-full ${colors[i % colors.length]} flex-shrink-0`} />
+                                  <span className="truncate">{ch.institutionName}</span>
+                                </span>
+                                <span className="font-bold">{pct}%</span>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="text-center py-4 text-slate-400">
+                            <CreditCard className="w-8 h-8 mx-auto mb-2 text-slate-200" />
+                            <p className="text-[11px]">Chapter contributions will appear here once the first remittance is matched.</p>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -3077,6 +3829,7 @@ function PortalContent() {
                     </div>
 
                     <div className="space-y-3 text-xs">
+                      {/* Past rally — hardcoded as it's historical */}
                       <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
                         <div>
                           <span className="font-bold text-slate-900 block">Jun 2026 — Coast Fellowship Rally</span>
@@ -3087,16 +3840,24 @@ function PortalContent() {
                         </span>
                       </div>
 
+                      {/* Current rally — fully dynamic from DB */}
                       <div className="p-3.5 rounded-2xl bg-teal-50 border border-teal-200 flex items-center justify-between">
                         <div>
-                          <span className="font-bold text-teal-950 block">Nov 2026 — Coastal Unity Rally</span>
-                          <span className="text-[11px] text-teal-700">Mombasa Sports Complex (Current)</span>
+                          <span className="font-bold text-teal-950 block">
+                            {currentRallyData?.startDate
+                              ? `${new Date(currentRallyData.startDate).toLocaleDateString("en-US", { month: "short", year: "numeric" })} — ${currentRallyData.title}`
+                              : "Nov 2026 — Coastal Unity Rally"}
+                          </span>
+                          <span className="text-[11px] text-teal-700">
+                            {currentRallyData?.venueName || "Mombasa Sports Complex"} (Current)
+                          </span>
                         </div>
                         <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px] border border-emerald-300">
-                          Registration Open
+                          {currentRallyData?.state?.replace(/_/g, " ") || "Registration Open"}
                         </span>
                       </div>
 
+                      {/* Planned future rally */}
                       <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
                         <div>
                           <span className="font-bold text-slate-900 block">May 2027 — Kilifi Fellowship Rally</span>
@@ -3109,7 +3870,12 @@ function PortalContent() {
                     </div>
 
                     <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                      <span>Fee Lock Trigger: 1 Nov 2026</span>
+                      <span>
+                        Fee Lock:{" "}
+                        {currentRallyData?.feeLockDate
+                          ? new Date(currentRallyData.feeLockDate).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })
+                          : "1 Nov 2026"}
+                      </span>
                       <button onClick={() => setAdminActiveTab("rallies")} className="text-teal-700 font-bold hover:underline">
                         Manage Rallies →
                       </button>
@@ -3146,8 +3912,11 @@ function PortalContent() {
                       <tbody className="divide-y divide-slate-100">
                         {chaptersList.slice(0, 6).map((ch, idx) => {
                           const inv = invoicesList.find(i => i.chapterId === ch.id);
-                          const fee = inv ? inv.amountDue : ((ch.attendeesCount || 100) * 850);
-                          const status = inv ? inv.status : (ch.status === "APPROVED" ? "UNPAID" : "PENDING");
+                          // Use ONLY the invoice amount from DB — never calculate a fallback
+                          const fee = inv ? inv.amountDue : null;
+                          const registeredCount = allAttendeesList.filter(a => a.chapterId === ch.id).length
+                            || ch.attendeesCount || 0;
+                          const status = inv ? inv.status : ((ch.status as string) === "APPROVED" || (ch.status as string) === "ACTIVE" ? "UNPAID" : "PENDING");
                           return (
                             <tr key={ch.id} className="hover:bg-slate-50/80 transition-colors">
                               <td className="py-3.5 px-4 font-mono font-semibold text-slate-400">
@@ -3160,10 +3929,10 @@ function PortalContent() {
                                 {ch.institutionName}
                               </td>
                               <td className="py-3.5 px-4 text-center font-bold text-slate-900">
-                                {ch.attendeesCount || 0}
+                                {registeredCount}
                               </td>
                               <td className="py-3.5 px-4 text-right font-bold text-navy-950">
-                                {formatCurrency(fee)}
+                                {fee !== null ? formatCurrency(fee) : <span className="text-slate-400 text-xs font-normal">No invoice</span>}
                               </td>
                               <td className="py-3.5 px-4 text-center">
                                 <span
@@ -4149,73 +4918,175 @@ function PortalContent() {
                 </div>
 
                 {/* Current Rally Hero Card */}
-                <div className="p-8 rounded-3xl bg-gradient-to-br from-navy-950 to-navy-900 text-white border border-navy-800 shadow-xl relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-                  <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    <div>
-                      <div className="flex items-center justify-between mb-4">
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold">
-                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                          {currentRallyData.state?.replace("_", " ") || "REGISTRATION OPEN"}
-                        </span>
-                        <button
-                          onClick={() => {
-                            setEditRallyForm({
-                              title: currentRallyData.title,
-                              theme: currentRallyData.theme,
-                              venueName: currentRallyData.venueName,
-                              venueLocation: currentRallyData.venueLocation,
-                              capacity: currentRallyData.capacity,
-                              feeLockDate: currentRallyData.feeLockDate || "2026-11-01",
-                              paymentDeadline: currentRallyData.paymentDeadline || "2026-11-10",
-                              state: currentRallyData.state || "REGISTRATION_OPEN",
-                            });
-                            setShowEditRallyModal(true);
-                          }}
-                          className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center gap-1.5 transition-colors border border-white/20"
-                        >
-                          <Edit3 className="w-3.5 h-3.5 text-amber-400" />
-                          <span>Edit Rally Details</span>
-                        </button>
-                      </div>
-                      <h2 className="font-heading font-black text-3xl text-white tracking-tight">{currentRallyData.title}</h2>
-                      <p className="text-amber-300 font-semibold text-sm mt-2">&ldquo;{currentRallyData.theme}&rdquo;</p>
-                      <div className="mt-4 space-y-2 text-xs text-slate-300">
-                        <p className="flex items-center gap-2"><Calendar className="w-4 h-4 text-teal-400" /> 15 – 17 November 2026</p>
-                        <p className="flex items-center gap-2"><MapPin className="w-4 h-4 text-teal-400" /> {currentRallyData.venueName}, {currentRallyData.venueLocation}</p>
-                        <p className="flex items-center gap-2"><Users className="w-4 h-4 text-teal-400" /> Capacity: {Number(currentRallyData.capacity || 3000).toLocaleString()} delegates</p>
-                        <p className="flex items-center gap-2"><Clock className="w-4 h-4 text-amber-400" /> Fee Lock: {currentRallyData.feeLockDate || "1 November 2026"}</p>
-                        <p className="flex items-center gap-2"><CreditCard className="w-4 h-4 text-amber-400" /> Payment Deadline: {currentRallyData.paymentDeadline || "10 November 2026"}</p>
-                      </div>
-                    </div>
-                    <div className="space-y-3">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Registration Progress</h4>
-                      <div className="space-y-2">
-                        {(() => {
-                          const totalReg = chaptersList.reduce((acc, c) => acc + (c.attendeesCount || 0), 0);
-                          const activeCh = chaptersList.filter(c => c.status === "APPROVED").length;
-                          const paidInv = invoicesList.filter(i => i.status === "PAID").length;
-                          const totalInv = invoicesList.length || chaptersList.length;
-                          return [
-                            { label: "Total Registered Delegates", value: totalReg.toLocaleString(), pct: Math.min(100, Math.round((totalReg / (CURRENT_RALLY.capacity || 3000)) * 100)) },
-                            { label: "Chapters Confirmed", value: `${activeCh} / ${chaptersList.length}`, pct: chaptersList.length ? Math.round((activeCh / chaptersList.length) * 100) : 100 },
-                            { label: "Invoices Settled", value: `${paidInv} / ${totalInv}`, pct: totalInv ? Math.round((paidInv / totalInv) * 100) : 0 },
-                          ];
-                        })().map((item) => (
-                          <div key={item.label} className="space-y-1">
-                            <div className="flex justify-between text-xs">
-                              <span className="text-slate-300">{item.label}</span>
-                              <span className="font-bold text-white">{item.value}</span>
-                            </div>
-                            <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
-                              <div className="h-full rounded-full bg-gradient-to-r from-teal-500 to-teal-400" style={{ width: `${item.pct}%` }} />
-                            </div>
+                {currentRallyData ? (
+                  <div className="p-8 rounded-3xl bg-gradient-to-br from-navy-950 to-navy-900 text-white border border-navy-800 shadow-xl relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+                    <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-8">
+                      <div>
+                        <div className="flex items-center justify-between mb-4">
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                            {currentRallyData.state?.replace("_", " ") || "REGISTRATION OPEN"}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={handleDeleteRally}
+                              className="px-3 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 hover:text-white font-bold text-xs flex items-center gap-1.5 transition-colors border border-rose-500/30"
+                              title="Delete this active rally"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                              <span>Delete Rally</span>
+                            </button>
+                            <button
+                              onClick={() => {
+                                setEditRallyForm(prev => ({
+                                  ...prev,
+                                  title: currentRallyData.title || prev.title,
+                                  theme: currentRallyData.theme || prev.theme,
+                                  venueName: currentRallyData.venueName || prev.venueName,
+                                  venueLocation: currentRallyData.venueLocation || prev.venueLocation,
+                                  capacity: currentRallyData.capacity || prev.capacity,
+                                  startDate: currentRallyData.startDate ? currentRallyData.startDate.split("T")[0] : prev.startDate,
+                                  endDate: currentRallyData.endDate ? currentRallyData.endDate.split("T")[0] : prev.endDate,
+                                  registrationDeadline: currentRallyData.registrationDeadline ? currentRallyData.registrationDeadline.split("T")[0] : prev.registrationDeadline,
+                                  feeLockDate: currentRallyData.feeLockDate ? currentRallyData.feeLockDate.split("T")[0] : prev.feeLockDate,
+                                  paymentDeadline: currentRallyData.paymentDeadline ? currentRallyData.paymentDeadline.split("T")[0] : prev.paymentDeadline,
+                                  state: currentRallyData.state || prev.state,
+                                  venueAddress: currentRallyData.venueAccess?.address || prev.venueAddress,
+                                  venueDescription: currentRallyData.venueAccess?.description || prev.venueDescription,
+                                  venueDirections: currentRallyData.venueAccess?.directions || prev.venueDirections,
+                                  venueParkingInfo: currentRallyData.venueAccess?.parkingInfo || prev.venueParkingInfo,
+                                  venueSecurityInfo: currentRallyData.venueAccess?.securityInfo || prev.venueSecurityInfo,
+                                  venueMedicalInfo: currentRallyData.venueAccess?.medicalInfo || prev.venueMedicalInfo,
+                                  venueAccommodationNotes: currentRallyData.venueAccess?.accommodationNotes || prev.venueAccommodationNotes,
+                                  feesPaybillNumber: currentRallyData.feesAndCapitation?.paybillNumber || prev.feesPaybillNumber,
+                                  feesAccountInstructions: currentRallyData.feesAndCapitation?.accountInstructions || prev.feesAccountInstructions,
+                                  feesDeadlineText: currentRallyData.feesAndCapitation?.deadlineText || prev.feesDeadlineText,
+                                  feesPhilosophyTitle: currentRallyData.feesAndCapitation?.philosophyTitle || prev.feesPhilosophyTitle,
+                                  feesPhilosophyText: currentRallyData.feesAndCapitation?.philosophyText || prev.feesPhilosophyText,
+                                }));
+                                if (currentRallyData.programme && Array.isArray(currentRallyData.programme)) {
+                                  setProgrammeDays(currentRallyData.programme);
+                                }
+                                if (currentRallyData.feesAndCapitation?.tiers && Array.isArray(currentRallyData.feesAndCapitation.tiers)) {
+                                  setFeeTiersList(currentRallyData.feesAndCapitation.tiers);
+                                }
+                                setShowEditRallyModal(true);
+                              }}
+                              className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center gap-1.5 transition-colors border border-white/20"
+                            >
+                              <Edit3 className="w-3.5 h-3.5 text-amber-400" />
+                              <span>Edit Rally Details</span>
+                            </button>
                           </div>
-                        ))}
+                        </div>
+                        <h2 className="font-heading font-black text-3xl text-white tracking-tight">{currentRallyData.title}</h2>
+                        <p className="text-amber-300 font-semibold text-sm mt-2">&ldquo;{currentRallyData.theme}&rdquo;</p>
+                        <div className="mt-4 space-y-2 text-xs text-slate-300">
+                          <p className="flex items-center gap-2"><Calendar className="w-4 h-4 text-teal-400" /> {currentRallyData.startDate ? new Date(currentRallyData.startDate).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" }) : "15 Nov 2026"} – {currentRallyData.endDate ? new Date(currentRallyData.endDate).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" }) : "17 Nov 2026"}</p>
+                          <p className="flex items-center gap-2"><MapPin className="w-4 h-4 text-teal-400" /> {currentRallyData.venueName}, {currentRallyData.venueLocation}</p>
+                          <p className="flex items-center gap-2"><Users className="w-4 h-4 text-teal-400" /> Capacity: {Number(currentRallyData.capacity || 3000).toLocaleString()} delegates</p>
+                          <p className="flex items-center gap-2"><Clock className="w-4 h-4 text-amber-400" /> Fee Lock: {currentRallyData.feeLockDate || "1 November 2026"}</p>
+                          <p className="flex items-center gap-2"><CreditCard className="w-4 h-4 text-amber-400" /> Payment Deadline: {currentRallyData.paymentDeadline || "10 November 2026"}</p>
+                        </div>
+                      </div>
+                      <div className="space-y-3">
+                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Registration Progress</h4>
+                        <div className="space-y-2">
+                          {(() => {
+                            const totalReg = chaptersList.reduce((acc, c) => acc + (c.attendeesCount || 0), 0);
+                            const activeCh = chaptersList.filter(c => c.status === "APPROVED").length;
+                            const paidInv = invoicesList.filter(i => i.status === "PAID").length;
+                            const totalInv = invoicesList.length || chaptersList.length;
+                            return [
+                              { label: "Total Registered Delegates", value: totalReg.toLocaleString(), pct: Math.min(100, Math.round((totalReg / (Number(currentRallyData.capacity) || 3000)) * 100)) },
+                              { label: "Chapters Confirmed", value: `${activeCh} / ${chaptersList.length}`, pct: chaptersList.length ? Math.round((activeCh / chaptersList.length) * 100) : 100 },
+                              { label: "Invoices Settled", value: `${paidInv} / ${totalInv}`, pct: totalInv ? Math.round((paidInv / totalInv) * 100) : 0 },
+                            ];
+                          })().map((item) => (
+                            <div key={item.label} className="space-y-1">
+                              <div className="flex justify-between text-xs">
+                                <span className="text-slate-300">{item.label}</span>
+                                <span className="font-bold text-white">{item.value}</span>
+                              </div>
+                              <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                                <div className="h-full rounded-full bg-gradient-to-r from-teal-500 to-teal-400" style={{ width: `${item.pct}%` }} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="p-8 rounded-3xl bg-slate-900 text-white border border-slate-800 shadow-xl text-center space-y-4">
+                    <span className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-300 font-bold text-xs uppercase tracking-wider inline-block">
+                      System Status
+                    </span>
+                    <h2 className="font-heading font-black text-2xl text-white">No Active Rally in System</h2>
+                    <p className="text-slate-400 text-xs max-w-lg mx-auto">
+                      All rallies have been deleted. Public visitors see an official notice that no rally is currently scheduled. You can create a new rally or restore the standard template at any time.
+                    </p>
+                    <div className="flex items-center justify-center gap-3 pt-2">
+                      <button
+                        onClick={() => {
+                          setEditRallyForm({
+                            title: "Coastal Unity Rally 2027",
+                            theme: "United in Faith and Mission",
+                            venueName: "Mombasa Sports Complex",
+                            venueLocation: "Mombasa Island, Kenya",
+                            capacity: 3000,
+                            startDate: "2027-05-15",
+                            endDate: "2027-05-17",
+                            registrationDeadline: "2027-05-01",
+                            feeLockDate: "2027-05-01",
+                            paymentDeadline: "2027-05-10",
+                            state: "REGISTRATION_OPEN",
+                            posterUrl: "",
+                            venueAddress: "Mnazi Mmoja Rd, Mombasa Island, Coast Region, Kenya",
+                            venueDescription: "Covered main arena with breakout workshop halls.",
+                            venueDirections: "",
+                            venueParkingInfo: "Secure parking inside Gate 2.",
+                            venueSecurityInfo: "24-hr Kenya Police and private security.",
+                            venueMedicalInfo: "Red Cross First Aid station on-site.",
+                            venueAccommodationNotes: "Nearby hostels available.",
+                            feesPaybillNumber: "4082200",
+                            feesAccountInstructions: "Paybill 4082200, Account: Chapter Invoice Reference",
+                            feesDeadlineText: "Fee settlement required before rally date.",
+                            feesPhilosophyTitle: "Fair Capability-Based Capitation",
+                            feesPhilosophyText: "Calculated based on institutional capability tier.",
+                            feeTiersJson: "",
+                            programmeJson: "",
+                          });
+                          setShowEditRallyModal(true);
+                        }}
+                        className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold text-xs flex items-center gap-2 transition-all shadow"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Create New Rally</span>
+                      </button>
+                      <button
+                        onClick={async () => {
+                          const res = await fetch("/api/rallies", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify(CURRENT_RALLY),
+                          });
+                          const j = await res.json();
+                          if (j.success && j.data) {
+                            setCurrentRallyData(j.data);
+                            setRalliesList([j.data]);
+                            setLocationToast("Default rally restored to database!");
+                          }
+                        }}
+                        className="px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center gap-2 border border-white/20 transition-all"
+                      >
+                        <RotateCcw className="w-4 h-4 text-teal-400" />
+                        <span>Restore Default Rally</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Cost Items Table */}
                 <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden p-6">
@@ -4261,26 +5132,55 @@ function PortalContent() {
 
                 {/* Past & Future Rallies Timeline */}
                 <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
-                  <h3 className="font-heading font-bold text-base text-navy-950 mb-4">Rally History & Pipeline</h3>
-                  <div className="space-y-3 text-xs">
-                    {[
-                      { title: "Coastal Unity Rally 2024", venue: "Mombasa Sports Complex", date: "Nov 2024", status: "Completed", statusClass: "bg-slate-200 text-slate-700", attendees: "2,105" },
-                      { title: "Coast Fellowship Rally 2025 (Mid-Year)", venue: "Pwani University Grounds, Kilifi", date: "Jun 2025", status: "Completed", statusClass: "bg-slate-200 text-slate-700", attendees: "1,880" },
-                      { title: "Coastal Unity Rally 2025", venue: "Mombasa Sports Complex", date: "Nov 2025", status: "Completed", statusClass: "bg-slate-200 text-slate-700", attendees: "2,310" },
-                      { title: "Coastal Unity Rally 2026", venue: "Mombasa Sports Complex", date: "Nov 15–17, 2026", status: "Active", statusClass: "bg-emerald-100 text-emerald-800 border border-emerald-300", attendees: "2,486 (ongoing)" },
-                      { title: "Kilifi Fellowship Rally 2027", venue: "Pwani University Grounds", date: "May 2027", status: "Planned", statusClass: "bg-amber-100 text-amber-800", attendees: "—" },
-                    ].map((rally) => (
-                      <div key={rally.title} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-4">
-                        <div>
-                          <span className="font-bold text-slate-900 block">{rally.title}</span>
-                          <span className="text-slate-500 text-[11px]">{rally.venue} • {rally.date} • {rally.attendees} delegates</span>
-                        </div>
-                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold whitespace-nowrap ${rally.statusClass}`}>
-                          {rally.status}
-                        </span>
-                      </div>
-                    ))}
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="font-heading font-bold text-base text-navy-950">Rally History & Pipeline</h3>
+                      <p className="text-xs text-slate-500">Historical record of all past coastal rallies and upcoming scheduled rallies.</p>
+                    </div>
+                    {rallyHistoryList.length > 0 && (
+                      <button
+                        onClick={() => {
+                          if (confirm("Clear all past rally history entries?")) {
+                            setRallyHistoryList([]);
+                            setLocationToast("Rally history cleared.");
+                            setTimeout(() => setLocationToast(null), 4000);
+                          }
+                        }}
+                        className="px-3 py-1.5 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-bold flex items-center gap-1.5 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Clear History</span>
+                      </button>
+                    )}
                   </div>
+                  {rallyHistoryList.length === 0 ? (
+                    <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-400 text-xs">
+                      No rally history records currently saved.
+                    </div>
+                  ) : (
+                    <div className="space-y-3 text-xs">
+                      {rallyHistoryList.map((rally) => (
+                        <div key={rally.id || rally.title} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-4 group hover:border-slate-300 transition-all">
+                          <div>
+                            <span className="font-bold text-slate-900 block">{rally.title}</span>
+                            <span className="text-slate-500 text-[11px]">{rally.venue} • {rally.date} • {rally.attendees} delegates</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold whitespace-nowrap ${rally.statusClass}`}>
+                              {rally.status}
+                            </span>
+                            <button
+                              onClick={() => handleDeletePastRallyHistory(rally.id || rally.title)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                              title="Delete from history"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -5154,7 +6054,696 @@ function PortalContent() {
               </div>
             )}
 
+            {/* ========================================================= */}
+            {/* VIEW H-NEWS: ADMIN NEWS & CMS                              */}
+            {/* ========================================================= */}
+            {activePortal === "ADMIN" && adminActiveTab === "news" && (
+              <div className="space-y-6 animate-in fade-in duration-200">
+                {/* Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h1 className="font-heading font-black text-2xl text-navy-950">News &amp; CMS</h1>
+                    <p className="text-xs text-slate-500 mt-1">Publish official bulletins, rally announcements, spiritual devotionals, and general council communications to all chapter portals.</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setEditingNewsId(null);
+                      setNewsForm({ title: "", category: "NEWS", author: "Council Admin", summary: "", content: "", featuredImageUrl: "", status: "PUBLISHED" });
+                      setShowCreateNewsModal(true);
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-navy-900 hover:bg-navy-800 text-white font-bold text-xs shadow-sm flex items-center gap-2 transition-transform active:scale-95 whitespace-nowrap"
+                  >
+                    <Plus className="w-4 h-4 text-amber-400" />
+                    <span>New Article</span>
+                  </button>
+                </div>
+
+                {/* Filter tabs */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                  {["ALL", "NEWS", "ANNOUNCEMENT", "FINANCE", "SPIRITUAL", "STORY"].map((cat) => (
+                    <button
+                      key={cat}
+                      onClick={() => setNewsFilter(cat)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                        newsFilter === cat
+                          ? "bg-navy-950 text-white shadow-sm"
+                          : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                      }`}
+                    >
+                      {cat === "ALL" ? "All Posts" : cat.replace("_", " ")}
+                    </button>
+                  ))}
+                  <span className="ml-auto text-xs text-slate-400 whitespace-nowrap">{newsList.length} article{newsList.length !== 1 ? "s" : ""}</span>
+                </div>
+
+                {/* Stats row */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  {[
+                    { label: "Total Posts", value: newsList.length, icon: <Newspaper className="w-4 h-4" />, color: "bg-navy-50 text-navy-800" },
+                    { label: "Published", value: newsList.filter(n => n.status === "PUBLISHED").length, icon: <CheckCircle2 className="w-4 h-4" />, color: "bg-emerald-50 text-emerald-800" },
+                    { label: "Announcements", value: newsList.filter(n => n.category?.toUpperCase() === "ANNOUNCEMENT").length, icon: <Bell className="w-4 h-4" />, color: "bg-amber-50 text-amber-800" },
+                    { label: "Spiritual", value: newsList.filter(n => n.category?.toUpperCase() === "SPIRITUAL").length, icon: <Sparkles className="w-4 h-4" />, color: "bg-teal-50 text-teal-800" },
+                  ].map((stat) => (
+                    <div key={stat.label} className={`rounded-2xl border border-slate-100 p-4 flex items-center gap-3 ${stat.color}`}>
+                      <div className="opacity-70">{stat.icon}</div>
+                      <div>
+                        <p className="text-lg font-black">{stat.value}</p>
+                        <p className="text-[10px] font-semibold opacity-70">{stat.label}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Articles grid */}
+                {newsList.filter(n => newsFilter === "ALL" || n.category?.toUpperCase() === newsFilter.toUpperCase()).length === 0 ? (
+                  <div className="p-16 text-center bg-white rounded-3xl border border-dashed border-slate-200 text-slate-400">
+                    <Newspaper className="w-10 h-10 mx-auto mb-3 text-slate-300" />
+                    <p className="font-bold text-sm">No articles yet</p>
+                    <p className="text-xs mt-1">Click "New Article" to publish your first council communication.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {newsList
+                      .filter(n => newsFilter === "ALL" || n.category?.toUpperCase() === newsFilter.toUpperCase())
+                      .map((post) => (
+                        <div key={post.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex items-start gap-4 hover:border-navy-300 hover:shadow-md transition-all group">
+                          {/* Featured image or category badge */}
+                          <div className="w-16 h-16 rounded-xl flex-shrink-0 overflow-hidden bg-gradient-to-br from-navy-900 to-teal-900 flex items-center justify-center">
+                            {post.featuredImageUrl ? (
+                              <img src={post.featuredImageUrl} alt={post.title} className="w-full h-full object-cover" />
+                            ) : (
+                              <Newspaper className="w-6 h-6 text-amber-300" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider mb-1 ${
+                                  post.category?.toUpperCase() === "ANNOUNCEMENT" ? "bg-amber-100 text-amber-800" :
+                                  post.category?.toUpperCase() === "SPIRITUAL" ? "bg-teal-100 text-teal-800" :
+                                  post.category?.toUpperCase() === "FINANCE" ? "bg-emerald-100 text-emerald-800" :
+                                  "bg-slate-100 text-slate-700"
+                                }`}>{post.category}</span>
+                                <h3 className="font-heading font-black text-base text-navy-950 leading-snug group-hover:text-teal-700 transition-colors">{post.title}</h3>
+                                <p className="text-xs text-slate-500 mt-1 line-clamp-2">{post.summary || post.content}</p>
+                              </div>
+                              <div className="flex items-center gap-1.5 flex-shrink-0">
+                                <button
+                                  onClick={() => {
+                                    setEditingNewsId(post.id);
+                                    setNewsForm({
+                                      title: post.title || "",
+                                      category: post.category || "NEWS",
+                                      author: post.author || "Council Admin",
+                                      summary: post.summary || "",
+                                      content: post.content || "",
+                                      featuredImageUrl: post.featuredImageUrl || "",
+                                      status: post.status || "PUBLISHED",
+                                    });
+                                    setShowCreateNewsModal(true);
+                                  }}
+                                  className="p-2 rounded-xl hover:bg-amber-50 text-slate-400 hover:text-amber-600 transition-colors"
+                                  title="Edit article"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteNews(post.id, post.title)}
+                                  className="p-2 rounded-xl hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors"
+                                  title="Delete article"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3 mt-2 text-[11px] text-slate-400">
+                              <span className="flex items-center gap-1"><User className="w-3 h-3" /> {post.author || "Council Admin"}</span>
+                              <span>·</span>
+                              <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {post.publishedAt || post.createdAt || "Recent"}</span>
+                              <span className={`ml-auto px-2 py-0.5 rounded-full text-[9px] font-bold ${post.status === "PUBLISHED" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+                                {post.status || "PUBLISHED"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ========================================================= */}
+            {/* VIEW H-RESOURCES: ADMIN RESOURCES & DOCUMENTS              */}
+            {/* ========================================================= */}
+            {activePortal === "ADMIN" && adminActiveTab === "resources" && (
+              <div className="space-y-6 animate-in fade-in duration-200">
+                {/* Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h1 className="font-heading font-black text-2xl text-navy-950">Resources &amp; Documents</h1>
+                    <p className="text-xs text-slate-500 mt-1">Manage official CUCASO documents, constitutions, rally guidelines, forms, and chapter resources in the central repository.</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setResourceForm({ title: "", category: "POLICY", accessLevel: "PUBLIC", description: "", url: "", fileSize: "1.2 MB", mimeType: "application/pdf" });
+                      setShowCreateResourceModal(true);
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-navy-900 hover:bg-navy-800 text-white font-bold text-xs shadow-sm flex items-center gap-2 transition-transform active:scale-95 whitespace-nowrap"
+                  >
+                    <Plus className="w-4 h-4 text-amber-400" />
+                    <span>Add Document</span>
+                  </button>
+                </div>
+
+                {/* Filter */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                  {["ALL", "SPIRITUAL", "POLICY", "FINANCE", "RALLY", "FORMS", "CONSTITUTION", "GUIDELINES", "REPORT"].map((cat) => (
+                    <button
+                      key={cat}
+                      onClick={() => setResourceFilter(cat)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                        resourceFilter === cat
+                          ? "bg-navy-950 text-white shadow-sm"
+                          : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                      }`}
+                    >
+                      {cat === "ALL" ? "All Documents" : cat.replace("_", " ")}
+                    </button>
+                  ))}
+                  <span className="ml-auto text-xs text-slate-400 whitespace-nowrap">{resourcesList.length} document{resourcesList.length !== 1 ? "s" : ""}</span>
+                </div>
+
+                {/* Stats */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  {[
+                    { label: "Total Docs", value: resourcesList.length, icon: <FolderArchive className="w-4 h-4" />, color: "bg-navy-50 text-navy-800" },
+                    { label: "Public", value: resourcesList.filter(r => r.accessLevel === "PUBLIC").length, icon: <Globe className="w-4 h-4" />, color: "bg-emerald-50 text-emerald-800" },
+                    { label: "Restricted", value: resourcesList.filter(r => r.accessLevel !== "PUBLIC").length, icon: <ShieldCheck className="w-4 h-4" />, color: "bg-amber-50 text-amber-800" },
+                    { label: "Policy Docs", value: resourcesList.filter(r => r.category?.toUpperCase() === "POLICY").length, icon: <BookOpen className="w-4 h-4" />, color: "bg-teal-50 text-teal-800" },
+                  ].map((stat) => (
+                    <div key={stat.label} className={`rounded-2xl border border-slate-100 p-4 flex items-center gap-3 ${stat.color}`}>
+                      <div className="opacity-70">{stat.icon}</div>
+                      <div>
+                        <p className="text-lg font-black">{stat.value}</p>
+                        <p className="text-[10px] font-semibold opacity-70">{stat.label}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Documents list */}
+                {resourcesList.filter(r => resourceFilter === "ALL" || r.category?.toUpperCase() === resourceFilter.toUpperCase()).length === 0 ? (
+                  <div className="p-16 text-center bg-white rounded-3xl border border-dashed border-slate-200 text-slate-400">
+                    <FolderArchive className="w-10 h-10 mx-auto mb-3 text-slate-300" />
+                    <p className="font-bold text-sm">No documents yet</p>
+                    <p className="text-xs mt-1">Click "Add Document" to upload or link your first resource.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {resourcesList
+                      .filter(r => resourceFilter === "ALL" || r.category?.toUpperCase() === resourceFilter.toUpperCase())
+                      .map((doc) => (
+                        <div key={doc.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex items-center gap-4 hover:border-teal-300 hover:shadow-md transition-all group">
+                          {/* Icon */}
+                          <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center flex-shrink-0 group-hover:bg-teal-50 transition-colors">
+                            <FileText className="w-5 h-5 text-slate-500 group-hover:text-teal-700 transition-colors" />
+                          </div>
+                          {/* Info */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <h3 className="font-bold text-sm text-navy-950 leading-snug">{doc.title}</h3>
+                                <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">{doc.description}</p>
+                              </div>
+                              <div className="flex items-center gap-1.5 flex-shrink-0">
+                                {doc.url && (
+                                  <a
+                                    href={doc.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="p-2 rounded-xl hover:bg-teal-50 text-slate-400 hover:text-teal-700 transition-colors"
+                                    title="Open document"
+                                  >
+                                    <Download className="w-3.5 h-3.5" />
+                                  </a>
+                                )}
+                                <button
+                                  onClick={() => handleDeleteResource(doc.id, doc.title)}
+                                  className="p-2 rounded-xl hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors"
+                                  title="Delete document"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3 mt-2 flex-wrap">
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                                doc.category?.toUpperCase() === "POLICY" ? "bg-navy-100 text-navy-800" :
+                                doc.category?.toUpperCase() === "FINANCE" ? "bg-emerald-100 text-emerald-800" :
+                                doc.category?.toUpperCase() === "RALLY" ? "bg-amber-100 text-amber-800" :
+                                "bg-slate-100 text-slate-700"
+                              }`}>{doc.category}</span>
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                                doc.accessLevel === "PUBLIC" ? "bg-teal-100 text-teal-800" : "bg-amber-100 text-amber-700"
+                              }`}>{doc.accessLevel}</span>
+                              {doc.fileSize && <span className="text-[11px] text-slate-400">{doc.fileSize}</span>}
+                              {(doc.createdAt || (doc as any).uploadedAt) && <span className="text-[11px] text-slate-400 flex items-center gap-1"><Calendar className="w-3 h-3" />{doc.createdAt || (doc as any).uploadedAt}</span>}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )}
+
+                {/* Upload Prompt */}
+                <div className="rounded-2xl border border-dashed border-teal-200 bg-teal-50/40 p-6 text-center">
+                  <Upload className="w-8 h-8 mx-auto mb-2 text-teal-400" />
+                  <p className="text-xs font-bold text-teal-800">Need to upload a file?</p>
+                  <p className="text-[11px] text-teal-600 mt-1">Use "Add Document" and paste a Google Drive, Dropbox, or direct URL link, or use the Chapter Documents section to upload files to cloud storage.</p>
+                </div>
+              </div>
+            )}
+
+            {/* VIEW: ADMIN INBOX & PRAYER REQUESTS */}
+            {activePortal === "ADMIN" && adminActiveTab === "inbox" && (
+              <div className="space-y-6 animate-in fade-in duration-200">
+                {/* Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h1 className="font-heading font-black text-2xl text-navy-950 flex items-center gap-2.5">
+                      <Inbox className="w-6 h-6 text-amber-500" />
+                      <span>Inbox &amp; Pastoral Communications</span>
+                    </h1>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Direct feedback from the Contact page and prayer petitions from the Spiritual Resources centre.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={fetchInboxData}
+                      disabled={inboxLoading}
+                      className="px-3.5 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-sm flex items-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${inboxLoading ? "animate-spin text-amber-500" : "text-slate-500"}`} />
+                      <span>Refresh</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Stat Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-blue-800 uppercase tracking-wider">Inquiries</span>
+                      <Mail className="w-4 h-4 text-blue-600" />
+                    </div>
+                    <p className="text-2xl font-black text-blue-950 mt-2">{contactMessages.length}</p>
+                    <p className="text-[10px] text-blue-700 font-semibold mt-0.5">
+                      {contactMessages.filter(m => !m.isRead).length} unread
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-rose-100 bg-rose-50/70 p-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-rose-800 uppercase tracking-wider">Prayer Requests</span>
+                      <Heart className="w-4 h-4 text-rose-600" />
+                    </div>
+                    <p className="text-2xl font-black text-rose-950 mt-2">{prayerRequests.length}</p>
+                    <p className="text-[10px] text-rose-700 font-semibold mt-0.5">
+                      {prayerRequests.filter(p => !p.isRead).length} new requests
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider">Confidential</span>
+                      <ShieldCheck className="w-4 h-4 text-amber-600" />
+                    </div>
+                    <p className="text-2xl font-black text-amber-950 mt-2">
+                      {prayerRequests.filter(p => p.isPrivate).length}
+                    </p>
+                    <p className="text-[10px] text-amber-700 font-semibold mt-0.5">
+                      Pastoral team only
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">Public Prayers</span>
+                      <Sparkles className="w-4 h-4 text-emerald-600" />
+                    </div>
+                    <p className="text-2xl font-black text-emerald-950 mt-2">
+                      {prayerRequests.filter(p => p.isModeratedApproved).length}
+                    </p>
+                    <p className="text-[10px] text-emerald-700 font-semibold mt-0.5">
+                      Approved for wall
+                    </p>
+                  </div>
+                </div>
+
+                {/* Sub Tab Switcher & Search Bar */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setInboxSubTab("feedback")}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                        inboxSubTab === "feedback"
+                          ? "bg-navy-950 text-white shadow-sm"
+                          : "text-slate-600 hover:bg-slate-100"
+                      }`}
+                    >
+                      <Mail className="w-3.5 h-3.5" />
+                      <span>Contact Feedback</span>
+                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${inboxSubTab === "feedback" ? "bg-amber-400 text-navy-950" : "bg-slate-200 text-slate-700"}`}>
+                        {contactMessages.length}
+                      </span>
+                    </button>
+
+                    <button
+                      onClick={() => setInboxSubTab("prayer")}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+                        inboxSubTab === "prayer"
+                          ? "bg-navy-950 text-white shadow-sm"
+                          : "text-slate-600 hover:bg-slate-100"
+                      }`}
+                    >
+                      <Heart className="w-3.5 h-3.5 text-rose-500" />
+                      <span>Prayer Requests</span>
+                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${inboxSubTab === "prayer" ? "bg-amber-400 text-navy-950" : "bg-slate-200 text-slate-700"}`}>
+                        {prayerRequests.length}
+                      </span>
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={inboxSearch}
+                        onChange={(e) => setInboxSearch(e.target.value)}
+                        placeholder="Search name, text, email..."
+                        className="pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-navy-900 w-48 sm:w-64"
+                      />
+                    </div>
+
+                    <select
+                      value={inboxStatusFilter}
+                      onChange={(e) => setInboxStatusFilter(e.target.value as any)}
+                      className="px-2.5 py-1.5 rounded-xl border border-slate-200 text-xs bg-slate-50 font-semibold focus:outline-none"
+                    >
+                      <option value="ALL">All Status</option>
+                      <option value="UNREAD">Unread Only</option>
+                      <option value="READ">Read / Answered</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Sub Tab 1: Contact Messages */}
+                {inboxSubTab === "feedback" && (
+                  <div className="space-y-3">
+                    {contactMessages
+                      .filter((m) => {
+                        if (inboxStatusFilter === "UNREAD") return !m.isRead;
+                        if (inboxStatusFilter === "READ") return m.isRead;
+                        return true;
+                      })
+                      .filter((m) => {
+                        if (!inboxSearch.trim()) return true;
+                        const q = inboxSearch.toLowerCase();
+                        return (
+                          m.name?.toLowerCase().includes(q) ||
+                          m.email?.toLowerCase().includes(q) ||
+                          m.message?.toLowerCase().includes(q) ||
+                          m.institution?.toLowerCase().includes(q) ||
+                          m.subject?.toLowerCase().includes(q)
+                        );
+                      }).length === 0 ? (
+                      <div className="p-16 text-center bg-white rounded-3xl border border-dashed border-slate-200 text-slate-400">
+                        <Mail className="w-10 h-10 mx-auto mb-3 text-slate-300" />
+                        <p className="font-bold text-sm">No feedback messages found</p>
+                        <p className="text-xs mt-1">Inquiries submitted via the Contact page will appear here instantly.</p>
+                      </div>
+                    ) : (
+                      contactMessages
+                        .filter((m) => {
+                          if (inboxStatusFilter === "UNREAD") return !m.isRead;
+                          if (inboxStatusFilter === "READ") return m.isRead;
+                          return true;
+                        })
+                        .filter((m) => {
+                          if (!inboxSearch.trim()) return true;
+                          const q = inboxSearch.toLowerCase();
+                          return (
+                            m.name?.toLowerCase().includes(q) ||
+                            m.email?.toLowerCase().includes(q) ||
+                            m.message?.toLowerCase().includes(q) ||
+                            m.institution?.toLowerCase().includes(q) ||
+                            m.subject?.toLowerCase().includes(q)
+                          );
+                        })
+                        .map((msg) => (
+                          <div
+                            key={msg.id}
+                            className={`p-5 rounded-2xl border transition-all ${
+                              msg.isRead
+                                ? "bg-white border-slate-200"
+                                : "bg-blue-50/40 border-blue-200 shadow-sm"
+                            }`}
+                          >
+                            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                              <div className="flex items-start gap-3">
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs flex-shrink-0 ${
+                                  msg.isRead ? "bg-slate-100 text-slate-600" : "bg-blue-600 text-white shadow-sm"
+                                }`}>
+                                  {msg.name ? msg.name.charAt(0).toUpperCase() : "U"}
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <h3 className="font-heading font-bold text-sm text-navy-950">{msg.name}</h3>
+                                    {msg.institution && (
+                                      <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold">
+                                        {msg.institution}
+                                      </span>
+                                    )}
+                                    <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[10px] font-bold uppercase tracking-wider">
+                                      {msg.subject?.replace(/_/g, " ")}
+                                    </span>
+                                    {!msg.isRead && (
+                                      <span className="w-2 h-2 rounded-full bg-blue-600" title="Unread message" />
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-3 text-xs text-slate-500 mt-1 flex-wrap">
+                                    {msg.email && (
+                                      <a href={`mailto:${msg.email}`} className="text-teal-700 font-semibold hover:underline flex items-center gap-1">
+                                        <Mail className="w-3 h-3" />
+                                        <span>{msg.email}</span>
+                                      </a>
+                                    )}
+                                    {msg.phone && (
+                                      <a href={`tel:${msg.phone}`} className="text-slate-600 hover:text-navy-950 flex items-center gap-1">
+                                        <span>📞 {msg.phone}</span>
+                                      </a>
+                                    )}
+                                    <span className="text-[11px] text-slate-400">
+                                      {new Date(msg.createdAt).toLocaleDateString("en-KE", {
+                                        month: "short",
+                                        day: "numeric",
+                                        year: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 self-end sm:self-auto flex-shrink-0">
+                                {msg.email && (
+                                  <a
+                                    href={`mailto:${msg.email}?subject=RE: CUCASO Inquiry - ${msg.subject}`}
+                                    className="px-3 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 text-xs font-bold transition-colors flex items-center gap-1"
+                                    title="Reply via email"
+                                  >
+                                    <ArrowRight className="w-3 h-3" />
+                                    <span>Reply</span>
+                                  </a>
+                                )}
+                                <button
+                                  onClick={() => handleToggleMessageRead(msg.id, msg.isRead)}
+                                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+                                    msg.isRead
+                                      ? "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                      : "bg-blue-600 text-white hover:bg-blue-700"
+                                  }`}
+                                >
+                                  {msg.isRead ? "Mark Unread" : "Mark as Read"}
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteMessage(msg.id)}
+                                  className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                                  title="Delete message"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="mt-4 pt-3 border-t border-slate-100/80 bg-white/70 rounded-xl p-3.5">
+                              <p className="text-xs text-slate-800 leading-relaxed whitespace-pre-wrap font-body">
+                                {msg.message}
+                              </p>
+                            </div>
+                          </div>
+                        ))
+                    )}
+                  </div>
+                )}
+
+                {/* Sub Tab 2: Prayer Requests */}
+                {inboxSubTab === "prayer" && (
+                  <div className="space-y-3">
+                    {prayerRequests
+                      .filter((p) => {
+                        if (inboxStatusFilter === "UNREAD") return !p.isRead;
+                        if (inboxStatusFilter === "READ") return p.isRead;
+                        return true;
+                      })
+                      .filter((p) => {
+                        if (!inboxSearch.trim()) return true;
+                        const q = inboxSearch.toLowerCase();
+                        return (
+                          p.submitterName?.toLowerCase().includes(q) ||
+                          p.submitterContact?.toLowerCase().includes(q) ||
+                          p.requestText?.toLowerCase().includes(q)
+                        );
+                      }).length === 0 ? (
+                      <div className="p-16 text-center bg-white rounded-3xl border border-dashed border-slate-200 text-slate-400">
+                        <Heart className="w-10 h-10 mx-auto mb-3 text-rose-300" />
+                        <p className="font-bold text-sm">No prayer requests found</p>
+                        <p className="text-xs mt-1">Petitions submitted via the Resources page will be collected here for the pastoral prayer team.</p>
+                      </div>
+                    ) : (
+                      prayerRequests
+                        .filter((p) => {
+                          if (inboxStatusFilter === "UNREAD") return !p.isRead;
+                          if (inboxStatusFilter === "READ") return p.isRead;
+                          return true;
+                        })
+                        .filter((p) => {
+                          if (!inboxSearch.trim()) return true;
+                          const q = inboxSearch.toLowerCase();
+                          return (
+                            p.submitterName?.toLowerCase().includes(q) ||
+                            p.submitterContact?.toLowerCase().includes(q) ||
+                            p.requestText?.toLowerCase().includes(q)
+                          );
+                        })
+                        .map((prayer) => (
+                          <div
+                            key={prayer.id}
+                            className={`p-5 rounded-2xl border transition-all ${
+                              prayer.isRead
+                                ? "bg-white border-slate-200"
+                                : "bg-rose-50/40 border-rose-200 shadow-sm"
+                            }`}
+                          >
+                            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                              <div className="flex items-start gap-3">
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs flex-shrink-0 ${
+                                  prayer.isRead ? "bg-slate-100 text-slate-600" : "bg-rose-500 text-white shadow-sm"
+                                }`}>
+                                  <Heart className="w-4 h-4" />
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <h3 className="font-heading font-bold text-sm text-navy-950">
+                                      {prayer.submitterName || "Anonymous Brother/Sister"}
+                                    </h3>
+                                    {prayer.isPrivate ? (
+                                      <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold flex items-center gap-1">
+                                        <span>🔒 Confidential (Pastoral Team)</span>
+                                      </span>
+                                    ) : (
+                                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold flex items-center gap-1">
+                                        <span>🌐 Public Prayer Wall</span>
+                                      </span>
+                                    )}
+                                    {prayer.isModeratedApproved && (
+                                      <span className="px-2 py-0.5 rounded-full bg-teal-100 text-teal-800 text-[10px] font-bold">
+                                        ✓ Approved
+                                      </span>
+                                    )}
+                                    {!prayer.isRead && (
+                                      <span className="w-2 h-2 rounded-full bg-rose-500" title="New prayer request" />
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-3 text-xs text-slate-500 mt-1 flex-wrap">
+                                    {prayer.submitterContact && (
+                                      <span className="font-medium text-slate-600">
+                                        Contact: {prayer.submitterContact}
+                                      </span>
+                                    )}
+                                    <span className="text-[11px] text-slate-400">
+                                      {new Date(prayer.createdAt).toLocaleDateString("en-KE", {
+                                        month: "short",
+                                        day: "numeric",
+                                        year: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 self-end sm:self-auto flex-shrink-0">
+                                <button
+                                  onClick={() => handleTogglePrayerApproved(prayer.id, prayer.isModeratedApproved)}
+                                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+                                    prayer.isModeratedApproved
+                                      ? "bg-amber-100 text-amber-900 hover:bg-amber-200"
+                                      : "bg-emerald-600 text-white hover:bg-emerald-700"
+                                  }`}
+                                  title="Toggle public approval"
+                                >
+                                  {prayer.isModeratedApproved ? "Unapprove" : "Approve for Wall"}
+                                </button>
+                                <button
+                                  onClick={() => handleTogglePrayerRead(prayer.id, prayer.isRead)}
+                                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+                                    prayer.isRead
+                                      ? "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                      : "bg-rose-600 text-white hover:bg-rose-700"
+                                  }`}
+                                >
+                                  {prayer.isRead ? "Mark Unread" : "Mark as Prayed"}
+                                </button>
+                                <button
+                                  onClick={() => handleDeletePrayer(prayer.id)}
+                                  className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                                  title="Delete prayer request"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="mt-4 pt-3 border-t border-slate-100/80 bg-white/70 rounded-xl p-3.5">
+                              <p className="text-xs text-slate-800 leading-relaxed italic whitespace-pre-wrap font-body">
+                                &ldquo;{prayer.requestText}&rdquo;
+                              </p>
+                            </div>
+                          </div>
+                        ))
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* VIEW H-5: ADMIN USERS & ROLES (RBAC) */}
+
             {activePortal === "ADMIN" && adminActiveTab === "users" && (
               <div className="space-y-8 animate-in fade-in duration-200">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -6473,100 +8062,683 @@ function PortalContent() {
       )}
 
       {/* ========================================================= */}
-      {/* MODAL 7: EDIT RALLY                                       */}
+      {/* MODAL 7: EDIT RALLY — Tabbed Full Editor                   */}
       {/* ========================================================= */}
       {showEditRallyModal && (
         <div className="fixed inset-0 z-50 bg-navy-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-5 animate-in zoom-in-95 duration-200 my-8">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-2xl w-full animate-in zoom-in-95 duration-200 my-8 overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 rounded-xl bg-amber-50 text-amber-700">
                   <Edit3 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-heading font-black text-lg text-navy-950">Edit Rally Details & Lifecycle</h3>
-                  <p className="text-xs text-slate-400">{currentRallyData.code}</p>
+                  <h3 className="font-heading font-black text-lg text-navy-950">Edit Rally — Full Configuration</h3>
+                  <p className="text-xs text-slate-400">{currentRallyData?.code || "Current Rally"} · Changes save to DB and update the website live</p>
                 </div>
               </div>
-              <button 
-                onClick={() => setShowEditRallyModal(false)}
+              <button
+                onClick={() => { setShowEditRallyModal(false); setEditRallyTab("basic"); }}
                 className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleUpdateCurrentRally} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">Rally Title</label>
-                <input 
-                  type="text"
-                  required
-                  value={editRallyForm.title}
-                  onChange={(e) => setEditRallyForm(prev => ({ ...prev, title: e.target.value }))}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">Theme</label>
-                <input 
-                  type="text"
-                  required
-                  value={editRallyForm.theme}
-                  onChange={(e) => setEditRallyForm(prev => ({ ...prev, theme: e.target.value }))}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Venue Name</label>
-                  <input 
-                    type="text"
-                    required
-                    value={editRallyForm.venueName}
-                    onChange={(e) => setEditRallyForm(prev => ({ ...prev, venueName: e.target.value }))}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Lifecycle State</label>
-                  <select 
-                    value={editRallyForm.state}
-                    onChange={(e) => setEditRallyForm(prev => ({ ...prev, state: e.target.value as any }))}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
+            {/* Tabs */}
+            <div className="flex items-center gap-1 px-6 pt-4 pb-0 border-b border-slate-100">
+              {(["basic", "programme", "venue", "fees"] as const).map((tab) => {
+                const labels: Record<string, string> = { basic: "📋 Basic Info", programme: "🗓 Programme", venue: "📍 Venue Access", fees: "💰 Fees & Capitation" };
+                return (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setEditRallyTab(tab)}
+                    className={`px-3.5 py-2.5 text-xs font-bold rounded-t-xl border-b-2 transition-all ${
+                      editRallyTab === tab
+                        ? "border-amber-500 text-amber-700 bg-amber-50/50"
+                        : "border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+                    }`}
                   >
-                    <option value="DRAFT">DRAFT</option>
-                    <option value="REGISTRATION_OPEN">REGISTRATION_OPEN</option>
-                    <option value="FEE_LOCKED">FEE_LOCKED</option>
-                    <option value="IN_PROGRESS">IN_PROGRESS</option>
-                    <option value="COMPLETED">COMPLETED</option>
-                    <option value="ARCHIVED">ARCHIVED</option>
-                  </select>
-                </div>
+                    {labels[tab]}
+                  </button>
+                );
+              })}
+            </div>
+
+            <form onSubmit={handleUpdateCurrentRally}>
+              <div className="px-6 py-5 space-y-4 max-h-[60vh] overflow-y-auto">
+
+                {/* ── TAB 1: BASIC INFO ── */}
+                {editRallyTab === "basic" && (
+                  <>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">Rally Title *</label>
+                      <input
+                        type="text" required
+                        value={editRallyForm.title}
+                        onChange={(e) => setEditRallyForm(prev => ({ ...prev, title: e.target.value }))}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
+                        placeholder="e.g. Coastal Unity Rally 2026"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">Theme / Tagline *</label>
+                      <input
+                        type="text" required
+                        value={editRallyForm.theme}
+                        onChange={(e) => setEditRallyForm(prev => ({ ...prev, theme: e.target.value }))}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
+                        placeholder="e.g. Stronger Together for a Greater Mission"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">Venue Name *</label>
+                        <input
+                          type="text" required
+                          value={editRallyForm.venueName}
+                          onChange={(e) => setEditRallyForm(prev => ({ ...prev, venueName: e.target.value }))}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">Venue Location</label>
+                        <input
+                          type="text"
+                          value={editRallyForm.venueLocation}
+                          onChange={(e) => setEditRallyForm(prev => ({ ...prev, venueLocation: e.target.value }))}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">Start Date *</label>
+                        <input
+                          type="date" required
+                          value={editRallyForm.startDate}
+                          onChange={(e) => setEditRallyForm(prev => ({ ...prev, startDate: e.target.value }))}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">End Date *</label>
+                        <input
+                          type="date" required
+                          value={editRallyForm.endDate}
+                          onChange={(e) => setEditRallyForm(prev => ({ ...prev, endDate: e.target.value }))}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">Registration Deadline</label>
+                        <input
+                          type="date"
+                          value={editRallyForm.registrationDeadline}
+                          onChange={(e) => setEditRallyForm(prev => ({ ...prev, registrationDeadline: e.target.value }))}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">Fee Lock Date</label>
+                        <input
+                          type="date"
+                          value={editRallyForm.feeLockDate}
+                          onChange={(e) => setEditRallyForm(prev => ({ ...prev, feeLockDate: e.target.value }))}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">Payment Deadline</label>
+                        <input
+                          type="date"
+                          value={editRallyForm.paymentDeadline}
+                          onChange={(e) => setEditRallyForm(prev => ({ ...prev, paymentDeadline: e.target.value }))}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">Delegate Capacity</label>
+                        <input
+                          type="number" min={100} max={10000}
+                          value={editRallyForm.capacity}
+                          onChange={(e) => setEditRallyForm(prev => ({ ...prev, capacity: Number(e.target.value) }))}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">Lifecycle State *</label>
+                        <select
+                          value={editRallyForm.state}
+                          onChange={(e) => setEditRallyForm(prev => ({ ...prev, state: e.target.value as any }))}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
+                        >
+                          <option value="DRAFT">DRAFT</option>
+                          <option value="REGISTRATION_OPEN">REGISTRATION_OPEN</option>
+                          <option value="FEE_LOCKED">FEE_LOCKED</option>
+                          <option value="IN_PROGRESS">IN_PROGRESS</option>
+                          <option value="COMPLETED">COMPLETED</option>
+                          <option value="ARCHIVED">ARCHIVED</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* ── RALLY POSTER / HERO IMAGE ── */}
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 space-y-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600"><ImageIcon className="w-4 h-4" /></div>
+                        <div>
+                          <p className="text-xs font-bold text-slate-800">Rally Poster / Hero Banner</p>
+                          <p className="text-[10px] text-slate-400">This image appears on the home page rally card and rallies page hero</p>
+                        </div>
+                      </div>
+
+                      {/* Toggle: URL or Upload */}
+                      <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-200 w-fit">
+                        <button type="button"
+                          onClick={() => setPosterUploadMode("url")}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${posterUploadMode === "url" ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+                        >
+                          <Globe className="w-3.5 h-3.5" />
+                          Paste URL
+                        </button>
+                        <button type="button"
+                          onClick={() => setPosterUploadMode("file")}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${posterUploadMode === "file" ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+                        >
+                          <Upload className="w-3.5 h-3.5" />
+                          Upload File
+                        </button>
+                      </div>
+
+                      {posterUploadMode === "url" ? (
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1.5">Image URL</label>
+                          <input
+                            type="url"
+                            value={editRallyForm.posterUrl}
+                            onChange={(e) => setEditRallyForm(prev => ({ ...prev, posterUrl: e.target.value }))}
+                            placeholder="https://example.com/rally-poster.jpg"
+                            className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white"
+                          />
+                          <p className="text-[10px] text-slate-400 mt-1">Use a direct image link from Google Drive, Cloudinary, or any public image URL.</p>
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1.5">Upload Image File</label>
+                          <label className={`flex items-center justify-center gap-2 w-full px-4 py-4 rounded-xl border-2 border-dashed cursor-pointer transition-all ${posterUploading ? "border-indigo-400 bg-indigo-50 text-indigo-600" : "border-slate-300 bg-white text-slate-500 hover:border-indigo-400 hover:text-indigo-600"}`}>
+                            {posterUploading ? (
+                              <><RefreshCw className="w-4 h-4 animate-spin" /><span className="text-xs font-bold">Uploading…</span></>
+                            ) : (
+                              <><Upload className="w-4 h-4" /><span className="text-xs font-semibold">Click to choose image (JPG, PNG, WebP)</span></>
+                            )}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={handlePosterFileUpload}
+                              disabled={posterUploading}
+                            />
+                          </label>
+                        </div>
+                      )}
+
+                      {/* Live Preview */}
+                      {editRallyForm.posterUrl && (
+                        <div className="mt-1">
+                          <p className="text-[10px] font-bold text-slate-500 uppercase mb-1.5 tracking-wider">Preview</p>
+                          <div className="relative w-full h-36 rounded-xl overflow-hidden border border-slate-200 bg-slate-900">
+                            <img
+                              src={editRallyForm.posterUrl}
+                              alt="Rally poster preview"
+                              className="w-full h-full object-cover"
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-xs" style={{zIndex: -1}}>
+                              <Camera className="w-5 h-5 mr-1" /> Preview
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setEditRallyForm(prev => ({ ...prev, posterUrl: "" }))}
+                              className="absolute top-2 right-2 p-1 rounded-lg bg-black/60 text-white hover:bg-red-600 transition-colors"
+                              title="Remove poster"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {/* ── TAB 2: EVENT PROGRAMME ── */}
+                {editRallyTab === "programme" && (
+                  <div className="space-y-4">
+                    {/* Header + Add Day */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 rounded-lg bg-amber-50 text-amber-600"><Calendar className="w-4 h-4" /></div>
+                        <div>
+                          <p className="text-xs font-bold text-slate-800">Event Programme Days</p>
+                          <p className="text-[10px] text-slate-400">{programmeDays.length} day{programmeDays.length !== 1 ? "s" : ""} configured</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setProgrammeDays(prev => [...prev, {
+                          dayNumber: prev.length + 1,
+                          title: `Day ${prev.length + 1}`,
+                          date: "",
+                          timeRange: "",
+                          theme: "",
+                          items: [""],
+                        }])}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold shadow-sm transition-colors"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Add Day
+                      </button>
+                    </div>
+
+                    {programmeDays.length === 0 && (
+                      <div className="text-center py-8 rounded-2xl border-2 border-dashed border-slate-200 text-slate-400">
+                        <Calendar className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+                        <p className="text-xs font-semibold">No programme days yet</p>
+                        <p className="text-[10px] mt-1">Click "Add Day" to start building the programme.</p>
+                      </div>
+                    )}
+
+                    {programmeDays.map((day, dIdx) => (
+                      <div key={dIdx} className="rounded-2xl border border-slate-200 bg-slate-50/60 overflow-hidden">
+                        {/* Day Header */}
+                        <div className="flex items-center justify-between px-4 py-3 bg-amber-50 border-b border-amber-100">
+                          <div className="flex items-center gap-2">
+                            <span className="w-6 h-6 rounded-lg bg-amber-500 text-white text-[10px] font-black flex items-center justify-center">{day.dayNumber}</span>
+                            <span className="text-xs font-bold text-amber-900">{day.title || `Day ${dIdx + 1}`}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!confirm(`Remove Day ${dIdx + 1}?`)) return;
+                              setProgrammeDays(prev => prev.filter((_, i) => i !== dIdx).map((d, i) => ({ ...d, dayNumber: i + 1 })));
+                            }}
+                            className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-50 hover:text-rose-600 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        {/* Day Fields */}
+                        <div className="p-4 space-y-3">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="flex items-center gap-1 text-[10px] font-bold text-slate-600 mb-1.5 uppercase tracking-wide"><BookOpen className="w-3 h-3 text-amber-500" /> Day Title</label>
+                              <input
+                                type="text"
+                                value={day.title}
+                                onChange={(e) => setProgrammeDays(prev => prev.map((d, i) => i === dIdx ? { ...d, title: e.target.value } : d))}
+                                className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-400"
+                                placeholder="e.g. Day 1 — Arrival & Consecration"
+                              />
+                            </div>
+                            <div>
+                              <label className="flex items-center gap-1 text-[10px] font-bold text-slate-600 mb-1.5 uppercase tracking-wide"><Sparkles className="w-3 h-3 text-amber-500" /> Day Theme</label>
+                              <input
+                                type="text"
+                                value={day.theme}
+                                onChange={(e) => setProgrammeDays(prev => prev.map((d, i) => i === dIdx ? { ...d, theme: e.target.value } : d))}
+                                className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-400"
+                                placeholder="e.g. Rooted in Faith"
+                              />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="flex items-center gap-1 text-[10px] font-bold text-slate-600 mb-1.5 uppercase tracking-wide"><Calendar className="w-3 h-3 text-teal-500" /> Date</label>
+                              <input
+                                type="text"
+                                value={day.date}
+                                onChange={(e) => setProgrammeDays(prev => prev.map((d, i) => i === dIdx ? { ...d, date: e.target.value } : d))}
+                                className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-400"
+                                placeholder="e.g. Friday, 15 Nov 2026"
+                              />
+                            </div>
+                            <div>
+                              <label className="flex items-center gap-1 text-[10px] font-bold text-slate-600 mb-1.5 uppercase tracking-wide"><Clock className="w-3 h-3 text-teal-500" /> Time Range</label>
+                              <input
+                                type="text"
+                                value={day.timeRange}
+                                onChange={(e) => setProgrammeDays(prev => prev.map((d, i) => i === dIdx ? { ...d, timeRange: e.target.value } : d))}
+                                className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-400"
+                                placeholder="e.g. 02:00 PM — 09:30 PM"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Programme Items */}
+                          <div>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <label className="flex items-center gap-1 text-[10px] font-bold text-slate-600 uppercase tracking-wide"><FileText className="w-3 h-3 text-navy-600" /> Programme Items</label>
+                              <button
+                                type="button"
+                                onClick={() => setProgrammeDays(prev => prev.map((d, i) => i === dIdx ? { ...d, items: [...d.items, ""] } : d))}
+                                className="text-[10px] text-amber-600 hover:text-amber-800 font-bold flex items-center gap-0.5"
+                              >
+                                <Plus className="w-3 h-3" /> Add Item
+                              </button>
+                            </div>
+                            <div className="space-y-2">
+                              {day.items.map((item: string, iIdx: number) => (
+                                <div key={iIdx} className="flex items-center gap-2">
+                                  <span className="text-[10px] font-bold text-slate-400 w-4 text-right flex-shrink-0">{iIdx + 1}.</span>
+                                  <input
+                                    type="text"
+                                    value={item}
+                                    onChange={(e) => setProgrammeDays(prev => prev.map((d: any, di: number) => di === dIdx ? { ...d, items: d.items.map((it: string, ii: number) => ii === iIdx ? e.target.value : it) } : d))}
+                                    className="flex-1 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-amber-400"
+                                    placeholder="e.g. 02:00 PM: Registration & badge issuance"
+                                  />
+                                  {day.items.length > 1 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setProgrammeDays(prev => prev.map((d: any, di: number) => di === dIdx ? { ...d, items: d.items.filter((_: any, ii: number) => ii !== iIdx) } : d))}
+                                      className="p-1 rounded-md text-rose-400 hover:bg-rose-50 flex-shrink-0"
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* ── TAB 3: VENUE ACCESS ── */}
+                {editRallyTab === "venue" && (
+                  <>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">Venue Address / Location</label>
+                      <input
+                        type="text"
+                        value={editRallyForm.venueAddress}
+                        onChange={(e) => setEditRallyForm(prev => ({ ...prev, venueAddress: e.target.value }))}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
+                        placeholder="e.g. Mnazi Mmoja Rd, Mombasa Island, Coast Region, Kenya"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">Venue Description</label>
+                      <textarea
+                        rows={3}
+                        value={editRallyForm.venueDescription}
+                        onChange={(e) => setEditRallyForm(prev => ({ ...prev, venueDescription: e.target.value }))}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white resize-none"
+                        placeholder="Describe the venue facilities, layout, capacity areas, etc."
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">Directions to Venue</label>
+                      <textarea
+                        rows={2}
+                        value={editRallyForm.venueDirections}
+                        onChange={(e) => setEditRallyForm(prev => ({ ...prev, venueDirections: e.target.value }))}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white resize-none"
+                        placeholder="How to get there: public transport, matatu routes, etc."
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">Parking Information</label>
+                        <textarea
+                          rows={2}
+                          value={editRallyForm.venueParkingInfo}
+                          onChange={(e) => setEditRallyForm(prev => ({ ...prev, venueParkingInfo: e.target.value }))}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white resize-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">Security Arrangements</label>
+                        <textarea
+                          rows={2}
+                          value={editRallyForm.venueSecurityInfo}
+                          onChange={(e) => setEditRallyForm(prev => ({ ...prev, venueSecurityInfo: e.target.value }))}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white resize-none"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">Medical / First Aid</label>
+                        <textarea
+                          rows={2}
+                          value={editRallyForm.venueMedicalInfo}
+                          onChange={(e) => setEditRallyForm(prev => ({ ...prev, venueMedicalInfo: e.target.value }))}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white resize-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">Accommodation Notes</label>
+                        <textarea
+                          rows={2}
+                          value={editRallyForm.venueAccommodationNotes}
+                          onChange={(e) => setEditRallyForm(prev => ({ ...prev, venueAccommodationNotes: e.target.value }))}
+                          className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white resize-none"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* ── TAB 4: FEES & CAPITATION ── */}
+                {editRallyTab === "fees" && (
+                  <div className="space-y-4">
+                    {/* Payment Info */}
+                    <div className="rounded-2xl bg-emerald-50 border border-emerald-200 p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <CreditCard className="w-4 h-4 text-emerald-700" />
+                        <span className="text-xs font-black text-emerald-800 uppercase tracking-wide">Payment Details</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="flex items-center gap-1 text-[10px] font-bold text-slate-600 mb-1.5 uppercase tracking-wide"><Coins className="w-3 h-3 text-emerald-600" /> M-Pesa Paybill No.</label>
+                          <input
+                            type="text"
+                            value={editRallyForm.feesPaybillNumber}
+                            onChange={(e) => setEditRallyForm(prev => ({ ...prev, feesPaybillNumber: e.target.value }))}
+                            className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                            placeholder="e.g. 4082200"
+                          />
+                        </div>
+                        <div>
+                          <label className="flex items-center gap-1 text-[10px] font-bold text-slate-600 mb-1.5 uppercase tracking-wide"><Clock className="w-3 h-3 text-emerald-600" /> Deadline Notice</label>
+                          <input
+                            type="text"
+                            value={editRallyForm.feesDeadlineText}
+                            onChange={(e) => setEditRallyForm(prev => ({ ...prev, feesDeadlineText: e.target.value }))}
+                            className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                            placeholder="e.g. Fee lock: 1 Nov 2026"
+                          />
+                        </div>
+                      </div>
+                      <div className="mt-3">
+                        <label className="flex items-center gap-1 text-[10px] font-bold text-slate-600 mb-1.5 uppercase tracking-wide"><FileText className="w-3 h-3 text-emerald-600" /> Payment Instructions</label>
+                        <textarea
+                          rows={2}
+                          value={editRallyForm.feesAccountInstructions}
+                          onChange={(e) => setEditRallyForm(prev => ({ ...prev, feesAccountInstructions: e.target.value }))}
+                          className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-400 resize-none"
+                          placeholder="e.g. Paybill 4082200, Account: Assigned Chapter Invoice Reference"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Philosophy */}
+                    <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <BookOpen className="w-4 h-4 text-navy-700" />
+                        <span className="text-xs font-black text-slate-700 uppercase tracking-wide">Capitation Philosophy</span>
+                      </div>
+                      <div className="space-y-3">
+                        <div>
+                          <label className="flex items-center gap-1 text-[10px] font-bold text-slate-600 mb-1.5 uppercase tracking-wide"><Tag className="w-3 h-3 text-navy-500" /> Philosophy Title</label>
+                          <input
+                            type="text"
+                            value={editRallyForm.feesPhilosophyTitle}
+                            onChange={(e) => setEditRallyForm(prev => ({ ...prev, feesPhilosophyTitle: e.target.value }))}
+                            className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-400"
+                            placeholder="e.g. Capability-Based Fair Capitation"
+                          />
+                        </div>
+                        <div>
+                          <label className="flex items-center gap-1 text-[10px] font-bold text-slate-600 mb-1.5 uppercase tracking-wide"><Info className="w-3 h-3 text-navy-500" /> Philosophy Explanation</label>
+                          <textarea
+                            rows={3}
+                            value={editRallyForm.feesPhilosophyText}
+                            onChange={(e) => setEditRallyForm(prev => ({ ...prev, feesPhilosophyText: e.target.value }))}
+                            className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+                            placeholder="Explain how fees are calculated for each chapter tier..."
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Fee Tiers — Structured Input Fields */}
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 rounded-lg bg-teal-50 text-teal-600"><Layers className="w-4 h-4" /></div>
+                          <div>
+                            <p className="text-xs font-bold text-slate-800">Fee Tiers</p>
+                            <p className="text-[10px] text-slate-400">{feeTiersList.length} tier{feeTiersList.length !== 1 ? "s" : ""} configured</p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setFeeTiersList(prev => [...prev, { tierName: `Tier ${prev.length + 1}`, range: "", description: "" }])}
+                          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-sm transition-colors"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          Add Tier
+                        </button>
+                      </div>
+
+                      {feeTiersList.length === 0 && (
+                        <div className="text-center py-6 rounded-2xl border-2 border-dashed border-slate-200 text-slate-400">
+                          <Coins className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+                          <p className="text-xs font-semibold">No fee tiers configured</p>
+                          <p className="text-[10px] mt-1">Click "Add Tier" to define chapter fee categories.</p>
+                        </div>
+                      )}
+
+                      <div className="space-y-3">
+                        {feeTiersList.map((tier, tIdx) => (
+                          <div key={tIdx} className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+                            <div className="flex items-center justify-between px-4 py-2.5 bg-teal-50 border-b border-teal-100">
+                              <div className="flex items-center gap-2">
+                                <span className="w-5 h-5 rounded-md bg-teal-600 text-white text-[9px] font-black flex items-center justify-center">{tIdx + 1}</span>
+                                <span className="text-xs font-bold text-teal-900">{tier.tierName || `Tier ${tIdx + 1}`}</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (!confirm(`Remove "${tier.tierName || `Tier ${tIdx + 1}`}"?`)) return;
+                                  setFeeTiersList(prev => prev.filter((_, i) => i !== tIdx));
+                                }}
+                                className="p-1 rounded-lg text-rose-400 hover:bg-rose-50 hover:text-rose-600 transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                            <div className="p-3 grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="flex items-center gap-1 text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wide"><Tag className="w-3 h-3" /> Tier Name</label>
+                                <input
+                                  type="text"
+                                  value={tier.tierName}
+                                  onChange={(e) => setFeeTiersList(prev => prev.map((t, i) => i === tIdx ? { ...t, tierName: e.target.value } : t))}
+                                  className="w-full px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-400"
+                                  placeholder="e.g. Tier 1: Major Universities"
+                                />
+                              </div>
+                              <div>
+                                <label className="flex items-center gap-1 text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wide"><Coins className="w-3 h-3" /> Fee Range (KES)</label>
+                                <input
+                                  type="text"
+                                  value={tier.range}
+                                  onChange={(e) => setFeeTiersList(prev => prev.map((t, i) => i === tIdx ? { ...t, range: e.target.value } : t))}
+                                  className="w-full px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-400"
+                                  placeholder="e.g. KSh 350,000 – 420,000"
+                                />
+                              </div>
+                              <div className="col-span-2">
+                                <label className="flex items-center gap-1 text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wide"><Info className="w-3 h-3" /> Description</label>
+                                <textarea
+                                  rows={2}
+                                  value={tier.description}
+                                  onChange={(e) => setFeeTiersList(prev => prev.map((t, i) => i === tIdx ? { ...t, description: e.target.value } : t))}
+                                  className="w-full px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-400 resize-none"
+                                  placeholder="e.g. For large public universities with 300+ attendees..."
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
               </div>
 
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => setShowEditRallyModal(false)}
-                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-navy-950 hover:bg-navy-900 text-white text-xs font-bold shadow-md transition-all flex items-center gap-1.5"
-                >
-                  <Save className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Save Rally Lifecycle</span>
-                </button>
+              {/* Footer */}
+              <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs text-slate-500">
+                  <span className="px-2 py-1 rounded-lg bg-slate-100 font-mono">{editRallyTab}</span>
+                  <span>tab active · all tabs saved together</span>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => { setShowEditRallyModal(false); setEditRallyTab("basic"); }}
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingRally}
+                    className="px-5 py-2.5 rounded-xl bg-navy-950 hover:bg-navy-900 disabled:opacity-60 text-white text-xs font-bold shadow-md transition-all flex items-center gap-1.5"
+                  >
+                    {savingRally ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Saving to DB...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Save All Changes</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
         </div>
       )}
+
       {/* ========================================================= */}
       {/* MODAL 8: UPLOAD MEDIA GALLERY PHOTO (GOOGLE LINKS + FILES)*/}
       {/* ========================================================= */}
@@ -7162,6 +9334,257 @@ function PortalContent() {
           </div>
         </div>
       )}
+
+      {/* ========================================================= */}
+      {/* MODAL: CREATE / EDIT NEWS ARTICLE                          */}
+      {/* ========================================================= */}
+      {showCreateNewsModal && (
+        <div className="fixed inset-0 z-50 bg-navy-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-2xl w-full animate-in zoom-in-95 duration-200 my-8 overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-navy-50 text-navy-700"><Newspaper className="w-5 h-5" /></div>
+                <div>
+                  <h3 className="font-heading font-black text-lg text-navy-950">{editingNewsId ? "Edit Article" : "New Council Article"}</h3>
+                  <p className="text-xs text-slate-400">Published articles appear in all chapter portals immediately.</p>
+                </div>
+              </div>
+              <button onClick={() => { setShowCreateNewsModal(false); setEditingNewsId(null); }} className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveNews}>
+              <div className="px-6 py-5 space-y-4 max-h-[65vh] overflow-y-auto">
+                {/* Title */}
+                <div>
+                  <label className="flex items-center gap-1 text-xs font-bold text-slate-700 mb-1.5"><BookOpen className="w-3.5 h-3.5 text-navy-600" /> Article Title *</label>
+                  <input
+                    type="text" required
+                    value={newsForm.title}
+                    onChange={(e) => setNewsForm(prev => ({ ...prev, title: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-navy-500 focus:bg-white"
+                    placeholder="e.g. Coastal Unity Rally 2026 — Registration Now Open"
+                  />
+                </div>
+
+                {/* Category / Author / Status row */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="flex items-center gap-1 text-xs font-bold text-slate-700 mb-1.5"><Tag className="w-3 h-3 text-amber-600" /> Category</label>
+                    <select
+                      value={newsForm.category}
+                      onChange={(e) => setNewsForm(prev => ({ ...prev, category: e.target.value }))}
+                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-navy-500"
+                    >
+                      {["NEWS", "ANNOUNCEMENT", "FINANCE", "SPIRITUAL", "STORY"].map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="flex items-center gap-1 text-xs font-bold text-slate-700 mb-1.5"><User className="w-3 h-3 text-teal-600" /> Author</label>
+                    <input
+                      type="text"
+                      value={newsForm.author}
+                      onChange={(e) => setNewsForm(prev => ({ ...prev, author: e.target.value }))}
+                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-navy-500"
+                      placeholder="e.g. Secretary General"
+                    />
+                  </div>
+                  <div>
+                    <label className="flex items-center gap-1 text-xs font-bold text-slate-700 mb-1.5"><Eye className="w-3 h-3 text-teal-600" /> Status</label>
+                    <select
+                      value={newsForm.status}
+                      onChange={(e) => setNewsForm(prev => ({ ...prev, status: e.target.value }))}
+                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-navy-500"
+                    >
+                      <option value="PUBLISHED">PUBLISHED</option>
+                      <option value="DRAFT">DRAFT</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Featured Image URL */}
+                <div>
+                  <label className="flex items-center gap-1 text-xs font-bold text-slate-700 mb-1.5"><ImageIcon className="w-3.5 h-3.5 text-amber-600" /> Featured Image URL (optional)</label>
+                  <input
+                    type="url"
+                    value={newsForm.featuredImageUrl}
+                    onChange={(e) => setNewsForm(prev => ({ ...prev, featuredImageUrl: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-navy-500 focus:bg-white"
+                    placeholder="https://drive.google.com/... or https://..."
+                  />
+                </div>
+
+                {/* Summary */}
+                <div>
+                  <label className="flex items-center gap-1 text-xs font-bold text-slate-700 mb-1.5"><FileText className="w-3.5 h-3.5 text-slate-600" /> Short Summary *</label>
+                  <textarea
+                    required rows={2}
+                    value={newsForm.summary}
+                    onChange={(e) => setNewsForm(prev => ({ ...prev, summary: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-navy-500 focus:bg-white resize-none"
+                    placeholder="One or two sentences summarising the article for chapter reps..."
+                  />
+                </div>
+
+                {/* Full Content */}
+                <div>
+                  <label className="flex items-center gap-1 text-xs font-bold text-slate-700 mb-1.5"><BookOpen className="w-3.5 h-3.5 text-navy-600" /> Full Article Content</label>
+                  <textarea
+                    rows={8}
+                    value={newsForm.content}
+                    onChange={(e) => setNewsForm(prev => ({ ...prev, content: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-navy-500 focus:bg-white resize-y"
+                    placeholder="Write the full article body here. Use plain text or markdown-style formatting..."
+                  />
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                <button type="button" onClick={() => { setShowCreateNewsModal(false); setEditingNewsId(null); }} className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50">Cancel</button>
+                <button
+                  type="submit" disabled={newsSubmitting}
+                  className="px-5 py-2.5 rounded-xl bg-navy-950 hover:bg-navy-900 disabled:opacity-60 text-white text-xs font-bold shadow-md transition-all flex items-center gap-1.5"
+                >
+                  {newsSubmitting ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Saving...</> : <><Save className="w-3.5 h-3.5 text-amber-400" /> {editingNewsId ? "Update Article" : "Publish Article"}</>}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL: ADD RESOURCE / DOCUMENT                             */}
+      {/* ========================================================= */}
+      {showCreateResourceModal && (
+        <div className="fixed inset-0 z-50 bg-navy-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full animate-in zoom-in-95 duration-200 my-8 overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-teal-50 text-teal-700"><FolderArchive className="w-5 h-5" /></div>
+                <div>
+                  <h3 className="font-heading font-black text-lg text-navy-950">Add Resource / Document</h3>
+                  <p className="text-xs text-slate-400">Add a document link or upload reference to the central repository.</p>
+                </div>
+              </div>
+              <button onClick={() => setShowCreateResourceModal(false)} className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveResource}>
+              <div className="px-6 py-5 space-y-4 max-h-[65vh] overflow-y-auto">
+                {/* Title */}
+                <div>
+                  <label className="flex items-center gap-1 text-xs font-bold text-slate-700 mb-1.5"><FileText className="w-3.5 h-3.5 text-teal-600" /> Document Title *</label>
+                  <input
+                    type="text" required
+                    value={resourceForm.title}
+                    onChange={(e) => setResourceForm(prev => ({ ...prev, title: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white"
+                    placeholder="e.g. CUCASO Constitution & Bylaws 2024"
+                  />
+                </div>
+
+                {/* Category / Access Level row */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="flex items-center gap-1 text-xs font-bold text-slate-700 mb-1.5"><Tag className="w-3 h-3 text-teal-600" /> Category</label>
+                    <select
+                      value={resourceForm.category}
+                      onChange={(e) => setResourceForm(prev => ({ ...prev, category: e.target.value }))}
+                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    >
+                      {["SPIRITUAL", "POLICY", "FINANCE", "RALLY", "FORMS", "CONSTITUTION", "GUIDELINES", "REPORT", "OTHER"].map(c => <option key={c} value={c}>{c.replace("_", " ")}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="flex items-center gap-1 text-xs font-bold text-slate-700 mb-1.5"><ShieldCheck className="w-3 h-3 text-teal-600" /> Access Level</label>
+                    <select
+                      value={resourceForm.accessLevel}
+                      onChange={(e) => setResourceForm(prev => ({ ...prev, accessLevel: e.target.value }))}
+                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    >
+                      <option value="PUBLIC">PUBLIC — All chapters</option>
+                      <option value="CHAPTER_REPS">CHAPTER REPS only</option>
+                      <option value="ADMIN">ADMIN only</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="flex items-center gap-1 text-xs font-bold text-slate-700 mb-1.5"><Info className="w-3.5 h-3.5 text-slate-600" /> Description</label>
+                  <textarea
+                    rows={2}
+                    value={resourceForm.description}
+                    onChange={(e) => setResourceForm(prev => ({ ...prev, description: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"
+                    placeholder="Brief description of this document..."
+                  />
+                </div>
+
+                {/* URL */}
+                <div>
+                  <label className="flex items-center gap-1 text-xs font-bold text-slate-700 mb-1.5"><Globe className="w-3.5 h-3.5 text-slate-600" /> Document URL / Link</label>
+                  <input
+                    type="url"
+                    value={resourceForm.url}
+                    onChange={(e) => setResourceForm(prev => ({ ...prev, url: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white"
+                    placeholder="https://drive.google.com/... or https://..."
+                  />
+                </div>
+
+                {/* File size / MIME */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="flex items-center gap-1 text-xs font-bold text-slate-700 mb-1.5"><Download className="w-3 h-3 text-slate-500" /> File Size</label>
+                    <input
+                      type="text"
+                      value={resourceForm.fileSize}
+                      onChange={(e) => setResourceForm(prev => ({ ...prev, fileSize: e.target.value }))}
+                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500"
+                      placeholder="e.g. 2.4 MB"
+                    />
+                  </div>
+                  <div>
+                    <label className="flex items-center gap-1 text-xs font-bold text-slate-700 mb-1.5"><FileText className="w-3 h-3 text-slate-500" /> File Type</label>
+                    <select
+                      value={resourceForm.mimeType}
+                      onChange={(e) => setResourceForm(prev => ({ ...prev, mimeType: e.target.value }))}
+                      className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    >
+                      <option value="application/pdf">PDF</option>
+                      <option value="application/vnd.ms-excel">Excel</option>
+                      <option value="application/msword">Word</option>
+                      <option value="image/jpeg">Image (JPEG)</option>
+                      <option value="image/png">Image (PNG)</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                <button type="button" onClick={() => setShowCreateResourceModal(false)} className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50">Cancel</button>
+                <button
+                  type="submit" disabled={resourceSubmitting}
+                  className="px-5 py-2.5 rounded-xl bg-teal-700 hover:bg-teal-600 disabled:opacity-60 text-white text-xs font-bold shadow-md transition-all flex items-center gap-1.5"
+                >
+                  {resourceSubmitting ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Saving...</> : <><Save className="w-3.5 h-3.5 text-amber-300" /> Add Document</>}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

@@ -84,6 +84,48 @@ export interface CoastalAreaPreset {
   left: number;
 }
 
+export interface ProgrammeItem {
+  time: string;
+  activity: string;
+  speakerOrLead?: string;
+}
+
+export interface ProgrammeDay {
+  dayNumber: number;
+  title: string;
+  date: string;
+  timeRange: string;
+  theme?: string;
+  items: string[];
+}
+
+export interface VenueAccessInfo {
+  venueTitle: string;
+  description: string;
+  address: string;
+  securityInfo: string;
+  medicalInfo: string;
+  directions?: string;
+  parkingInfo?: string;
+  accommodationNotes?: string;
+  imageUrl?: string;
+}
+
+export interface FeeTierCapitation {
+  tierName: string;
+  range: string;
+  description: string;
+}
+
+export interface FeesAndCapitationInfo {
+  philosophyTitle: string;
+  philosophyText: string;
+  paybillNumber: string;
+  accountInstructions: string;
+  deadlineText: string;
+  tiers: FeeTierCapitation[];
+}
+
 export interface Rally {
   id: string;
   code: string; // e.g. "CUR-2026"
@@ -100,6 +142,12 @@ export interface Rally {
   state: 'DRAFT' | 'REGISTRATION_OPEN' | 'FEES_LOCKED' | 'PAYMENT_CLOSED' | 'IN_PROGRESS' | 'COMPLETED' | 'ARCHIVED';
   allocationMode: 'CAPABILITY_WEIGHTED' | 'EQUAL' | 'HEADCOUNT_WEIGHTED' | 'BASE_PLUS_PER_HEAD';
   contingencyPercent: number;
+  /** Rally poster / hero banner image URL (uploaded file or external link) */
+  posterUrl?: string;
+  programme?: ProgrammeDay[];
+  venueAccess?: VenueAccessInfo;
+  feesAndCapitation?: FeesAndCapitationInfo;
+  costItems?: CostItem[];
 }
 
 export interface CostItem {
@@ -264,3 +312,36 @@ export interface AuditLogEntry {
   details: string;
   status: 'SUCCESS' | 'WARNING' | 'CRITICAL';
 }
+
+export interface NewsPost {
+  id: string;
+  slug: string;
+  title: string;
+  summary?: string;
+  content?: string;
+  contentHtml?: string;
+  category: 'NEWS' | 'ANNOUNCEMENT' | 'STORY' | 'DEVOTIONAL' | 'TESTIMONY' | 'FINANCE' | 'SPIRITUAL' | string;
+  featuredImageUrl?: string;
+  altText?: string;
+  status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED' | string;
+  author?: string;
+  authorUserId?: string;
+  publishedAt?: string;
+  createdAt?: string;
+  readTime?: string;
+}
+
+export interface ResourceDocument {
+  id: string;
+  title: string;
+  description?: string;
+  category: 'CONSTITUTION' | 'POLICY' | 'FORM' | 'REPORT' | 'MINUTES' | 'SPIRITUAL' | 'OTHER' | string;
+  accessLevel: 'PUBLIC' | 'MEMBERS_ONLY' | 'LEADERS_ONLY' | string;
+  storageKey?: string;
+  url?: string;
+  fileSize?: string;
+  mimeType?: string;
+  uploadedBy?: string;
+  createdAt?: string;
+}
+

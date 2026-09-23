@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { BrandLogo } from "./brand-logo";
-import { 
-  ShieldCheck, 
-  MapPin, 
-  Phone, 
-  Mail, 
-  ArrowUpRight, 
+import {
+  ShieldCheck,
+  MapPin,
+  Phone,
+  Mail,
+  ArrowUpRight,
   ExternalLink,
   ChevronRight
 } from "lucide-react";
@@ -17,14 +17,14 @@ export function Footer() {
     <footer id="contact" className="relative bg-navy-950 text-slate-300 overflow-hidden">
       {/* Curved Oceanic Wave Top */}
       <div className="w-full overflow-hidden leading-none bg-slate-50">
-        <svg 
-          viewBox="0 0 1440 120" 
-          fill="none" 
-          xmlns="http://www.w3.org/2000/svg" 
+        <svg
+          viewBox="0 0 1440 120"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
           className="w-full h-12 sm:h-16 md:h-24 text-navy-950 preserve-3d"
         >
-          <path 
-            d="M0,32L60,42.7C120,53,240,75,360,74.7C480,75,600,53,720,48C840,43,960,53,1080,64C1200,75,1320,85,1380,90.7L1440,96L1440,120L1380,120C1320,120,1200,120,1080,120C960,120,840,120,720,120C600,120,480,120,360,120C240,120,120,120,60,120L0,120Z" 
+          <path
+            d="M0,32L60,42.7C120,53,240,75,360,74.7C480,75,600,53,720,48C840,43,960,53,1080,64C1200,75,1320,85,1380,90.7L1440,96L1440,120L1380,120C1320,120,1200,120,1080,120C960,120,840,120,720,120C600,120,480,120,360,120C240,120,120,120,60,120L0,120Z"
             fill="currentColor"
           />
         </svg>
@@ -134,17 +134,13 @@ export function Footer() {
               Secretariat
             </h4>
             <ul className="space-y-3 text-sm text-slate-400">
-              <li className="flex items-start gap-2.5">
-                <MapPin className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
-                <span>Mombasa Sports Complex & Coast Field Secretariat, Mombasa, Kenya</span>
-              </li>
               <li className="flex items-center gap-2.5">
                 <Phone className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                <span>+254 712 345 678 / +254 722 445 566</span>
+                <span>+254 706 398 658</span>
               </li>
               <li className="flex items-center gap-2.5">
                 <Mail className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                <span>secretariat@cucaso.org</span>
+                <span>cucaso2025@gmail.com</span>
               </li>
             </ul>
           </div>
@@ -166,16 +162,12 @@ export function Footer() {
 
           <div className="flex items-center gap-4 text-slate-300">
             {/* Facebook */}
-            <a href="#" className="w-8 h-8 rounded-full bg-navy-900 border border-white/10 flex items-center justify-center hover:text-white hover:border-teal-400 transition-colors" aria-label="Facebook">
-              <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-            </a>
-            {/* X / Twitter */}
-            <a href="#" className="w-8 h-8 rounded-full bg-navy-900 border border-white/10 flex items-center justify-center hover:text-white hover:border-teal-400 transition-colors" aria-label="X">
-              <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+            <a href="https://web.facebook.com/groups/cucaso/" className="w-8 h-8 rounded-full bg-navy-900 border border-white/10 flex items-center justify-center hover:text-white hover:border-teal-400 transition-colors" aria-label="Facebook">
+              <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" /></svg>
             </a>
             {/* YouTube */}
-            <a href="#" className="w-8 h-8 rounded-full bg-navy-900 border border-white/10 flex items-center justify-center hover:text-white hover:border-teal-400 transition-colors" aria-label="YouTube">
-              <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+            <a href="https://youtube.com/@cucaso2025?si=3pZ-NHwHi2JO83ZD" className="w-8 h-8 rounded-full bg-navy-900 border border-white/10 flex items-center justify-center hover:text-white hover:border-teal-400 transition-colors" aria-label="YouTube">
+              <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" /></svg>
             </a>
           </div>
         </div>
