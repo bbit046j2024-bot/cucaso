@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getCostItems, createCostItem, resetCostItems } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/cost-items
  * Returns all cost items for the active rally.
