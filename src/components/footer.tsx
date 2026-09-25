@@ -36,7 +36,7 @@ export function Footer() {
           <div className="lg:col-span-2 space-y-4">
             <BrandLogo variant="dark" size="lg" />
             <p className="text-slate-400 text-sm leading-relaxed max-w-sm mt-3">
-              Coastal Universities and Colleges Adventists Students Organization. Uniting Seventh-day Adventist students across universities, colleges, and schools in Mombasa and the Kenyan coastal region.
+              Coastal Universities and Colleges Adventists Students Organization. Uniting Seventh-day Adventist students across universities, colleges in the Kenyan coastal region.
             </p>
             <div className="flex items-center gap-2 text-xs text-amber-400 font-semibold tracking-wider uppercase pt-2">
               <span>Faith</span>

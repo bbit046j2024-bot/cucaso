@@ -22,9 +22,9 @@ export function BrandLogo({
   // top-center portion (before the full org name text below).
   // We zoom in and clip to a circle, aligning to the badge center.
   const sizeMap = {
-    sm: { px: 38, textTitle: "text-base",  textSub: "text-[9px]"  },
-    md: { px: 50, textTitle: "text-lg",    textSub: "text-[10px]" },
-    lg: { px: 64, textTitle: "text-2xl",   textSub: "text-xs"     },
+    sm: { px: 38, textTitle: "text-base", textSub: "text-[9px]" },
+    md: { px: 50, textTitle: "text-lg", textSub: "text-[10px]" },
+    lg: { px: 64, textTitle: "text-2xl", textSub: "text-xs" },
   };
 
   const s = sizeMap[size];
@@ -54,18 +54,10 @@ export function BrandLogo({
       {withText && (
         <div className="flex flex-col">
           <span
-            className={`font-heading font-black tracking-tight leading-tight ${
-              variant === "dark" ? "text-white" : "text-navy-950"
-            } ${s.textTitle}`}
+            className={`font-heading font-black tracking-tight leading-tight ${variant === "dark" ? "text-white" : "text-navy-950"
+              } ${s.textTitle}`}
           >
             CUCASO
-          </span>
-          <span
-            className={`font-medium tracking-wide uppercase ${
-              variant === "dark" ? "text-teal-300" : "text-teal-700"
-            } ${s.textSub}`}
-          >
-            Coastal Adventist Education
           </span>
         </div>
       )}

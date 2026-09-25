@@ -56,3 +56,42 @@
 .animate-border-beam {
   animation: border-beam var(--duration) infinite linear;
 }
+
+/* ─── Print / Save-PDF Styles ─── */
+@media print {
+  /* Hide everything by default */
+  body > * {
+    display: none !important;
+  }
+
+  /* Show only the print-pass root */
+  #print-pass-root {
+    display: block !important;
+    position: fixed;
+    inset: 0;
+    background: white;
+    padding: 0;
+    margin: 0;
+    z-index: 9999;
+  }
+
+  /* Force all descendants visible */
+  #print-pass-root * {
+    visibility: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* Remove browser chrome */
+  @page {
+    margin: 12mm 10mm;
+    size: A4 portrait;
+  }
+
+  /* Ensure backgrounds print */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}

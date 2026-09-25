@@ -21,17 +21,14 @@ export default function LoginPage() {
   const router = useRouter();
   const [role, setRole] = useState<"CHAPTER" | "ADMIN">("CHAPTER");
   const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState("jmwangi@tum.ac.ke");
-  const [password, setPassword] = useState("••••••••••••");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleRoleChange = (newRole: "CHAPTER" | "ADMIN") => {
     setRole(newRole);
-    if (newRole === "CHAPTER") {
-      setEmail("jmwangi@tum.ac.ke");
-    } else {
-      setEmail("admin@cucaso.org");
-    }
+    setEmail("");
+    setPassword("");
   };
 
   const handleLogin = (e: React.FormEvent) => {
@@ -97,16 +94,6 @@ export default function LoginPage() {
             </button>
           </div>
 
-          {/* Preset Demo Badge */}
-          <div className="p-3 rounded-xl bg-teal-50 border border-teal-200 text-xs text-teal-900 flex items-center justify-between">
-            <div>
-              <span className="font-bold block">
-                {role === "CHAPTER" ? "John Mwangi (TUM Chapter)" : "System Administrator (Council)"}
-              </span>
-              <span className="text-[11px] text-teal-700">Pre-configured demo credentials active</span>
-            </div>
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          </div>
 
           {/* Form */}
           <form onSubmit={handleLogin} className="space-y-4">

@@ -32,6 +32,7 @@ export default function RalliesPage() {
   const [activeTab, setActiveTab] = useState<"overview" | "programme" | "venue" | "fees" | "faqs">("overview");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [currentRally, setCurrentRally] = useState<any>(CURRENT_RALLY);
+  const [rallyHistory, setRallyHistory] = useState<any[]>([]);
 
   useEffect(() => {
     fetch("/api/rallies")
@@ -39,6 +40,15 @@ export default function RalliesPage() {
       .then((json) => {
         if (json.success) {
           setCurrentRally(json.data);
+        }
+      })
+      .catch(() => {});
+
+    fetch("/api/rallies/history")
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.success && Array.isArray(json.data)) {
+          setRallyHistory(json.data);
         }
       })
       .catch(() => {});
@@ -298,39 +308,55 @@ export default function RalliesPage() {
                   </div>
                 </div>
 
-                {/* Past Rallies Archive List */}
+                {/* Dynamic Rally Timeline & Archive List */}
                 <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm">
-                  <h3 className="font-heading font-bold text-xl text-navy-950 mb-4">
-                    Rally Timeline & Archive
-                  </h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="font-heading font-bold text-xl text-navy-950">
+                        Rally Timeline & Archive
+                      </h3>
+                      <p className="text-xs text-slate-500">Official chronological record of coastal rallies across the union</p>
+                    </div>
+                  </div>
                   <div className="divide-y divide-slate-100">
-                    <div className="py-3.5 flex items-center justify-between">
-                      <div>
-                        <span className="font-bold text-sm text-navy-950">Jun 2025 — Coast Rally</span>
-                        <p className="text-xs text-slate-500">Pwani University Campus, Kilifi</p>
+                    {rallyHistory && rallyHistory.length > 0 ? (
+                      rallyHistory.map((rally) => {
+                        const isCompleted = (rally.status || "").toLowerCase().includes("completed");
+                        const isActive = (rally.status || "").toLowerCase().includes("active") || (rally.status || "").toLowerCase().includes("current");
+                        return (
+                          <div key={rally.id || rally.title} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-slate-50/50 transition-colors px-2 rounded-xl">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-sm text-navy-950">{rally.title}</span>
+                                {rally.attendees && rally.attendees !== "—" && (
+                                  <span className="text-[11px] px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">
+                                    {rally.attendees} delegates
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-slate-500 mt-0.5">
+                                {rally.venue} • {rally.date}
+                              </p>
+                            </div>
+                            <span
+                              className={`px-3 py-1 rounded-full text-xs font-bold self-start sm:self-auto ${
+                                isActive
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  : isCompleted
+                                  ? "bg-slate-100 text-slate-700 border border-slate-200"
+                                  : "bg-amber-50 text-amber-800 border border-amber-200"
+                              }`}
+                            >
+                              {rally.status || (isCompleted ? "Completed" : "Upcoming")}
+                            </span>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="py-8 text-center text-slate-400 text-xs">
+                        Official rally timeline records will appear here as published by the Secretariat.
                       </div>
-                      <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200">
-                        Completed
-                      </span>
-                    </div>
-                    <div className="py-3.5 flex items-center justify-between">
-                      <div>
-                        <span className="font-bold text-sm text-navy-950">Nov 2026 — Coastal Unity Rally</span>
-                        <p className="text-xs text-slate-500">Mombasa Sports Complex (Current Campaign)</p>
-                      </div>
-                      <span className="px-3 py-1 rounded-full bg-amber-50 text-amber-800 text-xs font-bold border border-amber-200">
-                        Upcoming
-                      </span>
-                    </div>
-                    <div className="py-3.5 flex items-center justify-between">
-                      <div>
-                        <span className="font-bold text-sm text-navy-950">May 2027 — Regional Revival Rally</span>
-                        <p className="text-xs text-slate-500">Kwale / Diani Conference Grounds</p>
-                      </div>
-                      <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-xs font-semibold">
-                        Planned
-                      </span>
-                    </div>
+                    )}
                   </div>
                 </div>
               </div>

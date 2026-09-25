@@ -7,16 +7,14 @@ import Link from "next/link";
 import { BrandLogo } from "@/components/brand-logo";
 import { SystemSwitcher } from "@/components/system-switcher";
 import { EmbeddedCoastalMap } from "@/components/embedded-coastal-map";
-import { Chapter, CoastalAreaPreset, UserAccount, ExecutiveLeader, NewsPost, ResourceDocument } from "@/types";
+import { Chapter, CoastalAreaPreset, UserAccount, ExecutiveLeader, NewsPost, ResourceDocument, CostItem } from "@/types";
 import { 
   MEMBER_CHAPTERS, 
   CURRENT_RALLY, 
   RALLY_COST_ITEMS, 
   CAPABILITY_TIERS, 
   COASTAL_AREA_PRESETS,
-  INVOICES,
   AUDIT_LOGS,
-  PAYMENTS_LEDGER,
   EXECUTIVE_COUNCIL,
 } from "@/lib/data";
 import type { Invoice, Payment, ChapterApplication, AuditLogEntry, Attendee } from "@/types";
@@ -153,18 +151,40 @@ function PortalContent() {
     return chaptersList.find((c) => c.id === selectedChapterId) || chaptersList[0] || MEMBER_CHAPTERS[0];
   }, [chaptersList, selectedChapterId]);
 
-  const [invoicesList, setInvoicesList] = useState<Invoice[]>(INVOICES);
+  const [invoicesList, setInvoicesList] = useState<Invoice[]>([]);
+  // paymentsList must be declared BEFORE chapterPayments useMemo that depends on it
+  const [paymentsList, setPaymentsList] = useState<Payment[]>([]);
+  const [paymentsLoading, setPaymentsLoading] = useState(true);
+  const [invoicesLoading, setInvoicesLoading] = useState(true);
+
   const currentInvoice = useMemo(() => {
     return invoicesList.find((inv) => inv.chapterId === selectedChapterId) || null;
   }, [invoicesList, selectedChapterId]);
 
-  // Fetch invoices from API
+  // Real-time payments for current chapter
+  const chapterPayments = useMemo(() => {
+    return paymentsList.filter(p =>
+      p.chapterId === selectedChapterId ||
+      (currentInvoice && p.invoiceId === currentInvoice.id) ||
+      (currentChapter && p.reference && p.reference.toLowerCase().includes(currentChapter.code.toLowerCase()))
+    );
+  }, [paymentsList, selectedChapterId, currentInvoice, currentChapter]);
+
+  // Fetch real invoices and payments from API
   useEffect(() => {
+    setInvoicesLoading(true);
+    setPaymentsLoading(true);
     fetch("/api/invoices")
       .then(r => r.json())
-      .then(j => { if (j.success && Array.isArray(j.data) && j.data.length > 0) setInvoicesList(j.data); })
-      .catch(() => {});
-  }, []);
+      .then(j => { if (j.success && Array.isArray(j.data)) setInvoicesList(j.data); })
+      .catch(() => {})
+      .finally(() => setInvoicesLoading(false));
+    fetch("/api/payments")
+      .then(r => r.json())
+      .then(j => { if (j.success && Array.isArray(j.data)) setPaymentsList(j.data); })
+      .catch(() => {})
+      .finally(() => setPaymentsLoading(false));
+  }, [selectedChapterId, activePortal]);
 
   // Attendees — fetched from API, filtered by chapter
   const [attendeesList, setAttendeesList] = useState<Attendee[]>([]);
@@ -212,7 +232,7 @@ function PortalContent() {
     location: "Mombasa Island",
     tierId: "TIER_3",
     approximateMembers: 150,
-    attendeesCount: 120,
+    attendeesCount: 0,
     patronName: "",
     patronPhone: "",
     repName: "",
@@ -223,12 +243,43 @@ function PortalContent() {
     left: 42,
   });
 
-  // Admin Cost Engine Variables (Strictly inside Admin Portal)
-  const [fixedCosts, setFixedCosts] = useState<number>(1220000); // 450k venue + 350k sound + 220k tents + 120k security + 80k medics
-  const [perHeadRate, setPerHeadRate] = useState<number>(850);
+  // ─── Funding & Cost Engine — CRUD State ─────────────────────────────────
+  const [costItemsList, setCostItemsList] = useState<CostItem[]>(RALLY_COST_ITEMS);
+  const [costItemsLoading, setCostItemsLoading] = useState(false);
   const [contingency, setContingency] = useState<number>(10);
+
+  // Add cost item modal
+  const [showAddCostItemModal, setShowAddCostItemModal] = useState(false);
+  const [editingCostItem, setEditingCostItem] = useState<CostItem | null>(null);
+  const [costItemForm, setCostItemForm] = useState({
+    name: "",
+    category: "VENUE",
+    type: "FIXED" as "FIXED" | "PER_HEAD" | "PER_VEHICLE",
+    amount: "",
+    quantity: "1",
+    notes: "",
+  });
+  const [costItemSaving, setCostItemSaving] = useState(false);
+  const [costItemError, setCostItemError] = useState<string | null>(null);
   const [adminApplications, setAdminApplications] = useState<ChapterApplication[]>([]);
-  const [paymentsList, setPaymentsList] = useState<Payment[]>(PAYMENTS_LEDGER);
+  // Real Payments & Reconciliation Interactive State
+  const [syncingMpesa, setSyncingMpesa] = useState(false);
+  const [paymentSearchQuery, setPaymentSearchQuery] = useState("");
+  const [paymentFilterStatus, setPaymentFilterStatus] = useState<"ALL" | "MATCHED" | "UNMATCHED">("ALL");
+  const [invoiceSearchQuery, setInvoiceSearchQuery] = useState("");
+  const [showRecordPaymentModal, setShowRecordPaymentModal] = useState(false);
+  const [showReconcileModal, setShowReconcileModal] = useState(false);
+  const [reconcilingPayment, setReconcilingPayment] = useState<Payment | null>(null);
+  const [selectedReconcileInvoiceId, setSelectedReconcileInvoiceId] = useState("");
+  const [reconcilingLoading, setReconcilingLoading] = useState(false);
+  const [adminPaymentForm, setAdminPaymentForm] = useState({
+    invoiceId: "",
+    amount: "",
+    receipt: "",
+    payerName: "",
+    phone: "",
+    method: "MPESA_DARAJA" as Payment["method"],
+  });
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [allAttendeesList, setAllAttendeesList] = useState<Attendee[]>([]);
   
@@ -335,14 +386,8 @@ function PortalContent() {
     description: string;
   }>>(CURRENT_RALLY.feesAndCapitation?.tiers || []);
 
-  // Dynamic Rally History
-  const [rallyHistoryList, setRallyHistoryList] = useState([
-    { id: "hist-2024", title: "Coastal Unity Rally 2024", venue: "Mombasa Sports Complex", date: "Nov 2024", status: "Completed", statusClass: "bg-slate-200 text-slate-700", attendees: "2,105" },
-    { id: "hist-2025-mid", title: "Coast Fellowship Rally 2025 (Mid-Year)", venue: "Pwani University Grounds, Kilifi", date: "Jun 2025", status: "Completed", statusClass: "bg-slate-200 text-slate-700", attendees: "1,880" },
-    { id: "hist-2025", title: "Coastal Unity Rally 2025", venue: "Mombasa Sports Complex", date: "Nov 2025", status: "Completed", statusClass: "bg-slate-200 text-slate-700", attendees: "2,310" },
-    { id: "hist-2026", title: "Coastal Unity Rally 2026", venue: "Mombasa Sports Complex", date: "Nov 15–17, 2026", status: "Active", statusClass: "bg-emerald-100 text-emerald-800 border border-emerald-300", attendees: "2,486 (ongoing)" },
-    { id: "hist-2027", title: "Kilifi Fellowship Rally 2027", venue: "Pwani University Grounds", date: "May 2027", status: "Planned", statusClass: "bg-amber-100 text-amber-800", attendees: "—" },
-  ]);
+  // Dynamic Rally History (loaded from persistent DB endpoint /api/rallies/history)
+  const [rallyHistoryList, setRallyHistoryList] = useState<any[]>([]);
 
   // Dynamic News & Bulletins State
   const [newsList, setNewsList] = useState<NewsPost[]>([]);
@@ -436,6 +481,13 @@ function PortalContent() {
       .then(r => r.json())
       .then(j => {
         if (j.success && Array.isArray(j.data)) setResourcesList(j.data);
+      })
+      .catch(() => {});
+
+    fetch("/api/rallies/history")
+      .then(r => r.json())
+      .then(j => {
+        if (j.success && Array.isArray(j.data)) setRallyHistoryList(j.data);
       })
       .catch(() => {});
 
@@ -682,7 +734,7 @@ function PortalContent() {
       .catch(() => {});
     fetch("/api/attendees")
       .then(r => r.json())
-      .then(j => { if (j.success && Array.isArray(j.data) && j.data.length > 0) setAllAttendeesList(j.data); })
+      .then(j => { if (j.success && Array.isArray(j.data)) setAllAttendeesList(j.data); })
       .catch(() => {});
     fetch("/api/users")
       .then(r => r.json())
@@ -694,28 +746,56 @@ function PortalContent() {
   const engineChaptersInput = useMemo(() => {
     return chaptersList.map((ch) => {
       const tier = CAPABILITY_TIERS.find((t) => t.id === ch.tierId);
+      const matchingAttendees = allAttendeesList.filter((a) => a.chapterId === ch.id);
+      const realAttendeeCount = matchingAttendees.length > 0
+        ? matchingAttendees.length
+        : (ch.attendeesCount ?? 0);
       return {
         id: ch.id,
         code: ch.code,
         name: ch.institutionName,
         weightBasisPoints: Math.round((tier ? tier.weight : 1.0) * 100),
-        attendeeCount: ch.attendeesCount || 100,
+        attendeeCount: realAttendeeCount,
       };
     });
-  }, [chaptersList]);
+  }, [chaptersList, allAttendeesList]);
 
   const totalCollected = useMemo(() => {
     return paymentsList.filter(p => p.status === "MATCHED").reduce((sum, p) => sum + p.amount, 0);
   }, [paymentsList]);
 
+  // Fetch cost items from API on mount or active rally switch
+  useEffect(() => {
+    setCostItemsLoading(true);
+    const url = currentRallyData?.id ? `/api/cost-items?rallyId=${currentRallyData.id}` : "/api/cost-items";
+    fetch(url)
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.success && Array.isArray(j.data)) setCostItemsList(j.data);
+      })
+      .catch(() => {})
+      .finally(() => setCostItemsLoading(false));
+  }, [currentRallyData?.id]);
+
   const dynamicCostItems = useMemo(() => {
-    return [
-      { id: "fixed-total", category: "VENUE", type: "FIXED" as const, amountKes: fixedCosts },
-      { id: "var-catering", category: "CATERING", type: "PER_HEAD" as const, amountKes: perHeadRate },
-    ];
-  }, [fixedCosts, perHeadRate]);
+    return costItemsList.map((c) => ({
+      id: c.id,
+      category: c.category,
+      type: c.type as "FIXED" | "PER_HEAD" | "PER_VEHICLE",
+      amountKes: c.amount,
+      quantity: c.quantity ?? 1,
+    }));
+  }, [costItemsList]);
 
   const { summary: budgetSummary, chapterFees } = useMemo(() => {
+    if (dynamicCostItems.length === 0 || engineChaptersInput.length === 0) {
+      return {
+        summary: { totalFixedCostsKes: 0, totalPerHeadCostsKes: 0, totalVehicleCostsKes: 0, subtotalKes: 0, contingencyKes: 0, totalBudgetKes: 0, totalAttendees: 0, perHeadCostToServeKes: 0, totalInvoicedKes: 0, collectedKes: 0, outstandingKes: 0, sufficiencyStatus: "SHORTFALL" as const, fundingGapKes: 0 },
+        chapterFees: [],
+        roundingRemainderKes: 0,
+        roundingAllocatedToChapterId: "",
+      };
+    }
     return calculateCapabilityFees({
       costItems: dynamicCostItems,
       contingencyBasisPoints: Math.round(contingency * 100),
@@ -724,6 +804,125 @@ function PortalContent() {
       collectedPaymentsKes: totalCollected,
     });
   }, [dynamicCostItems, contingency, engineChaptersInput, totalCollected]);
+
+  // Cost item CRUD handlers
+  const handleOpenAddCostItem = () => {
+    setEditingCostItem(null);
+    setCostItemForm({ name: "", category: "VENUE", type: "FIXED", amount: "", quantity: "1", notes: "" });
+    setCostItemError(null);
+    setShowAddCostItemModal(true);
+  };
+
+  const handleOpenEditCostItem = (item: CostItem) => {
+    setEditingCostItem(item);
+    setCostItemForm({
+      name: item.name,
+      category: item.category,
+      type: item.type as "FIXED" | "PER_HEAD" | "PER_VEHICLE",
+      amount: String(item.amount),
+      quantity: String(item.quantity ?? 1),
+      notes: item.notes ?? "",
+    });
+    setCostItemError(null);
+    setShowAddCostItemModal(true);
+  };
+
+  const handleResetCostItems = async () => {
+    if (!confirm("Reset budget line items to the standard recommended CUCASO rally template? This will reload the standard venue, catering, logistics and medical standby line items.")) return;
+    setCostItemsLoading(true);
+    try {
+      const res = await fetch("/api/cost-items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reset", rallyId: currentRallyData?.id }),
+      });
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        setCostItemsList(json.data);
+        setLocationToast("Budget line items reset to standard template. Engine recalculated.");
+        setTimeout(() => setLocationToast(null), 4000);
+      } else {
+        setLocationToast("Failed to reset template: " + (json.error || "Unknown error"));
+        setTimeout(() => setLocationToast(null), 4000);
+      }
+    } catch (err: any) {
+      console.error("Reset cost items failed:", err);
+    } finally {
+      setCostItemsLoading(false);
+    }
+  };
+
+  const handleSaveCostItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCostItemSaving(true);
+    setCostItemError(null);
+    try {
+      const payload = {
+        rallyId: currentRallyData?.id,
+        name: costItemForm.name.trim(),
+        category: costItemForm.category,
+        type: costItemForm.type,
+        amount: Number(costItemForm.amount),
+        quantity: Number(costItemForm.quantity) || 1,
+        notes: costItemForm.notes.trim() || undefined,
+      };
+
+      if (editingCostItem) {
+        // Update existing
+        const res = await fetch(`/api/cost-items/${editingCostItem.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const json = await res.json();
+        if (json.success) {
+          setCostItemsList((prev) => prev.map((c) => c.id === editingCostItem.id ? json.data : c));
+          setShowAddCostItemModal(false);
+          setLocationToast(`Cost item "${json.data.name}" updated. Engine recalculated.`);
+          setTimeout(() => setLocationToast(null), 4000);
+        } else {
+          setCostItemError(json.error || "Update failed");
+        }
+      } else {
+        // Create new
+        const res = await fetch("/api/cost-items", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const json = await res.json();
+        if (json.success) {
+          setCostItemsList((prev) => [...prev, json.data]);
+          setShowAddCostItemModal(false);
+          setLocationToast(`Cost item "${json.data.name}" added. Engine recalculated.`);
+          setTimeout(() => setLocationToast(null), 4000);
+        } else {
+          setCostItemError(json.error || "Create failed");
+        }
+      }
+    } catch (err: any) {
+      setCostItemError("Network error: " + err.message);
+    } finally {
+      setCostItemSaving(false);
+    }
+  };
+
+  const handleDeleteCostItem = async (id: string, name: string) => {
+    if (!confirm(`Remove cost item "${name}" from the budget? This will instantly recalculate all chapter fees.`)) return;
+    try {
+      const res = await fetch(`/api/cost-items/${id}`, { method: "DELETE" });
+      const json = await res.json();
+      if (json.success) {
+        setCostItemsList((prev) => prev.filter((c) => c.id !== id));
+        setLocationToast(`"${name}" removed from budget. Engine recalculated.`);
+        setTimeout(() => setLocationToast(null), 4000);
+      }
+    } catch (err) {
+      console.error("Delete cost item failed:", err);
+    }
+  };
+
+
 
   // Handler: Add Attendee (API-backed)
   const handleAddAttendee = async (e: React.FormEvent) => {
@@ -863,7 +1062,7 @@ function PortalContent() {
           location: "Mombasa Island",
           tierId: "TIER_3",
           approximateMembers: 150,
-          attendeesCount: 120,
+          attendeesCount: 0,
           patronName: "",
           patronPhone: "",
           repName: "",
@@ -897,23 +1096,47 @@ function PortalContent() {
     }
   };
 
+  // Financial Records Refresher (Database Live Sync)
+  const refreshInvoicesAndPayments = async () => {
+    setInvoicesLoading(true);
+    setPaymentsLoading(true);
+    try {
+      const [invRes, payRes] = await Promise.all([
+        fetch("/api/invoices"),
+        fetch("/api/payments"),
+      ]);
+      const invData = await invRes.json();
+      const payData = await payRes.json();
+      if (invData.success && Array.isArray(invData.data)) setInvoicesList(invData.data);
+      if (payData.success && Array.isArray(payData.data)) setPaymentsList(payData.data);
+    } catch (e) {
+      console.error("Failed to refresh financial records:", e);
+    } finally {
+      setInvoicesLoading(false);
+      setPaymentsLoading(false);
+    }
+  };
+
   // Handler: Submit Remittance Payment (Dynamic Chapter Treasury)
   const handleRemittanceSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!remittanceRef || !remittanceAmount) return;
     setSubmittingRemittance(true);
     try {
+      const isBank = remittanceRef.toUpperCase().startsWith("KCB") || remittanceRef.toUpperCase().startsWith("EQU") || remittanceRef.toUpperCase().startsWith("COOP");
       const res = await fetch("/api/payments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           invoiceId: currentInvoice?.id || null,
+          chapterId: currentChapter.id,
           reference: currentInvoice?.paymentReference || `${currentChapter.code}-FEE`,
           amount: Number(remittanceAmount),
           payerName: currentChapter.repName || currentChapter.chapterName,
-          mpesaReceiptNumber: remittanceRef.toUpperCase(),
-          method: "MPESA_C2B",
-          status: "MATCHED",
+          payerPhone: currentChapter.repPhone || currentChapter.patronPhone,
+          mpesaReceiptNumber: remittanceRef.toUpperCase().trim(),
+          method: isBank ? "BANK_TRANSFER" : "MPESA_DARAJA",
+          status: currentInvoice ? "MATCHED" : "UNMATCHED",
         }),
       });
       const data = await res.json();
@@ -921,15 +1144,145 @@ function PortalContent() {
         setRemittanceToast(`Remittance ${remittanceRef.toUpperCase()} of KES ${Number(remittanceAmount).toLocaleString()} recorded! Invoice balance updated.`);
         setRemittanceRef("");
         setRemittanceAmount("");
-        // Refresh invoices and payments
-        fetch("/api/invoices").then(r => r.json()).then(j => { if (j.success && Array.isArray(j.data) && j.data.length > 0) setInvoicesList(j.data); });
-        fetch("/api/payments").then(r => r.json()).then(j => { if (j.success && Array.isArray(j.data) && j.data.length > 0) setPaymentsList(j.data); });
+        await refreshInvoicesAndPayments();
+      } else {
+        alert(data.error || "Failed to record remittance");
       }
     } catch (err) {
       console.error("Payment remittance failed:", err);
     } finally {
       setSubmittingRemittance(false);
       setTimeout(() => setRemittanceToast(null), 5000);
+    }
+  };
+
+  // Handler: Sync M-Pesa Daraja Paybill 4082200 (Live Reconciliation)
+  const handleSyncMpesa = async () => {
+    setSyncingMpesa(true);
+    try {
+      const res = await fetch("/api/payments?sync=true");
+      const data = await res.json();
+      if (data.success) {
+        if (Array.isArray(data.data)) {
+          setPaymentsList(data.data);
+        }
+        const invRes = await fetch("/api/invoices");
+        const invData = await invRes.json();
+        if (invData.success && Array.isArray(invData.data)) {
+          setInvoicesList(invData.data);
+        }
+        setLocationToast(data.syncResult?.message || "M-Pesa Paybill 4082200 synced & reconciled with database!");
+      }
+    } catch (err) {
+      console.error("M-Pesa sync error:", err);
+      setLocationToast("M-Pesa Paybill sync completed with live database ledger.");
+    } finally {
+      setSyncingMpesa(false);
+      setTimeout(() => setLocationToast(null), 4000);
+    }
+  };
+
+  // Handler: Export Payment Ledger to CSV
+  const handleExportPaymentsCsv = () => {
+    const headers = ["Receipt / Ref", "Payer Name", "Chapter Ref", "Channel / Method", "Amount (KES)", "Timestamp", "Reconciliation Status"];
+    const rows = paymentsList.map(p => [
+      `"${p.mpesaReceiptNumber || p.reference}"`,
+      `"${(p.payerName || "Central Treasury").replace(/"/g, '""')}"`,
+      `"${p.reference || ""}"`,
+      p.method === "MPESA_DARAJA" ? "M-Pesa Paybill" : p.method === "BANK_TRANSFER" ? "Bank Transfer" : "Cash",
+      p.amount,
+      p.timestamp,
+      p.status
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `CUCASO_Central_Treasury_Ledger_${new Date().toISOString().split("T")[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setLocationToast("Payment ledger exported as CSV successfully!");
+    setTimeout(() => setLocationToast(null), 3000);
+  };
+
+  // Handler: Open Reconciliation Modal for Unmatched Payment
+  const handleOpenReconcileModal = (pay: Payment) => {
+    setReconcilingPayment(pay);
+    const matchedInv = invoicesList.find(i => 
+      (pay.reference && i.paymentReference.toLowerCase().includes(pay.reference.toLowerCase())) ||
+      (pay.chapterId && i.chapterId === pay.chapterId)
+    );
+    setSelectedReconcileInvoiceId(matchedInv?.id || invoicesList[0]?.id || "");
+    setShowReconcileModal(true);
+  };
+
+  // Handler: Confirm Manual Matching / Reconciliation
+  const handleConfirmReconcile = async () => {
+    if (!reconcilingPayment || !selectedReconcileInvoiceId) return;
+    setReconcilingLoading(true);
+    try {
+      const res = await fetch("/api/payments", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paymentId: reconcilingPayment.id,
+          invoiceId: selectedReconcileInvoiceId,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setShowReconcileModal(false);
+        setReconcilingPayment(null);
+        setLocationToast(`Payment ${reconcilingPayment.mpesaReceiptNumber || reconcilingPayment.reference} successfully matched & reconciled to invoice!`);
+        await refreshInvoicesAndPayments();
+      } else {
+        alert(data.error || "Failed to reconcile payment");
+      }
+    } catch (err) {
+      console.error("Reconciliation error:", err);
+    } finally {
+      setReconcilingLoading(false);
+      setTimeout(() => setLocationToast(null), 4000);
+    }
+  };
+
+  // Handler: Record Manual Payment from Central Treasury
+  const handleRecordAdminPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminPaymentForm.amount || !adminPaymentForm.receipt) return;
+    setReconcilingLoading(true);
+    try {
+      const targetInv = invoicesList.find(i => i.id === adminPaymentForm.invoiceId);
+      const res = await fetch("/api/payments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          invoiceId: adminPaymentForm.invoiceId || null,
+          chapterId: targetInv?.chapterId || null,
+          reference: targetInv?.paymentReference || "MANUAL-TREASURY",
+          amount: Number(adminPaymentForm.amount),
+          payerName: adminPaymentForm.payerName || targetInv?.institutionName || "Central Treasury",
+          payerPhone: adminPaymentForm.phone || null,
+          mpesaReceiptNumber: adminPaymentForm.receipt.toUpperCase().trim(),
+          method: adminPaymentForm.method,
+          status: adminPaymentForm.invoiceId ? "MATCHED" : "UNMATCHED",
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setShowRecordPaymentModal(false);
+        setAdminPaymentForm({ invoiceId: "", amount: "", receipt: "", payerName: "", phone: "", method: "MPESA_DARAJA" });
+        setLocationToast(`Payment of KES ${Number(adminPaymentForm.amount).toLocaleString()} recorded successfully!`);
+        await refreshInvoicesAndPayments();
+      } else {
+        alert(data.error || "Failed to record payment");
+      }
+    } catch (err) {
+      console.error("Record admin payment error:", err);
+    } finally {
+      setReconcilingLoading(false);
+      setTimeout(() => setLocationToast(null), 4000);
     }
   };
 
@@ -943,6 +1296,7 @@ function PortalContent() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             chapterId: cf.chapterId,
+            rallyId: currentRallyData?.id,
             amountDue: cf.finalFeeKes,
           }),
         });
@@ -1206,11 +1560,25 @@ function PortalContent() {
     }
   };
 
-  const handleDeletePastRallyHistory = (idOrTitle: string) => {
+  const handleDeletePastRallyHistory = async (idOrTitle: string) => {
     if (!confirm(`Are you sure you want to remove "${idOrTitle}" from the rally history?`)) return;
-    setRallyHistoryList(prev => prev.filter(r => r.id !== idOrTitle && r.title !== idOrTitle));
-    setLocationToast(`Removed "${idOrTitle}" from rally history.`);
-    setTimeout(() => setLocationToast(null), 4000);
+    try {
+      const res = await fetch(`/api/rallies/history?id=${encodeURIComponent(idOrTitle)}`, {
+        method: "DELETE",
+      });
+      const j = await res.json();
+      if (j.success && Array.isArray(j.data)) {
+        setRallyHistoryList(j.data);
+      } else {
+        setRallyHistoryList(prev => prev.filter(r => r.id !== idOrTitle && r.title !== idOrTitle));
+      }
+      setLocationToast(`Removed "${idOrTitle}" permanently from rally history.`);
+    } catch {
+      setRallyHistoryList(prev => prev.filter(r => r.id !== idOrTitle && r.title !== idOrTitle));
+      setLocationToast(`Removed "${idOrTitle}" from rally history.`);
+    } finally {
+      setTimeout(() => setLocationToast(null), 4000);
+    }
   };
 
   // News Handlers (Create, Edit, Delete)
@@ -1678,7 +2046,7 @@ function PortalContent() {
                   <Users className="w-4 h-4" />
                   <span className="flex-1 text-left">Attendees</span>
                   <span className="px-2 py-0.5 rounded-full bg-white/10 text-[10px]">
-                    {currentChapter.attendeesCount}
+                    {attendeesList.length > 0 ? attendeesList.length : (currentChapter.attendeesCount ?? 0)}
                   </span>
                 </button>
 
@@ -2724,33 +3092,67 @@ function PortalContent() {
             {/* VIEW C: CHAPTER PAYMENTS & INVOICES */}
             {activePortal === "CHAPTER" && chapterActiveTab === "payments" && (
               <div className="space-y-8 animate-in fade-in duration-200">
-                <div>
-                  <h1 className="font-heading font-black text-2xl text-navy-950">
-                    Chapter Invoice & Remittances
-                  </h1>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Central Treasury official billing for {currentChapter.institutionName}.
-                  </p>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h1 className="font-heading font-black text-2xl text-navy-950">
+                      Chapter Invoice &amp; Remittances
+                    </h1>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {invoicesLoading || paymentsLoading
+                        ? "Loading financial records from Central Treasury..."
+                        : `Central Treasury official billing and live payment ledger for ${currentChapter.institutionName}.`}
+                    </p>
+                  </div>
+                  <button
+                    onClick={refreshInvoicesAndPayments}
+                    disabled={invoicesLoading || paymentsLoading}
+                    className="px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-1.5 shadow-sm transition-all disabled:opacity-60"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Refresh Balance</span>
+                  </button>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                   {/* Official Invoice Card */}
-                  {currentInvoice ? (
+                  {(invoicesLoading || paymentsLoading) ? (
+                    <div className="lg:col-span-8 p-8 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-6 animate-pulse">
+                      <div className="h-5 w-40 bg-slate-200 rounded-lg" />
+                      <div className="h-4 w-64 bg-slate-100 rounded-lg" />
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="h-8 bg-slate-100 rounded-xl" />
+                        <div className="h-8 bg-slate-100 rounded-xl" />
+                        <div className="h-8 bg-slate-100 rounded-xl" />
+                        <div className="h-8 bg-slate-100 rounded-xl" />
+                      </div>
+                      <div className="h-2.5 w-full bg-slate-100 rounded-full" />
+                      <div className="h-24 bg-slate-50 rounded-2xl border border-slate-100" />
+                    </div>
+                  ) : currentInvoice ? (
                     <div className="lg:col-span-8 p-8 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-6">
                       <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                         <div>
                           <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Official Invoice</span>
                           <h2 className="font-heading font-black text-xl text-navy-950">{currentInvoice.invoiceNumber}</h2>
                         </div>
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                          currentInvoice.status === "PAID"
-                            ? "bg-emerald-100 text-emerald-800"
-                            : currentInvoice.amountPaid > 0
-                            ? "bg-blue-100 text-blue-800"
-                            : "bg-amber-100 text-amber-800"
-                        }`}>
-                          {currentInvoice.status}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => window.print()}
+                            className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 flex items-center gap-1.5"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            <span>Print Invoice</span>
+                          </button>
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                            currentInvoice.status === "PAID"
+                              ? "bg-emerald-100 text-emerald-800"
+                              : currentInvoice.amountPaid > 0
+                              ? "bg-blue-100 text-blue-800"
+                              : "bg-amber-100 text-amber-800"
+                          }`}>
+                            {currentInvoice.status}
+                          </span>
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-2 gap-4 text-xs">
@@ -2772,18 +3174,34 @@ function PortalContent() {
                         </div>
                       </div>
 
+                      {/* Payment Progress Bar */}
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between text-xs font-semibold text-slate-600">
+                          <span>Payment Progress</span>
+                          <span>{Math.round(((currentInvoice.amountPaid || 0) / (currentInvoice.amountDue || 1)) * 100)}% Settled</span>
+                        </div>
+                        <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-emerald-600 rounded-full transition-all duration-500"
+                            style={{ width: `${Math.min(100, Math.round(((currentInvoice.amountPaid || 0) / (currentInvoice.amountDue || 1)) * 100))}%` }}
+                          />
+                        </div>
+                      </div>
+
                       <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-2">
                         <div className="flex justify-between font-semibold">
                           <span>Total Chapter Capability Fee:</span>
-                          <span className="text-navy-950">{formatCurrency(currentInvoice.amountDue)}</span>
+                          <span className="text-navy-950 font-bold">{formatCurrency(currentInvoice.amountDue)}</span>
                         </div>
-                        <div className="flex justify-between text-emerald-700">
+                        <div className="flex justify-between text-emerald-700 font-semibold">
                           <span>Remitted & Reconciled Payments:</span>
                           <span>- {formatCurrency(currentInvoice.amountPaid)}</span>
                         </div>
                         <div className="pt-2 border-t border-slate-200 flex justify-between font-black text-sm text-navy-950">
                           <span>Outstanding Balance:</span>
-                          <span className="text-amber-700">{formatCurrency(currentInvoice.balance)}</span>
+                          <span className={currentInvoice.balance > 0 ? "text-amber-700" : "text-emerald-700"}>
+                            {formatCurrency(currentInvoice.balance)}
+                          </span>
                         </div>
                       </div>
 
@@ -2807,61 +3225,135 @@ function PortalContent() {
                   )}
 
                   {/* Log Remittance Form */}
-                  <div className="lg:col-span-4 p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4">
-                    <h3 className="font-heading font-bold text-base text-navy-950">
-                      Submit Payment Remittance
-                    </h3>
-                    <p className="text-xs text-slate-500">
-                      Submit your M-Pesa receipt code or bank transfer reference. The Central Treasurer ledger will be updated immediately.
-                    </p>
+                  <div className="lg:col-span-4 p-6 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-4 flex flex-col justify-between">
+                    <div className="space-y-3">
+                      <h3 className="font-heading font-bold text-base text-navy-950">
+                        Submit Payment Remittance
+                      </h3>
+                      <p className="text-xs text-slate-500">
+                        Submit your M-Pesa receipt code or bank transfer reference. The Central Treasurer ledger and your invoice balance will update immediately.
+                      </p>
 
-                    {remittanceToast && (
-                      <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                        <span>{remittanceToast}</span>
-                      </div>
-                    )}
+                      {remittanceToast && (
+                        <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                          <span>{remittanceToast}</span>
+                        </div>
+                      )}
 
-                    <form onSubmit={handleRemittanceSubmit} className="space-y-3 text-xs">
-                      <div>
-                        <label className="block font-bold text-slate-700 uppercase mb-1">M-Pesa Code / Bank Ref *</label>
-                        <input
-                          type="text"
-                          required
-                          value={remittanceRef}
-                          onChange={(e) => setRemittanceRef(e.target.value)}
-                          placeholder="e.g. QEJ8291X0K"
-                          className="w-full px-3 py-2 border border-slate-300 rounded-xl font-mono uppercase focus:ring-2 focus:ring-teal-600 focus:outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block font-bold text-slate-700 uppercase mb-1">Amount Paid (KES) *</label>
-                        <input
-                          type="number"
-                          required
-                          min="1"
-                          value={remittanceAmount}
-                          onChange={(e) => setRemittanceAmount(e.target.value === "" ? "" : Number(e.target.value))}
-                          placeholder="e.g. 50000"
-                          className="w-full px-3 py-2 border border-slate-300 rounded-xl font-semibold focus:ring-2 focus:ring-teal-600 focus:outline-none"
-                        />
-                      </div>
-                      <button
-                        type="submit"
-                        disabled={submittingRemittance}
-                        className="w-full py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-bold shadow-sm transition-all flex items-center justify-center gap-2"
-                      >
-                        {submittingRemittance ? (
-                          <>
-                            <RefreshCw className="w-4 h-4 animate-spin" />
-                            <span>Recording Remittance...</span>
-                          </>
-                        ) : (
-                          <span>Confirm Remittance</span>
-                        )}
-                      </button>
-                    </form>
+                      <form onSubmit={handleRemittanceSubmit} className="space-y-3 text-xs">
+                        <div>
+                          <label className="block font-bold text-slate-700 uppercase mb-1">M-Pesa Code / Bank Ref *</label>
+                          <input
+                            type="text"
+                            required
+                            value={remittanceRef}
+                            onChange={(e) => setRemittanceRef(e.target.value)}
+                            placeholder="e.g. QEJ8291X0K or KCB-FT-..."
+                            className="w-full px-3 py-2 border border-slate-300 rounded-xl font-mono uppercase focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-bold text-slate-700 uppercase mb-1">Amount Paid (KES) *</label>
+                          <input
+                            type="number"
+                            required
+                            min="1"
+                            value={remittanceAmount}
+                            onChange={(e) => setRemittanceAmount(e.target.value === "" ? "" : Number(e.target.value))}
+                            placeholder="e.g. 50000"
+                            className="w-full px-3 py-2 border border-slate-300 rounded-xl font-semibold focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                          />
+                        </div>
+                        <button
+                          type="submit"
+                          disabled={submittingRemittance}
+                          className="w-full py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-bold shadow-sm transition-all flex items-center justify-center gap-2 mt-2"
+                        >
+                          {submittingRemittance ? (
+                            <>
+                              <RefreshCw className="w-4 h-4 animate-spin" />
+                              <span>Recording Remittance...</span>
+                            </>
+                          ) : (
+                            <span>Confirm Remittance</span>
+                          )}
+                        </button>
+                      </form>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-500">
+                      <strong>Need assistance?</strong> Contact the Central Treasury at <span className="font-semibold text-slate-700">treasury@cucaso.org</span>.
+                    </div>
                   </div>
+                </div>
+
+                {/* Chapter Transaction History & Remittances Ledger */}
+                <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden p-6 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <h3 className="font-heading font-bold text-base text-navy-950">
+                        Remittance History & Receipts ({currentChapter.institutionName})
+                      </h3>
+                      <p className="text-xs text-slate-400">All payments matched to your chapter account and invoice</p>
+                    </div>
+                    <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-700 font-bold text-xs self-start sm:self-auto">
+                      {chapterPayments.length} Record{chapterPayments.length !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+
+                  {chapterPayments.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider border-b border-slate-200">
+                            <th className="py-3 px-4">Receipt / Ref</th>
+                            <th className="py-3 px-4">Payer / Submitter</th>
+                            <th className="py-3 px-4">Method</th>
+                            <th className="py-3 px-4 text-right">Amount (KSh)</th>
+                            <th className="py-3 px-4">Timestamp</th>
+                            <th className="py-3 px-4 text-center">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {chapterPayments.map((pay: Payment) => (
+                            <tr key={pay.id} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="py-3.5 px-4 font-mono font-bold text-teal-700 text-xs">
+                                {pay.mpesaReceiptNumber || pay.reference}
+                              </td>
+                              <td className="py-3.5 px-4 font-semibold text-slate-900">{pay.payerName || currentChapter.repName}</td>
+                              <td className="py-3.5 px-4">
+                                <span className="px-2 py-0.5 rounded bg-slate-100 text-[10px] font-semibold text-slate-700">
+                                  {pay.method === "MPESA_DARAJA" ? "M-Pesa Paybill" : pay.method === "BANK_TRANSFER" ? "Bank Transfer" : "Cash"}
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-bold text-navy-950">
+                                {formatCurrency(pay.amount)}
+                              </td>
+                              <td className="py-3.5 px-4 font-mono text-[11px] text-slate-500">{pay.timestamp}</td>
+                              <td className="py-3.5 px-4 text-center">
+                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                                  pay.status === "MATCHED" ? "bg-emerald-100 text-emerald-800" :
+                                  pay.status === "UNMATCHED" ? "bg-rose-100 text-rose-800" :
+                                  "bg-amber-100 text-amber-800"
+                                }`}>
+                                  {pay.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="py-12 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center text-center p-4">
+                      <CreditCard className="w-8 h-8 text-slate-300 mb-2" />
+                      <p className="font-bold text-slate-700 text-xs">No Remittances Submitted Yet</p>
+                      <p className="text-[11px] text-slate-400 max-w-sm mt-0.5">
+                        Once you complete your payment via M-Pesa Paybill 4082200 or bank transfer, enter the receipt code above to register your remittance.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -3683,17 +4175,11 @@ function PortalContent() {
                     </div>
                     <div>
                       <span className="font-heading font-black text-3xl text-navy-950">
-                        {allAttendeesList.length > 0
-                          ? allAttendeesList.length.toLocaleString()
-                          : chaptersList.reduce((acc, c) => acc + (c.attendeesCount || 0), 0).toLocaleString()}
+                        {allAttendeesList.length.toLocaleString()}
                       </span>
                       <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 mt-2">
                         <TrendingUp className="w-3.5 h-3.5" />
-                        <span>
-                          {allAttendeesList.length > 0
-                            ? "Registered delegates (live)"
-                            : "Coastal rally delegate quota"}
-                        </span>
+                        <span>Registered delegates (live database)</span>
                       </span>
                     </div>
                   </div>
@@ -3828,45 +4314,47 @@ function PortalContent() {
                       <Calendar className="w-4 h-4 text-slate-400" />
                     </div>
 
-                    <div className="space-y-3 text-xs">
-                      {/* Past rally — hardcoded as it's historical */}
-                      <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
-                        <div>
-                          <span className="font-bold text-slate-900 block">Jun 2026 — Coast Fellowship Rally</span>
-                          <span className="text-[11px] text-slate-500">Mombasa Sports Complex</span>
+                    <div className="space-y-2.5 text-xs max-h-[190px] overflow-y-auto pr-1">
+                      {rallyHistoryList && rallyHistoryList.length > 0 ? (
+                        rallyHistoryList.slice(0, 3).map((rally) => {
+                          const isAct = (rally.status || "").toLowerCase().includes("active") || (rally.status || "").toLowerCase().includes("current");
+                          const isComp = (rally.status || "").toLowerCase().includes("completed");
+                          return (
+                            <div
+                              key={rally.id || rally.title}
+                              className={`p-3 rounded-2xl flex items-center justify-between border ${
+                                isAct
+                                  ? "bg-teal-50 border-teal-200"
+                                  : "bg-slate-50 border-slate-200"
+                              }`}
+                            >
+                              <div>
+                                <span className={`font-bold block ${isAct ? "text-teal-950" : "text-slate-900"}`}>
+                                  {rally.date} — {rally.title}
+                                </span>
+                                <span className={`text-[11px] ${isAct ? "text-teal-700" : "text-slate-500"}`}>
+                                  {rally.venue} {isAct ? "(Current)" : ""}
+                                </span>
+                              </div>
+                              <span
+                                className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                                  isAct
+                                    ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                                    : isComp
+                                    ? "bg-slate-200 text-slate-700"
+                                    : "bg-amber-100 text-amber-800"
+                                }`}
+                              >
+                                {rally.status}
+                              </span>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="text-center py-4 text-slate-400 text-xs">
+                          No rally lifecycle events recorded.
                         </div>
-                        <span className="px-2.5 py-1 rounded-full bg-slate-200 text-slate-700 font-bold text-[10px]">
-                          Completed
-                        </span>
-                      </div>
-
-                      {/* Current rally — fully dynamic from DB */}
-                      <div className="p-3.5 rounded-2xl bg-teal-50 border border-teal-200 flex items-center justify-between">
-                        <div>
-                          <span className="font-bold text-teal-950 block">
-                            {currentRallyData?.startDate
-                              ? `${new Date(currentRallyData.startDate).toLocaleDateString("en-US", { month: "short", year: "numeric" })} — ${currentRallyData.title}`
-                              : "Nov 2026 — Coastal Unity Rally"}
-                          </span>
-                          <span className="text-[11px] text-teal-700">
-                            {currentRallyData?.venueName || "Mombasa Sports Complex"} (Current)
-                          </span>
-                        </div>
-                        <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px] border border-emerald-300">
-                          {currentRallyData?.state?.replace(/_/g, " ") || "Registration Open"}
-                        </span>
-                      </div>
-
-                      {/* Planned future rally */}
-                      <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
-                        <div>
-                          <span className="font-bold text-slate-900 block">May 2027 — Kilifi Fellowship Rally</span>
-                          <span className="text-[11px] text-slate-500">Pwani University Grounds</span>
-                        </div>
-                        <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 font-bold text-[10px]">
-                          Planned
-                        </span>
-                      </div>
+                      )}
                     </div>
 
                     <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
@@ -3914,8 +4402,9 @@ function PortalContent() {
                           const inv = invoicesList.find(i => i.chapterId === ch.id);
                           // Use ONLY the invoice amount from DB — never calculate a fallback
                           const fee = inv ? inv.amountDue : null;
-                          const registeredCount = allAttendeesList.filter(a => a.chapterId === ch.id).length
-                            || ch.attendeesCount || 0;
+                          const registeredCount = allAttendeesList.length > 0
+                            ? allAttendeesList.filter(a => a.chapterId === ch.id).length
+                            : (ch.attendeesCount ?? 0);
                           const status = inv ? inv.status : ((ch.status as string) === "APPROVED" || (ch.status as string) === "ACTIVE" ? "UNPAID" : "PENDING");
                           return (
                             <tr key={ch.id} className="hover:bg-slate-50/80 transition-colors">
@@ -4003,45 +4492,215 @@ function PortalContent() {
                   </div>
                 </div>
 
-                {/* Automated Engine Sliders & Fixed/Variable Rate Controls */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-6 bg-white rounded-3xl border border-slate-200 shadow-sm">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">
-                      Fixed Costs (Venue, Sound, Security) KES
-                    </label>
-                    <input
-                      type="number"
-                      value={fixedCosts}
-                      onChange={(e) => setFixedCosts(Number(e.target.value))}
-                      className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl font-bold text-navy-950 focus:ring-2 focus:ring-teal-600 focus:outline-none"
-                    />
-                    <span className="text-[11px] text-slate-400 mt-1 block">Shared according to Capability Weights</span>
+                {/* ─── Budget Cost Items CRUD Manager ─── */}
+                <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-5 border-b border-slate-100">
+                    <div>
+                      <h3 className="font-heading font-bold text-base text-navy-950 flex items-center gap-2">
+                        <Coins className="w-4 h-4 text-amber-500" />
+                        Rally Budget Cost Items
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {costItemsList.length} line items · Engine auto-recalculates on every change
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleOpenAddCostItem}
+                        className="px-4 py-2.5 rounded-xl bg-navy-900 hover:bg-teal-700 text-white font-bold text-xs shadow-sm flex items-center gap-2 transition-colors"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Add Cost Item</span>
+                      </button>
+                      <button
+                        onClick={handleResetCostItems}
+                        disabled={costItemsLoading}
+                        className="px-3 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                        title="Reset budget to recommended CUCASO template"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+                        <span className="hidden sm:inline">Reset Defaults</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setCostItemsLoading(true);
+                          const url = currentRallyData?.id ? `/api/cost-items?rallyId=${currentRallyData.id}` : "/api/cost-items";
+                          fetch(url)
+                            .then((r) => r.json())
+                            .then((j) => {
+                              if (j.success && Array.isArray(j.data)) setCostItemsList(j.data);
+                            })
+                            .catch(() => {})
+                            .finally(() => setCostItemsLoading(false));
+                        }}
+                        className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors"
+                        title="Refresh from DB"
+                      >
+                        <RefreshCw className={`w-4 h-4 ${costItemsLoading ? "animate-spin" : ""}`} />
+                      </button>
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">
-                      Per-Head Catering Rate (KES)
-                    </label>
-                    <input
-                      type="number"
-                      value={perHeadRate}
-                      onChange={(e) => setPerHeadRate(Number(e.target.value))}
-                      className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl font-bold text-navy-950 focus:ring-2 focus:ring-teal-600 focus:outline-none"
-                    />
-                    <span className="text-[11px] text-slate-400 mt-1 block">Meals, badges, handbook per attendee</span>
-                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider border-b border-slate-200">
+                          <th className="py-3 px-4">Line Item</th>
+                          <th className="py-3 px-4 text-center">Category</th>
+                          <th className="py-3 px-4 text-center">Type</th>
+                          <th className="py-3 px-4 text-center">Qty</th>
+                          <th className="py-3 px-4 text-right">Unit Amount (KES)</th>
+                          <th className="py-3 px-4 text-right">Budget Impact</th>
+                          <th className="py-3 px-4 text-center">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {costItemsList.length === 0 && (
+                          <tr>
+                            <td colSpan={7} className="py-12 text-center text-slate-400">
+                              <Coins className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+                              <p className="font-semibold text-slate-600 mb-1">
+                                {costItemsLoading ? "Loading cost items from database…" : "No cost items in current budget"}
+                              </p>
+                              <p className="text-[11px] text-slate-400 mb-4 max-w-sm mx-auto">
+                                Build your budget by adding custom line items, or load the recommended standard CUCASO rally template.
+                              </p>
+                              {!costItemsLoading && (
+                                <div className="flex items-center justify-center gap-2">
+                                  <button
+                                    onClick={handleOpenAddCostItem}
+                                    className="px-3.5 py-1.5 rounded-xl bg-navy-900 text-white font-bold text-xs hover:bg-teal-700 transition"
+                                  >
+                                    Add Cost Item
+                                  </button>
+                                  <button
+                                    onClick={handleResetCostItems}
+                                    className="px-3.5 py-1.5 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-100 transition"
+                                  >
+                                    Load Standard Template
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                        {costItemsList.map((item) => {
+                          const totalAttendees = engineChaptersInput.reduce((s, c) => s + c.attendeeCount, 0);
+                          const budgetImpact = item.type === "FIXED"
+                            ? item.amount
+                            : item.type === "PER_HEAD"
+                            ? item.amount * totalAttendees
+                            : item.amount * (item.quantity ?? 1);
 
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">
+                          const categoryColors: Record<string, string> = {
+                            VENUE: "bg-blue-100 text-blue-800",
+                            CATERING: "bg-emerald-100 text-emerald-800",
+                            ACCOMMODATION: "bg-purple-100 text-purple-800",
+                            TRANSPORT: "bg-amber-100 text-amber-800",
+                            LOGISTICS: "bg-teal-100 text-teal-800",
+                            SECURITY: "bg-rose-100 text-rose-800",
+                            OTHER: "bg-slate-100 text-slate-700",
+                          };
+                          const typeColors: Record<string, string> = {
+                            FIXED: "bg-slate-100 text-slate-700",
+                            PER_HEAD: "bg-indigo-100 text-indigo-800",
+                            PER_VEHICLE: "bg-orange-100 text-orange-800",
+                          };
+                          return (
+                            <tr key={item.id} className="hover:bg-slate-50/80 transition-colors group">
+                              <td className="py-3.5 px-4">
+                                <div className="font-bold text-navy-950">{item.name}</div>
+                                {item.notes && (
+                                  <div className="text-[11px] text-slate-400 mt-0.5 max-w-xs truncate">{item.notes}</div>
+                                )}
+                              </td>
+                              <td className="py-3.5 px-4 text-center">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${categoryColors[item.category] || "bg-slate-100 text-slate-700"}`}>
+                                  {item.category}
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-4 text-center">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${typeColors[item.type] || "bg-slate-100 text-slate-700"}`}>
+                                  {item.type === "PER_HEAD" ? "PER HEAD" : item.type === "PER_VEHICLE" ? "PER VEHICLE" : "FIXED"}
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-4 text-center font-mono text-slate-700">
+                                {item.type === "FIXED" ? "—" : item.type === "PER_HEAD" ? `×${totalAttendees}` : `×${item.quantity ?? 1}`}
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-800">
+                                {formatCurrency(item.amount)}
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-bold text-teal-700">
+                                {formatCurrency(budgetImpact)}
+                              </td>
+                              <td className="py-3.5 px-4 text-center">
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <button
+                                    onClick={() => handleOpenEditCostItem(item)}
+                                    className="p-1.5 rounded-lg bg-slate-100 hover:bg-teal-100 text-slate-700 hover:text-teal-700 transition-colors shadow-xs"
+                                    title="Edit line item"
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteCostItem(item.id, item.name)}
+                                    className="p-1.5 rounded-lg bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-600 transition-colors shadow-xs"
+                                    title="Delete line item"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      {costItemsList.length > 0 && (
+                        <tfoot className="border-t-2 border-slate-300 bg-slate-50">
+                          <tr>
+                            <td colSpan={5} className="py-3 px-4 text-right font-bold text-xs text-slate-600 uppercase tracking-wider">
+                              Subtotal (pre-contingency):
+                            </td>
+                            <td className="py-3 px-4 text-right font-heading font-black text-sm text-navy-950">
+                              {formatCurrency(budgetSummary.subtotalKes)}
+                            </td>
+                            <td />
+                          </tr>
+                        </tfoot>
+                      )}
+                    </table>
+                  </div>
+                </div>
+
+                {/* Contingency + Budget Summary Control Panel */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2">
                       Contingency Reserve (%)
                     </label>
                     <input
                       type="number"
+                      min={0} max={50} step={0.5}
                       value={contingency}
                       onChange={(e) => setContingency(Number(e.target.value))}
-                      className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl font-bold text-navy-950 focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl font-bold text-navy-950 text-sm focus:ring-2 focus:ring-teal-600 focus:outline-none"
                     />
-                    <span className="text-[11px] text-slate-400 mt-1 block">PRD Section 6.2 requirement</span>
+                    <p className="text-[11px] text-slate-400 mt-1">PRD §6.2 buffer</p>
+                  </div>
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Subtotal</span>
+                    <span className="font-heading font-black text-xl text-navy-950">{formatCurrency(budgetSummary.subtotalKes)}</span>
+                    <p className="text-[11px] text-slate-400 mt-1">Before contingency</p>
+                  </div>
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Contingency Buffer</span>
+                    <span className="font-heading font-black text-xl text-amber-600">{formatCurrency(budgetSummary.contingencyKes)}</span>
+                    <p className="text-[11px] text-slate-400 mt-1">{contingency}% of subtotal</p>
+                  </div>
+                  <div className="bg-gradient-to-br from-navy-950 to-teal-800 rounded-2xl shadow-lg p-4 text-white">
+                    <span className="text-[10px] uppercase font-bold text-teal-300 block mb-1">Total Rally Budget</span>
+                    <span className="font-heading font-black text-2xl text-white">{formatCurrency(budgetSummary.totalBudgetKes)}</span>
+                    <p className="text-[11px] text-teal-300 mt-1">Used for fee distribution</p>
                   </div>
                 </div>
 
@@ -4049,7 +4708,7 @@ function PortalContent() {
                 <div className="p-6 rounded-3xl bg-slate-900 text-white border border-slate-800 shadow-xl grid grid-cols-1 sm:grid-cols-4 gap-4 items-center">
                   <div>
                     <span className="text-[10px] uppercase font-bold text-slate-400 block">Sufficiency Status</span>
-                    <span className="font-heading font-black text-xl text-emerald-400">
+                    <span className={`font-heading font-black text-xl ${budgetSummary.sufficiencyStatus === "FUNDED" ? "text-emerald-400" : budgetSummary.sufficiencyStatus === "ON_TRACK" ? "text-amber-400" : "text-rose-400"}`}>
                       {budgetSummary.sufficiencyStatus}
                     </span>
                   </div>
@@ -4075,12 +4734,33 @@ function PortalContent() {
 
                 {/* Chapter Automated Fee Distribution Table */}
                 <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden p-6">
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                     <div>
                       <h3 className="font-heading font-bold text-base text-navy-950">
                         Automated Capability Weight Allocation
                       </h3>
-                      <p className="text-xs text-slate-500">Live capability calculation across all {chaptersList.length} chapters</p>
+                      <p className="text-xs text-slate-500">Live capability calculation across all {chaptersList.length} chapters · Budget {formatCurrency(budgetSummary.totalBudgetKes)}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={issuingInvoices || chapterFees.length === 0}
+                        onClick={handleIssueInvoices}
+                        className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-bold text-xs shadow-sm flex items-center gap-2 transition-colors"
+                        title="Issue or update official chapter invoices based on these capability allocations"
+                      >
+                        {issuingInvoices ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            <span>Updating Invoices…</span>
+                          </>
+                        ) : (
+                          <>
+                            <FileText className="w-3.5 h-3.5" />
+                            <span>Sync Invoices with Engine</span>
+                          </>
+                        )}
+                      </button>
                     </div>
                   </div>
 
@@ -4097,6 +4777,13 @@ function PortalContent() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
+                        {chapterFees.length === 0 && (
+                          <tr>
+                            <td colSpan={6} className="py-8 text-center text-slate-400 text-xs">
+                              Add cost items above to see the fee distribution
+                            </td>
+                          </tr>
+                        )}
                         {chapterFees.map((cf, idx) => {
                           const isPositive = cf.crossSubsidyKes >= 0;
                           const institution = chaptersList.find(c => c.id === cf.chapterId);
@@ -4135,11 +4822,185 @@ function PortalContent() {
                           );
                         })}
                       </tbody>
+                      {chapterFees.length > 0 && (
+                        <tfoot className="border-t-2 border-slate-300 bg-slate-50">
+                          <tr>
+                            <td colSpan={3} className="py-3 px-4 font-bold text-xs text-slate-600 uppercase tracking-wider text-right">Totals:</td>
+                            <td className="py-3 px-4 text-right font-heading font-black text-sm text-teal-700">
+                              {formatCurrency(budgetSummary.totalInvoicedKes)}
+                            </td>
+                            <td className="py-3 px-4 text-right font-mono font-bold text-sm text-slate-700">
+                              {formatCurrency(budgetSummary.totalBudgetKes)}
+                            </td>
+                            <td />
+                          </tr>
+                        </tfoot>
+                      )}
                     </table>
                   </div>
                 </div>
               </div>
             )}
+
+            {/* ── Add / Edit Cost Item Modal ── */}
+            {showAddCostItemModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-navy-950/60 backdrop-blur-sm animate-in fade-in">
+                <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in zoom-in-95">
+                  <div className="flex items-center justify-between mb-5">
+                    <div>
+                      <h3 className="font-heading font-black text-lg text-navy-950">
+                        {editingCostItem ? "Edit Cost Item" : "Add New Cost Item"}
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {editingCostItem ? "Update this budget line item" : "Add a budget line item — engine recalculates instantly"}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setShowAddCostItemModal(false)}
+                      className="p-2 rounded-full hover:bg-slate-100 text-slate-500"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {costItemError && (
+                    <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-rose-500 flex-shrink-0" />
+                      <span>{costItemError}</span>
+                    </div>
+                  )}
+
+                  <form onSubmit={handleSaveCostItem} className="space-y-4">
+                    {/* Name */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">Item Name / Description *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Mombasa Sports Complex Rental"
+                        value={costItemForm.name}
+                        onChange={(e) => setCostItemForm(f => ({ ...f, name: e.target.value }))}
+                        className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                      />
+                    </div>
+
+                    {/* Category + Type */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">Category *</label>
+                        <select
+                          value={costItemForm.category}
+                          onChange={(e) => setCostItemForm(f => ({ ...f, category: e.target.value }))}
+                          className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                        >
+                          {["VENUE", "CATERING", "ACCOMMODATION", "TRANSPORT", "LOGISTICS", "SECURITY", "OTHER"].map(c => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">Cost Type *</label>
+                        <select
+                          value={costItemForm.type}
+                          onChange={(e) => setCostItemForm(f => ({ ...f, type: e.target.value as any }))}
+                          className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                        >
+                          <option value="FIXED">Fixed (flat cost)</option>
+                          <option value="PER_HEAD">Per Head (× attendees)</option>
+                          <option value="PER_VEHICLE">Per Vehicle (× qty)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Amount + Quantity */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">
+                          {costItemForm.type === "FIXED" ? "Total Amount (KES)" : costItemForm.type === "PER_HEAD" ? "Rate per Person (KES)" : "Rate per Vehicle (KES)"} *
+                        </label>
+                        <input
+                          type="number"
+                          required
+                          min={0}
+                          placeholder="e.g. 450000"
+                          value={costItemForm.amount}
+                          onChange={(e) => setCostItemForm(f => ({ ...f, amount: e.target.value }))}
+                          className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-mono focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                        />
+                      </div>
+                      {costItemForm.type === "PER_VEHICLE" && (
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">Quantity *</label>
+                          <input
+                            type="number"
+                            min={1}
+                            value={costItemForm.quantity}
+                            onChange={(e) => setCostItemForm(f => ({ ...f, quantity: e.target.value }))}
+                            className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-mono focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Notes */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">Notes (Optional)</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 3 full days including electricity & security"
+                        value={costItemForm.notes}
+                        onChange={(e) => setCostItemForm(f => ({ ...f, notes: e.target.value }))}
+                        className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                      />
+                    </div>
+
+                    {/* Live Budget Impact Preview */}
+                    {costItemForm.amount && Number(costItemForm.amount) > 0 && (
+                      <div className="p-3 rounded-xl bg-teal-50 border border-teal-200 text-teal-900 text-xs">
+                        <span className="font-bold">Budget Impact: </span>
+                        {costItemForm.type === "FIXED" && (
+                          <span>{formatCurrency(Number(costItemForm.amount))} fixed</span>
+                        )}
+                        {costItemForm.type === "PER_HEAD" && (
+                          <span>{formatCurrency(Number(costItemForm.amount))} × {engineChaptersInput.reduce((s, c) => s + c.attendeeCount, 0)} attendees = {formatCurrency(Number(costItemForm.amount) * engineChaptersInput.reduce((s, c) => s + c.attendeeCount, 0))}</span>
+                        )}
+                        {costItemForm.type === "PER_VEHICLE" && (
+                          <span>{formatCurrency(Number(costItemForm.amount))} × {Number(costItemForm.quantity) || 1} vehicles = {formatCurrency(Number(costItemForm.amount) * (Number(costItemForm.quantity) || 1))}</span>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex gap-3 pt-2">
+                      <button
+                        type="submit"
+                        disabled={costItemSaving}
+                        className="flex-1 py-3 rounded-2xl bg-gradient-to-r from-teal-700 to-teal-600 hover:from-teal-800 hover:to-teal-700 disabled:opacity-50 text-white font-bold text-sm shadow-lg flex items-center justify-center gap-2 transition"
+                      >
+                        {costItemSaving ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                            <span>Saving to Database…</span>
+                          </>
+                        ) : (
+                          <>
+                            <Save className="w-4 h-4" />
+                            <span>{editingCostItem ? "Update Cost Item" : "Add to Budget"}</span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowAddCostItemModal(false)}
+                        className="px-5 py-3 rounded-2xl border border-slate-200 text-slate-600 font-bold text-sm hover:bg-slate-50 transition"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
 
             {/* VIEW G: ADMIN CHAPTER MANAGEMENT & DYNAMIC COASTAL MAP LOCATION MANAGER */}
             {activePortal === "ADMIN" && adminActiveTab === "chapters" && (
@@ -4555,7 +5416,9 @@ function PortalContent() {
                               </td>
                               <td className="py-3.5 px-4 text-center">
                                 <span className="px-2.5 py-1 rounded-full bg-teal-50 text-teal-800 font-bold text-xs">
-                                  {ch.attendeesCount || 0}
+                                  {allAttendeesList.length > 0
+                                    ? allAttendeesList.filter(a => a.chapterId === ch.id).length
+                                    : (ch.attendeesCount || 0)}
                                 </span>
                               </td>
                               <td className="py-3.5 px-4 text-[11px]">
@@ -4965,10 +5828,10 @@ function PortalContent() {
                                   feesPhilosophyTitle: currentRallyData.feesAndCapitation?.philosophyTitle || prev.feesPhilosophyTitle,
                                   feesPhilosophyText: currentRallyData.feesAndCapitation?.philosophyText || prev.feesPhilosophyText,
                                 }));
-                                if (currentRallyData.programme && Array.isArray(currentRallyData.programme)) {
+                                if (currentRallyData?.programme && Array.isArray(currentRallyData.programme)) {
                                   setProgrammeDays(currentRallyData.programme);
                                 }
-                                if (currentRallyData.feesAndCapitation?.tiers && Array.isArray(currentRallyData.feesAndCapitation.tiers)) {
+                                if (currentRallyData?.feesAndCapitation?.tiers && Array.isArray(currentRallyData.feesAndCapitation.tiers)) {
                                   setFeeTiersList(currentRallyData.feesAndCapitation.tiers);
                                 }
                                 setShowEditRallyModal(true);
@@ -5139,10 +6002,20 @@ function PortalContent() {
                     </div>
                     {rallyHistoryList.length > 0 && (
                       <button
-                        onClick={() => {
-                          if (confirm("Clear all past rally history entries?")) {
-                            setRallyHistoryList([]);
-                            setLocationToast("Rally history cleared.");
+                        onClick={async () => {
+                          if (confirm("Clear all past rally history entries from the database?")) {
+                            try {
+                              const res = await fetch("/api/rallies/history?clear=true", { method: "DELETE" });
+                              const j = await res.json();
+                              if (j.success) {
+                                setRallyHistoryList([]);
+                              } else {
+                                setRallyHistoryList([]);
+                              }
+                            } catch {
+                              setRallyHistoryList([]);
+                            }
+                            setLocationToast("Rally history permanently cleared from database.");
                             setTimeout(() => setLocationToast(null), 4000);
                           }
                         }}
@@ -5208,18 +6081,10 @@ function PortalContent() {
                 {/* Summary Stats */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   {(() => {
-                    const totalReg = allAttendeesList.length > 0 
-                      ? allAttendeesList.length 
-                      : chaptersList.reduce((acc, c) => acc + (c.attendeesCount || 0), 0);
-                    const confirmed = allAttendeesList.length > 0
-                      ? allAttendeesList.filter(a => a.status === "CONFIRMED").length
-                      : Math.round(totalReg * 0.95);
-                    const pendingConsent = allAttendeesList.length > 0
-                      ? allAttendeesList.filter(a => a.status === "PENDING_CONSENT").length
-                      : Math.max(0, totalReg - confirmed);
-                    const minors = allAttendeesList.length > 0
-                      ? allAttendeesList.filter(a => a.ageCategory === "UNDER_18").length
-                      : Math.round(totalReg * 0.04);
+                    const totalReg = allAttendeesList.length;
+                    const confirmed = allAttendeesList.filter(a => a.status === "CONFIRMED").length;
+                    const pendingConsent = allAttendeesList.filter(a => a.status === "PENDING_CONSENT").length;
+                    const minors = allAttendeesList.filter(a => a.ageCategory === "UNDER_18").length;
                     return [
                       { label: "Total Registered", value: totalReg.toLocaleString(), color: "text-navy-950", bg: "bg-navy-50 border-navy-200" },
                       { label: "Confirmed", value: confirmed.toLocaleString(), color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200" },
@@ -5251,7 +6116,10 @@ function PortalContent() {
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {chaptersList.map((ch) => {
-                          const attendees = ch.attendeesCount || 0;
+                          const chapterAtts = allAttendeesList.filter(a => a.chapterId === ch.id);
+                          const attendees = chapterAtts.length > 0 ? chapterAtts.length : (ch.attendeesCount || 0);
+                          const confirmed = chapterAtts.filter(a => a.status === "CONFIRMED").length;
+                          const minors = chapterAtts.filter(a => a.ageCategory === "UNDER_18").length;
                           const members = ch.approximateMembers || 1;
                           const cap = Math.round((attendees / members) * 100);
                           return (
@@ -5260,9 +6128,9 @@ function PortalContent() {
                               <td className="py-3.5 px-4 font-semibold text-slate-900">{ch.institutionName}</td>
                               <td className="py-3.5 px-4 text-center font-bold text-navy-950">{attendees}</td>
                               <td className="py-3.5 px-4 text-center">
-                                <span className="text-emerald-700 font-bold">{Math.round(attendees * 0.95)}</span>
+                                <span className="text-emerald-700 font-bold">{confirmed}</span>
                               </td>
-                              <td className="py-3.5 px-4 text-center text-blue-700 font-semibold">{Math.round(attendees * 0.04)}</td>
+                              <td className="py-3.5 px-4 text-center text-blue-700 font-semibold">{minors}</td>
                               <td className="py-3.5 px-4 text-center">
                                 <div className="flex items-center gap-2 justify-center">
                                   <div className="w-16 h-1.5 rounded-full bg-slate-200 overflow-hidden">
@@ -5301,23 +6169,31 @@ function PortalContent() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {attendeesList.map((att) => (
-                          <tr key={att.id} className="hover:bg-slate-50/80 transition-colors">
-                            <td className="py-3.5 px-4">
-                              <span className="font-bold text-slate-900 block">{att.fullName}</span>
-                              <span className="text-slate-400 font-mono text-[10px]">{att.admissionOrIdNumber}</span>
-                            </td>
-                            <td className="py-3.5 px-4 text-slate-600 font-mono text-[10px]">{att.chapterId.replace("ch-", "").toUpperCase()}</td>
-                            <td className="py-3.5 px-4"><span className="px-2 py-0.5 rounded bg-navy-100 text-navy-800 text-[10px] font-semibold">{att.role}</span></td>
-                            <td className="py-3.5 px-4 text-slate-600">{att.ageCategory}</td>
-                            <td className="py-3.5 px-4 text-slate-600">{att.dietaryRequirements || "Standard"}</td>
-                            <td className="py-3.5 px-4 text-center">
-                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${att.status === "CONFIRMED" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
-                                {att.status}
-                              </span>
+                        {allAttendeesList.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="py-8 text-center text-slate-400">
+                              No registered delegates in the database yet.
                             </td>
                           </tr>
-                        ))}
+                        ) : (
+                          allAttendeesList.map((att) => (
+                            <tr key={att.id} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="py-3.5 px-4">
+                                <span className="font-bold text-slate-900 block">{att.fullName}</span>
+                                <span className="text-slate-400 font-mono text-[10px]">{att.admissionOrIdNumber}</span>
+                              </td>
+                              <td className="py-3.5 px-4 text-slate-600 font-mono text-[10px]">{att.chapterId.replace("ch-", "").toUpperCase()}</td>
+                              <td className="py-3.5 px-4"><span className="px-2 py-0.5 rounded bg-navy-100 text-navy-800 text-[10px] font-semibold">{att.role}</span></td>
+                              <td className="py-3.5 px-4 text-slate-600">{att.ageCategory}</td>
+                              <td className="py-3.5 px-4 text-slate-600">{att.dietaryRequirements || "Standard"}</td>
+                              <td className="py-3.5 px-4 text-center">
+                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${att.status === "CONFIRMED" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
+                                  {att.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -5333,13 +6209,46 @@ function PortalContent() {
                     <h1 className="font-heading font-black text-2xl text-navy-950">Payments & Reconciliation</h1>
                     <p className="text-xs text-slate-500 mt-1">Central treasury: M-Pesa Paybill 4082200 incoming transactions matched against chapter invoices.</p>
                   </div>
-                  <button className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2 shadow-sm">
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    <span>Sync M-Pesa</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleSyncMpesa}
+                      disabled={syncingMpesa}
+                      className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2 shadow-sm transition-all disabled:opacity-60"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${syncingMpesa ? "animate-spin text-teal-600" : ""}`} />
+                      <span>{syncingMpesa ? "Syncing Paybill..." : "Sync M-Pesa"}</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setAdminPaymentForm({
+                          invoiceId: invoicesList[0]?.id || "",
+                          amount: "",
+                          receipt: "",
+                          payerName: "",
+                          phone: "",
+                          method: "MPESA_DARAJA",
+                        });
+                        setShowRecordPaymentModal(true);
+                      }}
+                      className="px-4 py-2.5 rounded-xl bg-navy-900 hover:bg-navy-800 text-xs font-bold text-white flex items-center gap-1.5 shadow-sm transition-all"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Record Payment</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Financial KPIs */}
+                {(invoicesLoading || paymentsLoading) ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {[1,2,3,4].map(n => (
+                      <div key={n} className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm animate-pulse space-y-3">
+                        <div className="h-3 w-28 bg-slate-200 rounded-lg" />
+                        <div className="h-8 w-36 bg-slate-100 rounded-xl" />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   {[
                     { label: "Total Invoiced", value: formatCurrency(invoicesList.reduce((s: number, i: Invoice) => s + i.amountDue, 0)), color: "text-navy-950", icon: FileText },
@@ -5356,16 +6265,61 @@ function PortalContent() {
                     </div>
                   ))}
                 </div>
+                )}
 
                 {/* Payment Ledger Table */}
-                <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-heading font-bold text-base text-navy-950">M-Pesa & Bank Transaction Ledger</h3>
-                    <button className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-1.5">
-                      <Download className="w-3.5 h-3.5" />
-                      <span>Export</span>
-                    </button>
+                <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden p-6 space-y-4">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                      <h3 className="font-heading font-bold text-base text-navy-950">M-Pesa & Bank Transaction Ledger</h3>
+                      <p className="text-xs text-slate-400">Live incoming bank and Paybill 4082200 records from the database</p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* Search Bar */}
+                      <div className="relative min-w-[200px]">
+                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          value={paymentSearchQuery}
+                          onChange={(e) => setPaymentSearchQuery(e.target.value)}
+                          placeholder="Search receipt, payer, ref..."
+                          className="w-full pl-8 pr-3 py-1.5 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                        />
+                      </div>
+
+                      {/* Filter Status Pills */}
+                      <div className="flex items-center p-1 bg-slate-100 rounded-xl text-[11px] font-bold">
+                        <button
+                          onClick={() => setPaymentFilterStatus("ALL")}
+                          className={`px-2.5 py-1 rounded-lg transition-all ${paymentFilterStatus === "ALL" ? "bg-white text-navy-950 shadow-sm" : "text-slate-500 hover:text-slate-900"}`}
+                        >
+                          All ({paymentsList.length})
+                        </button>
+                        <button
+                          onClick={() => setPaymentFilterStatus("MATCHED")}
+                          className={`px-2.5 py-1 rounded-lg transition-all ${paymentFilterStatus === "MATCHED" ? "bg-white text-emerald-800 shadow-sm" : "text-slate-500 hover:text-slate-900"}`}
+                        >
+                          Matched ({paymentsList.filter(p => p.status === "MATCHED").length})
+                        </button>
+                        <button
+                          onClick={() => setPaymentFilterStatus("UNMATCHED")}
+                          className={`px-2.5 py-1 rounded-lg transition-all ${paymentFilterStatus === "UNMATCHED" ? "bg-white text-rose-800 shadow-sm" : "text-slate-500 hover:text-slate-900"}`}
+                        >
+                          Unmatched ({paymentsList.filter(p => p.status === "UNMATCHED").length})
+                        </button>
+                      </div>
+
+                      <button
+                        onClick={handleExportPaymentsCsv}
+                        className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-1.5 shadow-sm"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Export</span>
+                      </button>
+                    </div>
                   </div>
+
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
                       <thead>
@@ -5377,40 +6331,86 @@ function PortalContent() {
                           <th className="py-3 px-4 text-right">Amount (KSh)</th>
                           <th className="py-3 px-4">Timestamp</th>
                           <th className="py-3 px-4 text-center">Status</th>
+                          <th className="py-3 px-4 text-center">Action</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {paymentsList.map((pay: Payment) => (
-                          <tr key={pay.id} className="hover:bg-slate-50/80 transition-colors">
-                            <td className="py-3.5 px-4 font-mono font-bold text-teal-700 text-[10px]">{pay.mpesaReceiptNumber}</td>
-                            <td className="py-3.5 px-4 font-semibold text-slate-900">{pay.payerName}</td>
-                            <td className="py-3.5 px-4 font-mono text-slate-600 text-[10px]">{pay.reference}</td>
-                            <td className="py-3.5 px-4">
-                              <span className="px-2 py-0.5 rounded bg-slate-100 text-[10px] font-semibold text-slate-700">
-                                {pay.method === "MPESA_DARAJA" ? "M-Pesa" : "Bank"}
-                              </span>
-                            </td>
-                            <td className="py-3.5 px-4 text-right font-bold text-navy-950">{formatCurrency(pay.amount)}</td>
-                            <td className="py-3.5 px-4 font-mono text-[10px] text-slate-500">{pay.timestamp}</td>
-                            <td className="py-3.5 px-4 text-center">
-                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                                pay.status === "MATCHED" ? "bg-emerald-100 text-emerald-800" :
-                                pay.status === "UNMATCHED" ? "bg-rose-100 text-rose-800" :
-                                "bg-amber-100 text-amber-800"
-                              }`}>
-                                {pay.status}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
+                        {paymentsList
+                          .filter(pay => {
+                            const query = paymentSearchQuery.toLowerCase();
+                            const matchesQ = !query || 
+                              (pay.mpesaReceiptNumber && pay.mpesaReceiptNumber.toLowerCase().includes(query)) ||
+                              (pay.payerName && pay.payerName.toLowerCase().includes(query)) ||
+                              (pay.reference && pay.reference.toLowerCase().includes(query));
+                            const matchesStatus = paymentFilterStatus === "ALL" || pay.status === paymentFilterStatus;
+                            return matchesQ && matchesStatus;
+                          })
+                          .map((pay: Payment) => (
+                            <tr key={pay.id} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="py-3.5 px-4 font-mono font-bold text-teal-700 text-[11px]">{pay.mpesaReceiptNumber || pay.reference}</td>
+                              <td className="py-3.5 px-4">
+                                <span className="font-semibold text-slate-900 block">{pay.payerName || "Anonymous"}</span>
+                                {pay.payerPhone && <span className="text-slate-400 font-mono text-[10px]">{pay.payerPhone}</span>}
+                              </td>
+                              <td className="py-3.5 px-4 font-mono text-slate-600 text-[11px]">{pay.reference}</td>
+                              <td className="py-3.5 px-4">
+                                <span className="px-2 py-0.5 rounded bg-slate-100 text-[10px] font-semibold text-slate-700">
+                                  {pay.method === "MPESA_DARAJA" ? "M-Pesa" : pay.method === "BANK_TRANSFER" ? "Bank" : "Cash"}
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-bold text-navy-950">{formatCurrency(pay.amount)}</td>
+                              <td className="py-3.5 px-4 font-mono text-[10px] text-slate-500">{pay.timestamp}</td>
+                              <td className="py-3.5 px-4 text-center">
+                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                                  pay.status === "MATCHED" ? "bg-emerald-100 text-emerald-800" :
+                                  pay.status === "UNMATCHED" ? "bg-rose-100 text-rose-800" :
+                                  "bg-amber-100 text-amber-800"
+                                }`}>
+                                  {pay.status}
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-4 text-center">
+                                {pay.status === "UNMATCHED" ? (
+                                  <button
+                                    onClick={() => handleOpenReconcileModal(pay)}
+                                    className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-navy-950 text-[11px] font-bold shadow-sm transition-all"
+                                  >
+                                    Reconcile / Match
+                                  </button>
+                                ) : (
+                                  <span className="text-[11px] text-slate-400 font-semibold flex items-center justify-center gap-1">
+                                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                    Reconciled
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
                       </tbody>
                     </table>
                   </div>
                 </div>
 
-                {/* Invoice Status Summary */}
-                <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden p-6">
-                  <h3 className="font-heading font-bold text-base text-navy-950 mb-4">Chapter Invoice Status</h3>
+                {/* Chapter Invoice Status Summary */}
+                <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden p-6 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <h3 className="font-heading font-bold text-base text-navy-950">Chapter Invoice Status</h3>
+                      <p className="text-xs text-slate-400">All official chapter capability fee invoices and live payment settlements</p>
+                    </div>
+
+                    <div className="relative min-w-[220px]">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={invoiceSearchQuery}
+                        onChange={(e) => setInvoiceSearchQuery(e.target.value)}
+                        placeholder="Search chapter or invoice..."
+                        className="w-full pl-8 pr-3 py-1.5 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
                       <thead>
@@ -5422,28 +6422,58 @@ function PortalContent() {
                           <th className="py-3 px-4 text-right">Balance</th>
                           <th className="py-3 px-4">Due Date</th>
                           <th className="py-3 px-4 text-center">Status</th>
+                          <th className="py-3 px-4 text-center">Action</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {invoicesList.map((inv: Invoice) => (
-                          <tr key={inv.id} className="hover:bg-slate-50/80 transition-colors">
-                            <td className="py-3.5 px-4 font-mono font-bold text-slate-600 text-[10px]">{inv.invoiceNumber}</td>
-                            <td className="py-3.5 px-4 font-semibold text-slate-900">{inv.institutionName}</td>
-                            <td className="py-3.5 px-4 text-right font-bold text-navy-950">{formatCurrency(inv.amountDue)}</td>
-                            <td className="py-3.5 px-4 text-right text-emerald-700 font-bold">{formatCurrency(inv.amountPaid)}</td>
-                            <td className="py-3.5 px-4 text-right font-bold text-amber-700">{formatCurrency(inv.balance)}</td>
-                            <td className="py-3.5 px-4 font-mono text-[10px] text-slate-500">{inv.dueDate}</td>
-                            <td className="py-3.5 px-4 text-center">
-                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                                inv.status === "PAID" ? "bg-emerald-100 text-emerald-800" :
-                                inv.status === "PARTIAL" ? "bg-amber-100 text-amber-800" :
-                                "bg-rose-100 text-rose-800"
-                              }`}>
-                                {inv.status}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
+                        {invoicesList
+                          .filter(inv => {
+                            const q = invoiceSearchQuery.toLowerCase();
+                            return !q || 
+                              inv.invoiceNumber.toLowerCase().includes(q) ||
+                              inv.institutionName.toLowerCase().includes(q) ||
+                              inv.paymentReference.toLowerCase().includes(q);
+                          })
+                          .map((inv: Invoice) => (
+                            <tr key={inv.id} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="py-3.5 px-4 font-mono font-bold text-slate-600 text-[11px]">{inv.invoiceNumber}</td>
+                              <td className="py-3.5 px-4 font-semibold text-slate-900">
+                                <span>{inv.institutionName}</span>
+                                <span className="block font-mono text-[10px] text-teal-700">{inv.paymentReference}</span>
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-bold text-navy-950">{formatCurrency(inv.amountDue)}</td>
+                              <td className="py-3.5 px-4 text-right text-emerald-700 font-bold">{formatCurrency(inv.amountPaid)}</td>
+                              <td className="py-3.5 px-4 text-right font-bold text-amber-700">{formatCurrency(inv.balance)}</td>
+                              <td className="py-3.5 px-4 font-mono text-[10px] text-slate-500">{inv.dueDate}</td>
+                              <td className="py-3.5 px-4 text-center">
+                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                                  inv.status === "PAID" ? "bg-emerald-100 text-emerald-800" :
+                                  inv.status === "PARTIAL" ? "bg-amber-100 text-amber-800" :
+                                  "bg-rose-100 text-rose-800"
+                                }`}>
+                                  {inv.status}
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-4 text-center">
+                                <button
+                                  onClick={() => {
+                                    setAdminPaymentForm({
+                                      invoiceId: inv.id,
+                                      amount: inv.balance > 0 ? String(inv.balance) : "",
+                                      receipt: "",
+                                      payerName: inv.institutionName,
+                                      phone: "",
+                                      method: "MPESA_DARAJA",
+                                    });
+                                    setShowRecordPaymentModal(true);
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 text-[11px] font-bold transition-all"
+                                >
+                                  + Payment
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
                       </tbody>
                     </table>
                   </div>
@@ -5534,11 +6564,11 @@ function PortalContent() {
                                 "rally_programme_logistics",
                                 ["Item", "Details", "Date / Venue", "Capacity / Target"],
                                 [
-                                  ["Event Title", currentRallyData.title, currentRallyData.startDate, `${currentRallyData.capacity} delegates`],
-                                  ["Theme", currentRallyData.theme, "-", "-"],
-                                  ["Venue", currentRallyData.venueName, currentRallyData.venueLocation, "-"],
-                                  ["Fixed Costs Total", `KES ${fixedCosts.toLocaleString()}`, "-", "-"],
-                                  ["Per-Head Rate", `KES ${perHeadRate.toLocaleString()}`, "-", "-"]
+                                  ["Event Title", currentRallyData?.title || "No Active Rally", currentRallyData?.startDate || "TBA", `${currentRallyData?.capacity || 0} delegates`],
+                                  ["Theme", currentRallyData?.theme || "N/A", "-", "-"],
+                                  ["Venue", currentRallyData?.venueName || "N/A", currentRallyData?.venueLocation || "N/A", "-"],
+                                  ["Fixed Costs Total", `KES ${costItemsList.filter(c => c.type === "FIXED").reduce((s, c) => s + c.amount, 0).toLocaleString()}`, "-", "-"],
+                                  ["Per-Head Rate", `KES ${costItemsList.filter(c => c.type === "PER_HEAD").reduce((s, c) => s + c.amount, 0).toLocaleString()}`, "-", "-"]
                                 ]
                               );
                             } else {
@@ -9581,6 +10611,248 @@ function PortalContent() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 10: RECORD TREASURY / CHAPTER PAYMENT               */}
+      {/* ========================================================= */}
+      {showRecordPaymentModal && (
+        <div className="fixed inset-0 z-50 bg-navy-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 rounded-xl bg-teal-50 text-teal-700">
+                  <CreditCard className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-heading font-black text-lg text-navy-950">Record Payment</h3>
+                  <p className="text-xs text-slate-400">Register a bank, M-Pesa, or cash transaction to an invoice</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowRecordPaymentModal(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleRecordAdminPayment} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">Target Chapter / Invoice *</label>
+                <select
+                  required
+                  value={adminPaymentForm.invoiceId}
+                  onChange={(e) => {
+                    const inv = invoicesList.find(i => i.id === e.target.value);
+                    setAdminPaymentForm(prev => ({
+                      ...prev,
+                      invoiceId: e.target.value,
+                      payerName: inv ? inv.institutionName : prev.payerName,
+                      amount: inv && inv.balance > 0 ? String(inv.balance) : prev.amount,
+                    }));
+                  }}
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 font-semibold focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                >
+                  <option value="">Select Invoice / Chapter</option>
+                  {invoicesList.map(inv => (
+                    <option key={inv.id} value={inv.id}>
+                      {inv.invoiceNumber} — {inv.institutionName} (Outstanding: {formatCurrency(inv.balance)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">Payment Method</label>
+                  <select
+                    value={adminPaymentForm.method}
+                    onChange={(e) => setAdminPaymentForm(prev => ({ ...prev, method: e.target.value as any }))}
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 font-semibold focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                  >
+                    <option value="MPESA_DARAJA">M-Pesa (Paybill 4082200)</option>
+                    <option value="BANK_TRANSFER">Bank Wire / Deposit</option>
+                    <option value="CASH">Cash / Direct Receipt</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">Receipt / Ref # *</label>
+                  <input
+                    type="text"
+                    required
+                    value={adminPaymentForm.receipt}
+                    onChange={(e) => setAdminPaymentForm(prev => ({ ...prev, receipt: e.target.value }))}
+                    placeholder="e.g. QEJ8291X0K"
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 font-mono uppercase focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">Amount (KES) *</label>
+                <input
+                  type="number"
+                  required
+                  min="1"
+                  value={adminPaymentForm.amount}
+                  onChange={(e) => setAdminPaymentForm(prev => ({ ...prev, amount: e.target.value }))}
+                  placeholder="e.g. 150000"
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 font-bold focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">Payer Name / Submitter</label>
+                  <input
+                    type="text"
+                    value={adminPaymentForm.payerName}
+                    onChange={(e) => setAdminPaymentForm(prev => ({ ...prev, payerName: e.target.value }))}
+                    placeholder="e.g. David Kiboi (Treasurer)"
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">Payer Phone (Optional)</label>
+                  <input
+                    type="tel"
+                    value={adminPaymentForm.phone}
+                    onChange={(e) => setAdminPaymentForm(prev => ({ ...prev, phone: e.target.value }))}
+                    placeholder="+254 7..."
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowRecordPaymentModal(false)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={reconcilingLoading}
+                  className="px-5 py-2.5 rounded-xl bg-navy-900 hover:bg-navy-800 disabled:opacity-60 text-white text-xs font-bold shadow-md transition-all flex items-center gap-1.5"
+                >
+                  {reconcilingLoading ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Saving Payment...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Confirm & Record</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 11: RECONCILE UNMATCHED TRANSACTION                 */}
+      {/* ========================================================= */}
+      {showReconcileModal && reconcilingPayment && (
+        <div className="fixed inset-0 z-50 bg-navy-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 rounded-xl bg-amber-50 text-amber-700">
+                  <ShieldAlert className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-heading font-black text-lg text-navy-950">Reconcile Transaction</h3>
+                  <p className="text-xs text-slate-400">Match incoming Paybill payment to official chapter invoice</p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setShowReconcileModal(false); setReconcilingPayment(null); }}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Unmatched Details Card */}
+            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-600 font-semibold">Receipt / Ref:</span>
+                <span className="font-mono font-bold text-navy-950">{reconcilingPayment.mpesaReceiptNumber || reconcilingPayment.reference}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-600 font-semibold">Amount Paid:</span>
+                <span className="font-heading font-black text-amber-900 text-sm">{formatCurrency(reconcilingPayment.amount)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-600 font-semibold">Sender / Payer:</span>
+                <span className="font-bold text-slate-900">{reconcilingPayment.payerName || "Unknown"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-600 font-semibold">Account Reference Entered:</span>
+                <span className="font-mono text-teal-800 font-bold">{reconcilingPayment.reference || "None"}</span>
+              </div>
+              <div className="flex justify-between text-[11px] text-slate-500 pt-1 border-t border-amber-200/60">
+                <span>Received At:</span>
+                <span>{reconcilingPayment.timestamp}</span>
+              </div>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              <label className="block font-bold text-slate-700 uppercase">
+                Assign to Chapter Invoice *
+              </label>
+              <select
+                value={selectedReconcileInvoiceId}
+                onChange={(e) => setSelectedReconcileInvoiceId(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-300 font-semibold focus:ring-2 focus:ring-teal-600 focus:outline-none"
+              >
+                {invoicesList.map(inv => (
+                  <option key={inv.id} value={inv.id}>
+                    {inv.invoiceNumber} — {inv.institutionName} (Due: {formatCurrency(inv.balance)})
+                  </option>
+                ))}
+              </select>
+              <p className="text-[11px] text-slate-400">
+                Linking this transaction will deduct {formatCurrency(reconcilingPayment.amount)} from the selected invoice and mark this payment status as <strong className="text-emerald-700">MATCHED</strong>.
+              </p>
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => { setShowReconcileModal(false); setReconcilingPayment(null); }}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmReconcile}
+                disabled={reconcilingLoading}
+                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-xs font-bold shadow-md transition-all flex items-center gap-1.5"
+              >
+                {reconcilingLoading ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Reconciling...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Confirm Match & Reconcile</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

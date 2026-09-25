@@ -21,7 +21,7 @@ export default function SupportPage() {
   const supportPillars = [
     {
       title: "Student Welfare & Subsidies",
-      desc: "Sponsoring students from TVET colleges and secondary schools to ensure no delegate is left behind due to registration or meal costs.",
+      desc: "Sponsoring students to ensure no delegate is left behind due to registration or meal costs.",
       icon: Heart,
     },
     {
@@ -61,7 +61,7 @@ export default function SupportPage() {
                 </span>
               </h1>
               <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-                Your partnership empowers thousands of Adventist youth across universities and colleges in Mombasa to worship, grow, and bring Christ&apos;s hope to our campuses.
+                Your partnership empowers thousands of Adventist youth across universities and colleges in coast region to worship, grow, and bring Christ&apos;s hope to our campuses.
               </p>
             </div>
           </div>
@@ -123,8 +123,8 @@ export default function SupportPage() {
                     <span className="text-[10px] uppercase font-bold text-teal-300 block mb-1">Mobile Money</span>
                     <h4 className="font-heading font-black text-xl text-white mb-2">Safaricom M-Pesa Paybill</h4>
                     <div className="space-y-1 font-mono text-xs text-slate-200">
-                      <div><strong>Business No:</strong> 4082200</div>
-                      <div><strong>Account No:</strong> DONATION-[YourName]</div>
+                      <div><strong>Business No:</strong> coming soon</div>
+                      <div><strong>Account No:</strong> coming soon</div>
                     </div>
                   </div>
 
@@ -133,9 +133,9 @@ export default function SupportPage() {
                     <span className="text-[10px] uppercase font-bold text-amber-400 block mb-1">Direct Bank Wire</span>
                     <h4 className="font-heading font-black text-xl text-white mb-2">Central Bank / KCB</h4>
                     <div className="space-y-1 font-mono text-xs text-slate-200">
-                      <div><strong>Bank:</strong> Kenya Commercial Bank</div>
-                      <div><strong>Branch:</strong> Treasury Square, Mombasa</div>
-                      <div><strong>Ref:</strong> CUCASO Central Fund</div>
+                      <div><strong>Bank:</strong> coming soon</div>
+                      <div><strong>Branch:</strong> coming soon</div>
+                      <div><strong>Ref:</strong> coming soon</div>
                     </div>
                   </div>
                 </div>

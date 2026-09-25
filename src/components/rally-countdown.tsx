@@ -40,11 +40,10 @@ export function RallyCountdown({ targetDate, variant = "light" }: RallyCountdown
   return (
     <div className="grid grid-cols-4 gap-2 sm:gap-3 my-4 max-w-sm">
       <div
-        className={`flex flex-col items-center justify-center py-3 px-2 rounded-xl border text-center transition-all ${
-          isDark
-            ? "bg-white/10 border-white/20 text-white backdrop-blur-sm"
-            : "bg-slate-50 border-slate-200 text-slate-900"
-        }`}
+        className={`flex flex-col items-center justify-center py-3 px-2 rounded-xl border text-center transition-all ${isDark
+          ? "bg-white/10 border-white/20 text-white backdrop-blur-sm"
+          : "bg-slate-50 border-slate-200 text-slate-900"
+          }`}
       >
         <span className="font-heading font-black text-2xl sm:text-3xl tracking-tight text-amber-500">
           {timeLeft.days}
@@ -55,11 +54,10 @@ export function RallyCountdown({ targetDate, variant = "light" }: RallyCountdown
       </div>
 
       <div
-        className={`flex flex-col items-center justify-center py-3 px-2 rounded-xl border text-center transition-all ${
-          isDark
-            ? "bg-white/10 border-white/20 text-white backdrop-blur-sm"
-            : "bg-slate-50 border-slate-200 text-slate-900"
-        }`}
+        className={`flex flex-col items-center justify-center py-3 px-2 rounded-xl border text-center transition-all ${isDark
+          ? "bg-white/10 border-white/20 text-white backdrop-blur-sm"
+          : "bg-slate-50 border-slate-200 text-slate-900"
+          }`}
       >
         <span className={`font-heading font-black text-2xl sm:text-3xl tracking-tight ${isDark ? "text-white" : "text-slate-800"}`}>
           {timeLeft.hours}
@@ -70,11 +68,10 @@ export function RallyCountdown({ targetDate, variant = "light" }: RallyCountdown
       </div>
 
       <div
-        className={`flex flex-col items-center justify-center py-3 px-2 rounded-xl border text-center transition-all ${
-          isDark
-            ? "bg-white/10 border-white/20 text-white backdrop-blur-sm"
-            : "bg-slate-50 border-slate-200 text-slate-900"
-        }`}
+        className={`flex flex-col items-center justify-center py-3 px-2 rounded-xl border text-center transition-all ${isDark
+          ? "bg-white/10 border-white/20 text-white backdrop-blur-sm"
+          : "bg-slate-50 border-slate-200 text-slate-900"
+          }`}
       >
         <span className={`font-heading font-black text-2xl sm:text-3xl tracking-tight ${isDark ? "text-white" : "text-slate-800"}`}>
           {timeLeft.minutes}
@@ -85,11 +82,10 @@ export function RallyCountdown({ targetDate, variant = "light" }: RallyCountdown
       </div>
 
       <div
-        className={`flex flex-col items-center justify-center py-3 px-2 rounded-xl border text-center transition-all ${
-          isDark
-            ? "bg-white/10 border-white/20 text-white backdrop-blur-sm"
-            : "bg-slate-50 border-slate-200 text-slate-900"
-        }`}
+        className={`flex flex-col items-center justify-center py-3 px-2 rounded-xl border text-center transition-all ${isDark
+          ? "bg-white/10 border-white/20 text-white backdrop-blur-sm"
+          : "bg-slate-50 border-slate-200 text-slate-900"
+          }`}
       >
         <span className={`font-heading font-black text-2xl sm:text-3xl tracking-tight ${isDark ? "text-white" : "text-slate-800"}`}>
           {timeLeft.seconds}

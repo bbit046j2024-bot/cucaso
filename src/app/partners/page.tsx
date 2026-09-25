@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
-import { 
-  Building2, 
-  Church, 
-  HeartHandshake, 
-  ShieldCheck, 
-  Award, 
-  Globe2, 
+import {
+  Building2,
+  Church,
+  HeartHandshake,
+  ShieldCheck,
+  Award,
+  Globe2,
   Sparkles,
   ArrowRight
 } from "lucide-react";
@@ -58,9 +58,6 @@ export default function PartnersPage() {
           <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#14B8A6_1px,transparent_1px)] [background-size:16px_16px]" />
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
             <div className="max-w-3xl">
-              <span className="text-xs font-bold uppercase tracking-widest text-teal-300 bg-white/10 px-3.5 py-1.5 rounded-full border border-white/20">
-                Proposal §19: Institutional & Church Synergy
-              </span>
               <h1 className="font-heading font-black text-4xl sm:text-5xl lg:text-6xl text-white mt-4 mb-4">
                 Partners & Supporters
               </h1>

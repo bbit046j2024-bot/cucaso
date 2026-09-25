@@ -328,21 +328,21 @@ export async function deleteChapter(id: string): Promise<boolean> {
 
 export async function getCurrentRally(): Promise<Rally | null> {
   try {
+    // Check FIRST if rally was intentionally deleted by admin
+    const deletedSetting = await prisma.systemSetting.findUnique({
+      where: { key: "rally_deleted" },
+    }).catch(() => null);
+
+    if (deletedSetting?.value === "true") {
+      return null;
+    }
+
     let rally = await prisma.rally.findFirst({
       include: { venue: true, costItems: true },
       orderBy: { createdAt: "desc" },
     });
 
     if (!rally) {
-      // Check if rally was intentionally deleted by admin
-      const deletedSetting = await prisma.systemSetting.findUnique({
-        where: { key: "rally_deleted" },
-      }).catch(() => null);
-
-      if (deletedSetting?.value === "true") {
-        return null;
-      }
-
       // Auto-seed initial rally so the database has live persistent records
       try {
         let venue = await prisma.venue.findFirst({
@@ -655,7 +655,295 @@ export async function deleteRally(id?: string): Promise<boolean> {
   }
 }
 
+// ─── RALLY TIMELINE & ARCHIVES (HISTORY) ────────────────────────────────────
 
+export const DEFAULT_RALLY_HISTORY = [
+  { id: "hist-2024", title: "Coastal Unity Rally 2024", venue: "Mombasa Sports Complex", date: "Nov 2024", status: "Completed", statusClass: "bg-slate-200 text-slate-700", attendees: "2,105" },
+  { id: "hist-2025-mid", title: "Coast Fellowship Rally 2025 (Mid-Year)", venue: "Pwani University Grounds, Kilifi", date: "Jun 2025", status: "Completed", statusClass: "bg-slate-200 text-slate-700", attendees: "1,880" },
+  { id: "hist-2025", title: "Coastal Unity Rally 2025", venue: "Mombasa Sports Complex", date: "Nov 2025", status: "Completed", statusClass: "bg-slate-200 text-slate-700", attendees: "2,310" },
+  { id: "hist-2026", title: "Coastal Unity Rally 2026", venue: "Mombasa Sports Complex", date: "Nov 15–17, 2026", status: "Active", statusClass: "bg-emerald-100 text-emerald-800 border border-emerald-300", attendees: "2,486 (ongoing)" },
+  { id: "hist-2027", title: "Kilifi Fellowship Rally 2027", venue: "Pwani University Grounds", date: "May 2027", status: "Planned", statusClass: "bg-amber-100 text-amber-800", attendees: "—" },
+];
+
+export async function getRallyHistory(): Promise<any[]> {
+  try {
+    const setting = await prisma.systemSetting.findUnique({
+      where: { key: "rally_history_list" },
+    });
+    if (!setting) {
+      // First time initialization — persist defaults into DB
+      await prisma.systemSetting.create({
+        data: {
+          key: "rally_history_list",
+          value: JSON.stringify(DEFAULT_RALLY_HISTORY),
+        },
+      });
+      return DEFAULT_RALLY_HISTORY;
+    }
+    return JSON.parse(setting.value || "[]");
+  } catch (err) {
+    console.error("getRallyHistory error:", err);
+    return DEFAULT_RALLY_HISTORY;
+  }
+}
+
+export async function saveRallyHistory(history: any[]): Promise<any[]> {
+  try {
+    await prisma.systemSetting.upsert({
+      where: { key: "rally_history_list" },
+      update: { value: JSON.stringify(history) },
+      create: { key: "rally_history_list", value: JSON.stringify(history) },
+    });
+    return history;
+  } catch (err) {
+    console.error("saveRallyHistory error:", err);
+    return history;
+  }
+}
+
+export async function deleteRallyHistoryItem(idOrTitle: string): Promise<any[]> {
+  const current = await getRallyHistory();
+  const filtered = current.filter((r: any) => r.id !== idOrTitle && r.title !== idOrTitle);
+  return saveRallyHistory(filtered);
+}
+
+export async function addRallyHistoryItem(item: any): Promise<any[]> {
+  const current = await getRallyHistory();
+  const newItem = {
+    id: item.id || `hist-${Date.now()}`,
+    title: item.title || "New Coastal Rally",
+    venue: item.venue || "Mombasa Sports Complex",
+    date: item.date || "TBD",
+    status: item.status || "Planned",
+    statusClass: item.statusClass || "bg-amber-100 text-amber-800",
+    attendees: item.attendees || "—",
+  };
+  const updated = [newItem, ...current];
+  return saveRallyHistory(updated);
+}
+
+
+
+
+// ─── COST ITEMS ──────────────────────────────────────────────────────────────
+
+function mapCostItem(c: any): import("@/types").CostItem {
+  return {
+    id: c.id,
+    rallyId: c.rallyId,
+    category: c.category,
+    name: c.name,
+    type: c.type as import("@/types").CostItem["type"],
+    amount: c.amountKes,
+    quantity: c.quantity ?? 1,
+    notes: c.notes ?? undefined,
+  };
+}
+
+export async function getCostItems(rallyId?: string): Promise<import("@/types").CostItem[]> {
+  try {
+    // Find the active rally if rallyId not given
+    let targetRallyId = rallyId;
+    if (!targetRallyId) {
+      const rally = await prisma.rally.findFirst({ orderBy: { createdAt: "desc" } });
+      targetRallyId = rally?.id;
+    }
+
+    if (!targetRallyId) {
+      // No DB rally yet — return seeded static data
+      return RALLY_COST_ITEMS.map((c, i) => ({ ...c, id: c.id || `static-${i}` }));
+    }
+
+    let items = await prisma.costItem.findMany({
+      where: { rallyId: targetRallyId },
+      orderBy: { createdAt: "asc" },
+    });
+
+    // Check if this rally has ever been initialized with default cost items
+    const seededSetting = await prisma.systemSetting.findUnique({
+      where: { key: `cost_items_seeded_${targetRallyId}` },
+    }).catch(() => null);
+
+    // Auto-seed only on very first initialization (if not yet seeded)
+    if (items.length === 0 && !seededSetting) {
+      await prisma.costItem.createMany({
+        data: RALLY_COST_ITEMS.map((c) => ({
+          rallyId: targetRallyId!,
+          category: c.category as any,
+          name: c.name,
+          type: c.type as any,
+          amountKes: c.amount,
+          quantity: c.quantity ?? 1,
+          notes: c.notes ?? null,
+        })),
+        skipDuplicates: true,
+      }).catch(() => {});
+
+      await prisma.systemSetting.create({
+        data: { key: `cost_items_seeded_${targetRallyId}`, value: "true" },
+      }).catch(() => {});
+
+      items = await prisma.costItem.findMany({
+        where: { rallyId: targetRallyId },
+        orderBy: { createdAt: "asc" },
+      });
+    }
+
+    return items.map(mapCostItem);
+  } catch (err) {
+    console.error("getCostItems error:", err);
+    return RALLY_COST_ITEMS;
+  }
+}
+
+export async function resetCostItems(rallyId?: string): Promise<import("@/types").CostItem[]> {
+  try {
+    let targetRallyId = rallyId;
+    if (!targetRallyId) {
+      const rally = await prisma.rally.findFirst({ orderBy: { createdAt: "desc" } });
+      targetRallyId = rally?.id;
+    }
+    if (!targetRallyId) return RALLY_COST_ITEMS;
+
+    // Delete existing cost items for this rally
+    await prisma.costItem.deleteMany({ where: { rallyId: targetRallyId } });
+
+    // Re-seed standard template
+    await prisma.costItem.createMany({
+      data: RALLY_COST_ITEMS.map((c) => ({
+        rallyId: targetRallyId!,
+        category: c.category as any,
+        name: c.name,
+        type: c.type as any,
+        amountKes: c.amount,
+        quantity: c.quantity ?? 1,
+        notes: c.notes ?? null,
+      })),
+    });
+
+    await prisma.systemSetting.upsert({
+      where: { key: `cost_items_seeded_${targetRallyId}` },
+      update: { value: "true" },
+      create: { key: `cost_items_seeded_${targetRallyId}`, value: "true" },
+    }).catch(() => {});
+
+    await prisma.auditLog.create({
+      data: {
+        actor: "Executive Council / Admin",
+        action: "COST_ITEMS_RESET_TEMPLATE",
+        entityType: "CostItem",
+        entityId: targetRallyId,
+        afterJson: JSON.stringify({ reset: true, count: RALLY_COST_ITEMS.length }),
+      },
+    }).catch(() => {});
+
+    const items = await prisma.costItem.findMany({
+      where: { rallyId: targetRallyId },
+      orderBy: { createdAt: "asc" },
+    });
+    return items.map(mapCostItem);
+  } catch (err) {
+    console.error("resetCostItems error:", err);
+    return getCostItems(rallyId);
+  }
+}
+
+
+export async function createCostItem(data: {
+  rallyId?: string;
+  category: string;
+  name: string;
+  type: "FIXED" | "PER_HEAD" | "PER_VEHICLE";
+  amount: number;
+  quantity?: number;
+  notes?: string;
+}): Promise<import("@/types").CostItem> {
+  let rallyId = data.rallyId;
+  if (!rallyId) {
+    const rally = await prisma.rally.findFirst({ orderBy: { createdAt: "desc" } });
+    rallyId = rally?.id;
+  }
+  if (!rallyId) throw new Error("No active rally found");
+
+  const created = await prisma.costItem.create({
+    data: {
+      rallyId,
+      category: data.category as any,
+      name: data.name,
+      type: data.type as any,
+      amountKes: Math.round(data.amount),
+      quantity: data.quantity ?? 1,
+      notes: data.notes ?? null,
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      actor: "Executive Council / Admin",
+      action: "COST_ITEM_CREATED",
+      entityType: "CostItem",
+      entityId: created.id,
+      afterJson: JSON.stringify({ name: created.name, type: created.type, amountKes: created.amountKes }),
+    },
+  }).catch(() => {});
+
+  return mapCostItem(created);
+}
+
+export async function updateCostItem(id: string, data: {
+  category?: string;
+  name?: string;
+  type?: "FIXED" | "PER_HEAD" | "PER_VEHICLE";
+  amount?: number;
+  quantity?: number;
+  notes?: string;
+}): Promise<import("@/types").CostItem | null> {
+  const existing = await prisma.costItem.findUnique({ where: { id } });
+  if (!existing) return null;
+
+  const updated = await prisma.costItem.update({
+    where: { id },
+    data: {
+      ...(data.category !== undefined ? { category: data.category as any } : {}),
+      ...(data.name !== undefined ? { name: data.name } : {}),
+      ...(data.type !== undefined ? { type: data.type as any } : {}),
+      ...(data.amount !== undefined ? { amountKes: Math.round(data.amount) } : {}),
+      ...(data.quantity !== undefined ? { quantity: data.quantity } : {}),
+      ...(data.notes !== undefined ? { notes: data.notes } : {}),
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      actor: "Executive Council / Admin",
+      action: "COST_ITEM_UPDATED",
+      entityType: "CostItem",
+      entityId: id,
+      afterJson: JSON.stringify(data),
+    },
+  }).catch(() => {});
+
+  return mapCostItem(updated);
+}
+
+export async function deleteCostItem(id: string): Promise<boolean> {
+  try {
+    await prisma.costItem.delete({ where: { id } });
+    await prisma.auditLog.create({
+      data: {
+        actor: "Executive Council / Admin",
+        action: "COST_ITEM_DELETED",
+        entityType: "CostItem",
+        entityId: id,
+        afterJson: JSON.stringify({ deleted: true }),
+      },
+    }).catch(() => {});
+    return true;
+  } catch (err) {
+    console.error("deleteCostItem error:", err);
+    return false;
+  }
+}
 
 // ─── ATTENDEES ───────────────────────────────────────────────────────────────
 
@@ -837,9 +1125,224 @@ export async function updateApplication(id: string, updates: Partial<ChapterAppl
   return mapApplication(updated);
 }
 
+// ─── INVOICES & PAYMENTS SEEDING / PERSISTENCE ──────────────────────────────
+
+export async function ensureInvoicesAndPaymentsSeeded() {
+  try {
+    const rally = await prisma.rally.findFirst();
+    if (!rally) return;
+
+    const chapters = await prisma.chapter.findMany({
+      include: { institution: true },
+    });
+    if (chapters.length === 0) return;
+
+    // Use upsert per-chapter so partial seeding states never cause unique constraint violations
+    const initialInvoices = [
+      { code: "TUM-01", id: "ch-tum", amountDue: 340000, paid: 340000, ref: "CUCASO-TUM-2026", invNum: "INV-2026-001" },
+      { code: "PWANI-02", id: "ch-pwani", amountDue: 350000, paid: 350000, ref: "CUCASO-PWANI-2026", invNum: "INV-2026-002" },
+      { code: "MPOLY-03", id: "ch-mpoly", amountDue: 210000, paid: 140000, ref: "CUCASO-MPOLY-2026", invNum: "INV-2026-003" },
+      { code: "KMTC-04", id: "ch-kmtc", amountDue: 220000, paid: 220000, ref: "CUCASO-KMTC-2026", invNum: "INV-2026-004" },
+      { code: "TTU-06", id: "ch-ttu", amountDue: 240000, paid: 240000, ref: "CUCASO-TTU-2026", invNum: "INV-2026-006" },
+      { code: "GAR-07", id: "ch-garissa", amountDue: 200000, paid: 200000, ref: "CUCASO-GAR-2026", invNum: "INV-2026-007" },
+      { code: "KWL-08", id: "ch-kwale", amountDue: 150000, paid: 150000, ref: "CUCASO-KWL-2026", invNum: "INV-2026-008" },
+      { code: "MSS-10", id: "ch-mss", amountDue: 70000, paid: 70000, ref: "CUCASO-MSS-2026", invNum: "INV-2026-010" },
+      { code: "KCA-11", id: "ch-kca", amountDue: 120000, paid: 120000, ref: "CUCASO-KCA-2026", invNum: "INV-2026-011" },
+      { code: "MAL-12", id: "ch-mal", amountDue: 60000, paid: 60000, ref: "CUCASO-MAL-2026", invNum: "INV-2026-012" },
+    ];
+
+    for (let i = 0; i < chapters.length; i++) {
+      const ch = chapters[i];
+      // Skip if this chapter already has an invoice — never double-create
+      const existing = await prisma.invoice.findFirst({ where: { chapterId: ch.id } });
+      if (existing) continue;
+
+      const match = initialInvoices.find(init => init.id === ch.id || init.code === ch.code);
+      const amountDue = match ? match.amountDue : 150000;
+      const amountPaid = match ? match.paid : 0;
+      const balance = Math.max(0, amountDue - amountPaid);
+      const status = balance === 0 ? "PAID" : amountPaid > 0 ? "PARTIAL" : "UNPAID";
+      const cleanCode = (ch.code || `CH${i + 1}`).replace(/[^A-Za-z0-9]/g, "");
+      const invNumber = match ? match.invNum : `INV-2026-${String(i + 1).padStart(3, "0")}`;
+      const payRef = match ? match.ref : `CUCASO-${cleanCode}-2026`;
+
+      // Use upsert keyed on invoiceNumber to handle any concurrent/partial seeding
+      await prisma.invoice.upsert({
+        where: { invoiceNumber: invNumber },
+        update: {},  // already exists — leave it as-is
+        create: {
+          invoiceNumber: invNumber,
+          rallyId: rally.id,
+          chapterId: ch.id,
+          baseAmountKes: amountDue,
+          adjustmentKes: 0,
+          totalDueKes: amountDue,
+          amountPaidKes: amountPaid,
+          balanceKes: balance,
+          status: status as any,
+          paymentReference: payRef,
+          dueDate: new Date("2026-11-10"),
+        },
+      });
+    }
+
+    const payCount = await prisma.payment.count();
+    if (payCount === 0) {
+      const allInvoices = await prisma.invoice.findMany();
+      const invoiceRefMap = new Map<string, string>();
+      for (const inv of allInvoices) {
+        invoiceRefMap.set(inv.paymentReference, inv.id);
+        invoiceRefMap.set(inv.chapterId, inv.id);
+      }
+
+      const samplePayments = [
+        {
+          chapterId: "ch-tum",
+          ref: "CUCASO-TUM-2026",
+          amount: 340000,
+          channel: "MPESA_C2B",
+          receipt: "QEJ8291X0K",
+          payer: "David Kiboi (TUM Treasurer)",
+          phone: "+254 722 445 566",
+          status: "MATCHED",
+          time: new Date("2026-09-12T14:22:10Z"),
+        },
+        {
+          chapterId: "ch-pwani",
+          ref: "CUCASO-PWANI-2026",
+          amount: 350000,
+          channel: "BANK_TRANSFER",
+          receipt: "KCB-FT-994012",
+          payer: "Mercy Chebet (Pwani Treasury)",
+          status: "MATCHED",
+          time: new Date("2026-09-10T10:15:00Z"),
+        },
+        {
+          chapterId: "ch-kmtc",
+          ref: "CUCASO-KMTC-2026",
+          amount: 220000,
+          channel: "MPESA_C2B",
+          receipt: "QEH3390A1L",
+          payer: "Evans Kilonzo",
+          status: "MATCHED",
+          time: new Date("2026-09-08T16:45:12Z"),
+        },
+        {
+          chapterId: "ch-mpoly",
+          ref: "CUCASO-MPOLY-2026",
+          amount: 140000,
+          channel: "MPESA_C2B",
+          receipt: "QEG1124M9T",
+          payer: "Peter Ochieng",
+          status: "MATCHED",
+          time: new Date("2026-09-11T11:30:40Z"),
+        },
+        {
+          chapterId: "ch-ttu",
+          ref: "CUCASO-TTU-2026",
+          amount: 240000,
+          channel: "BANK_TRANSFER",
+          receipt: "EQU-TR-882190",
+          payer: "Collins Mwachofi",
+          status: "MATCHED",
+          time: new Date("2026-09-07T09:20:00Z"),
+        },
+        {
+          chapterId: "ch-garissa",
+          ref: "CUCASO-GAR-2026",
+          amount: 200000,
+          channel: "MPESA_C2B",
+          receipt: "QEF4491Z2W",
+          payer: "Ahmed Baraka",
+          status: "MATCHED",
+          time: new Date("2026-09-05T13:12:00Z"),
+        },
+        {
+          chapterId: "ch-kwale",
+          ref: "CUCASO-KWL-2026",
+          amount: 150000,
+          channel: "MPESA_C2B",
+          receipt: "QEE3381Y3V",
+          payer: "Faith Mwende",
+          status: "MATCHED",
+          time: new Date("2026-09-04T15:40:00Z"),
+        },
+        {
+          chapterId: "ch-mss",
+          ref: "CUCASO-MSS-2026",
+          amount: 70000,
+          channel: "MPESA_C2B",
+          receipt: "QEC8891T4G",
+          payer: "Joshua Baraza",
+          status: "MATCHED",
+          time: new Date("2026-09-02T10:05:00Z"),
+        },
+        {
+          chapterId: "ch-kca",
+          ref: "CUCASO-KCA-2026",
+          amount: 120000,
+          channel: "BANK_TRANSFER",
+          receipt: "COOP-TX-440182",
+          payer: "Daniel Katana",
+          status: "MATCHED",
+          time: new Date("2026-09-01T14:18:00Z"),
+        },
+        {
+          chapterId: "ch-mal",
+          ref: "CUCASO-MAL-2026",
+          amount: 60000,
+          channel: "MPESA_C2B",
+          receipt: "QEA1192M2P",
+          payer: "Grace Sidi",
+          status: "MATCHED",
+          time: new Date("2026-08-30T11:45:00Z"),
+        },
+        // 1 UNMATCHED transaction (PRD un-reconciled Paybill transaction)
+        {
+          chapterId: null,
+          ref: "RALLY-CONTRIB-4082200",
+          amount: 50000,
+          channel: "MPESA_C2B",
+          receipt: "QEX9901Z1A",
+          payer: "Unknown Sender (+254 712 998877)",
+          phone: "+254 712 998877",
+          status: "UNMATCHED",
+          time: new Date("2026-09-13T09:15:22Z"),
+        },
+      ];
+
+      for (const p of samplePayments) {
+        let invId: string | null = null;
+        if (p.ref && invoiceRefMap.has(p.ref)) {
+          invId = invoiceRefMap.get(p.ref) || null;
+        } else if (p.chapterId && invoiceRefMap.has(p.chapterId)) {
+          invId = invoiceRefMap.get(p.chapterId) || null;
+        }
+
+        await prisma.payment.create({
+          data: {
+            invoiceId: invId,
+            accountReference: p.ref,
+            amountKes: p.amount,
+            channel: p.channel as any,
+            mpesaReceiptNumber: p.receipt,
+            senderName: p.payer,
+            senderPhone: p.phone ?? null,
+            status: p.status as any,
+            transactionTime: p.time,
+          },
+        });
+      }
+    }
+  } catch (err) {
+    console.error("ensureInvoicesAndPaymentsSeeded failed:", err);
+  }
+}
+
 // ─── INVOICES ────────────────────────────────────────────────────────────────
 
 export async function getInvoices(): Promise<Invoice[]> {
+  await ensureInvoicesAndPaymentsSeeded();
   const invoices = await prisma.invoice.findMany({
     include: {
       chapter: {
@@ -905,6 +1408,7 @@ export async function upsertChapterInvoice(data: {
 // ─── PAYMENTS ────────────────────────────────────────────────────────────────
 
 export async function getPayments(): Promise<Payment[]> {
+  await ensureInvoicesAndPaymentsSeeded();
   const payments = await prisma.payment.findMany({
     include: {
       invoice: true,
@@ -915,26 +1419,58 @@ export async function getPayments(): Promise<Payment[]> {
 }
 
 export async function createPayment(payData: Partial<Payment>): Promise<Payment> {
-  const invoiceId = payData.invoiceId || "";
+  await ensureInvoicesAndPaymentsSeeded();
+
+  let invoiceId = payData.invoiceId || "";
+  
+  // If invoiceId wasn't directly passed, find by paymentReference, invoiceNumber, or chapter code
+  if (!invoiceId && payData.reference) {
+    const cleanRef = payData.reference.trim();
+    const inv = await prisma.invoice.findFirst({
+      where: {
+        OR: [
+          { paymentReference: cleanRef },
+          { paymentReference: { contains: cleanRef } },
+          { invoiceNumber: cleanRef },
+        ],
+      },
+    });
+    if (inv) {
+      invoiceId = inv.id;
+    }
+  }
+
+  // Determine channel
+  let channel = "MPESA_C2B";
+  const refCode = (payData.mpesaReceiptNumber || payData.reference || "").toUpperCase();
+  if (payData.method === "BANK_TRANSFER" || refCode.startsWith("KCB") || refCode.startsWith("EQU") || refCode.startsWith("COOP")) {
+    channel = "BANK_TRANSFER";
+  } else if (payData.method === "CASH") {
+    channel = "CASH";
+  }
+
+  const status = invoiceId ? (payData.status || "MATCHED") : (payData.status || "UNMATCHED");
+  const amount = Number(payData.amount || 0);
+
   const created = await prisma.payment.create({
     data: {
       invoiceId: invoiceId || null,
       accountReference: payData.reference || "RALLY-FEE",
-      amountKes: payData.amount || 50000,
-      channel: (payData.method || "MPESA_C2B") as any,
+      amountKes: amount,
+      channel: channel as any,
       mpesaReceiptNumber: payData.mpesaReceiptNumber || `QBR${Math.floor(100000 + Math.random() * 900000)}`,
       senderName: payData.payerName ?? null,
       senderPhone: payData.payerPhone ?? null,
-      status: (payData.status || "MATCHED") as any,
+      status: status as any,
       transactionTime: new Date(),
     },
     include: { invoice: true },
   });
 
-  if (invoiceId) {
+  if (invoiceId && status === "MATCHED") {
     const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId } });
     if (invoice) {
-      const newPaid = invoice.amountPaidKes + created.amountKes;
+      const newPaid = invoice.amountPaidKes + amount;
       const newBalance = Math.max(0, invoice.totalDueKes - newPaid);
       await prisma.invoice.update({
         where: { id: invoiceId },
@@ -947,7 +1483,105 @@ export async function createPayment(payData: Partial<Payment>): Promise<Payment>
     }
   }
 
+  await prisma.auditLog.create({
+    data: {
+      actor: payData.payerName || "Central Treasury System",
+      action: "PAYMENT_RECORDED",
+      entityType: "Payment",
+      entityId: created.id,
+      afterJson: JSON.stringify({ amount, receipt: created.mpesaReceiptNumber, invoiceId, status }),
+    },
+  }).catch(() => {});
+
   return mapPayment(created);
+}
+
+export async function matchPayment(paymentId: string, invoiceId: string): Promise<{ payment: Payment; invoice: Invoice }> {
+  const payment = await prisma.payment.findUnique({ where: { id: paymentId } });
+  if (!payment) throw new Error("Payment record not found");
+
+  const invoice = await prisma.invoice.findUnique({
+    where: { id: invoiceId },
+    include: { chapter: { include: { institution: true } } },
+  });
+  if (!invoice) throw new Error("Invoice record not found");
+
+  const updatedPayment = await prisma.payment.update({
+    where: { id: paymentId },
+    data: {
+      invoiceId: invoice.id,
+      accountReference: invoice.paymentReference,
+      status: "MATCHED",
+    },
+    include: { invoice: true },
+  });
+
+  const newPaid = invoice.amountPaidKes + payment.amountKes;
+  const newBalance = Math.max(0, invoice.totalDueKes - newPaid);
+  const updatedInvoice = await prisma.invoice.update({
+    where: { id: invoiceId },
+    data: {
+      amountPaidKes: newPaid,
+      balanceKes: newBalance,
+      status: newBalance === 0 ? "PAID" : newPaid > 0 ? "PARTIAL" : "UNPAID",
+    },
+    include: { chapter: { include: { institution: true } } },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      actor: "Central Treasury / Admin",
+      action: "PAYMENT_RECONCILED",
+      entityType: "Payment",
+      entityId: paymentId,
+      afterJson: JSON.stringify({ paymentId, invoiceId, amount: payment.amountKes, newBalance }),
+    },
+  }).catch(() => {});
+
+  return { payment: mapPayment(updatedPayment), invoice: mapInvoice(updatedInvoice) };
+}
+
+export async function syncMpesaPayments(): Promise<{ synced: number; matched: number; message: string }> {
+  await ensureInvoicesAndPaymentsSeeded();
+
+  const unmatched = await prisma.payment.findMany({
+    where: { status: "UNMATCHED" },
+  });
+
+  let matchedCount = 0;
+  for (const pay of unmatched) {
+    if (pay.accountReference) {
+      const cleanRef = pay.accountReference.toUpperCase().replace(/\s+/g, "");
+      const inv = await prisma.invoice.findFirst({
+        where: {
+          OR: [
+            { paymentReference: { contains: cleanRef } },
+            { invoiceNumber: { contains: cleanRef } },
+          ],
+        },
+      });
+      if (inv) {
+        await matchPayment(pay.id, inv.id);
+        matchedCount++;
+      }
+    }
+  }
+
+  await prisma.auditLog.create({
+    data: {
+      actor: "Central Treasury Automated Sync",
+      action: "DARAJA_PAYBILL_SYNC",
+      entityType: "Paybill_4082200",
+      entityId: `sync-${Date.now()}`,
+      afterJson: JSON.stringify({ syncedAt: new Date().toISOString(), matchedCount, totalChecked: unmatched.length }),
+    },
+  }).catch(() => {});
+
+  return {
+    synced: unmatched.length,
+    matched: matchedCount,
+    message: `Daraja Paybill 4082200 verified: ${matchedCount} transaction(s) auto-reconciled against chapter invoices.`,
+  };
 }
 
 // ─── SYSTEM STATS ────────────────────────────────────────────────────────────
