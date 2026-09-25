@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getDocumentResources, createDocumentResource, deleteDocumentResource } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/resources
  * Fetches all site documents and resources.

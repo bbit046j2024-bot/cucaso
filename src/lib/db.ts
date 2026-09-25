@@ -1584,6 +1584,210 @@ export async function syncMpesaPayments(): Promise<{ synced: number; matched: nu
   };
 }
 
+// ─── PAYMENT / INVOICE MANAGEMENT ────────────────────────────────────────────
+
+export async function deletePayment(paymentId: string): Promise<void> {
+  const payment = await prisma.payment.findUnique({ where: { id: paymentId } });
+  if (!payment) throw new Error("Payment not found");
+
+  // If this payment was matched to an invoice, reverse the invoice amounts
+  if (payment.invoiceId && payment.status === "MATCHED") {
+    const invoice = await prisma.invoice.findUnique({ where: { id: payment.invoiceId } });
+    if (invoice) {
+      const newPaid = Math.max(0, invoice.amountPaidKes - payment.amountKes);
+      const newBalance = Math.max(0, invoice.totalDueKes - newPaid);
+      await prisma.invoice.update({
+        where: { id: payment.invoiceId },
+        data: {
+          amountPaidKes: newPaid,
+          balanceKes: newBalance,
+          status: newBalance === 0 ? "PAID" : newPaid > 0 ? "PARTIAL" : "UNPAID",
+        },
+      });
+    }
+  }
+
+  await prisma.payment.delete({ where: { id: paymentId } });
+
+  await prisma.auditLog.create({
+    data: {
+      actor: "Admin",
+      action: "PAYMENT_DELETED",
+      entityType: "Payment",
+      entityId: paymentId,
+      afterJson: JSON.stringify({ deletedAt: new Date().toISOString() }),
+    },
+  }).catch(() => {});
+}
+
+export async function updatePayment(
+  paymentId: string,
+  data: { amount?: number; payerName?: string; reference?: string; mpesaReceiptNumber?: string; method?: string; notes?: string }
+): Promise<Payment> {
+  const existing = await prisma.payment.findUnique({ where: { id: paymentId } });
+  if (!existing) throw new Error("Payment not found");
+
+  const updateData: Record<string, unknown> = {};
+  if (data.amount !== undefined) updateData.amountKes = Math.round(data.amount);
+  if (data.payerName !== undefined) updateData.senderName = data.payerName;
+  if (data.reference !== undefined) updateData.accountReference = data.reference;
+  if (data.mpesaReceiptNumber !== undefined) updateData.mpesaReceiptNumber = data.mpesaReceiptNumber;
+  if (data.method !== undefined) {
+    const channelMap: Record<string, "MPESA_C2B" | "MPESA_STK" | "BANK_TRANSFER" | "CASH"> = {
+      MPESA_C2B: "MPESA_C2B",
+      MPESA_STK: "MPESA_STK",
+      BANK_TRANSFER: "BANK_TRANSFER",
+      CASH: "CASH",
+      MPESA: "MPESA_C2B",
+      BANK: "BANK_TRANSFER",
+    };
+    if (channelMap[data.method]) {
+      updateData.channel = channelMap[data.method];
+    }
+  }
+
+  // If amount changed and was matched, update the linked invoice
+  if (data.amount !== undefined && existing.invoiceId && existing.status === "MATCHED") {
+    const invoice = await prisma.invoice.findUnique({ where: { id: existing.invoiceId } });
+    if (invoice) {
+      const oldPaid = invoice.amountPaidKes;
+      const newPaid = Math.max(0, oldPaid - existing.amountKes + Math.round(data.amount));
+      const newBalance = Math.max(0, invoice.totalDueKes - newPaid);
+      await prisma.invoice.update({
+        where: { id: existing.invoiceId },
+        data: {
+          amountPaidKes: newPaid,
+          balanceKes: newBalance,
+          status: newBalance === 0 ? "PAID" : newPaid > 0 ? "PARTIAL" : "UNPAID",
+        },
+      });
+    }
+  }
+
+  const updated = await prisma.payment.update({
+    where: { id: paymentId },
+    data: updateData,
+    include: { invoice: true },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      actor: "Admin",
+      action: "PAYMENT_UPDATED",
+      entityType: "Payment",
+      entityId: paymentId,
+      afterJson: JSON.stringify(data),
+    },
+  }).catch(() => {});
+
+  return mapPayment(updated);
+}
+
+export async function deleteInvoice(invoiceId: string): Promise<void> {
+  const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId } });
+  if (!invoice) throw new Error("Invoice not found");
+
+  // Unlink any payments tied to this invoice first
+  await prisma.payment.updateMany({
+    where: { invoiceId },
+    data: { invoiceId: null, status: "UNMATCHED" },
+  });
+
+  await prisma.invoice.delete({ where: { id: invoiceId } });
+
+  await prisma.auditLog.create({
+    data: {
+      actor: "Admin",
+      action: "INVOICE_DELETED",
+      entityType: "Invoice",
+      entityId: invoiceId,
+      afterJson: JSON.stringify({ deletedAt: new Date().toISOString() }),
+    },
+  }).catch(() => {});
+}
+
+export async function updateInvoice(
+  invoiceId: string,
+  data: { amountDue?: number; amountPaid?: number; dueDate?: string; status?: string; notes?: string }
+): Promise<Invoice> {
+  const invoice = await prisma.invoice.findUnique({
+    where: { id: invoiceId },
+    include: { chapter: { include: { institution: true } } },
+  });
+  if (!invoice) throw new Error("Invoice not found");
+
+  const updateData: Record<string, unknown> = {};
+  if (data.amountDue !== undefined) {
+    updateData.totalDueKes = Math.round(data.amountDue);
+  }
+  if (data.amountPaid !== undefined) {
+    updateData.amountPaidKes = Math.round(data.amountPaid);
+  }
+  if (data.dueDate !== undefined) {
+    const raw = data.dueDate?.trim();
+    if (raw) {
+      const d = raw.includes("T") ? new Date(raw) : new Date(`${raw}T00:00:00.000Z`);
+      if (!isNaN(d.getTime())) {
+        updateData.dueDate = d;
+      }
+    }
+  }
+
+  // Recalculate balance and status
+  const newDue = (data.amountDue !== undefined ? Math.round(data.amountDue) : invoice.totalDueKes);
+  const newPaid = (data.amountPaid !== undefined ? Math.round(data.amountPaid) : invoice.amountPaidKes);
+  const newBalance = Math.max(0, newDue - newPaid);
+  updateData.balanceKes = newBalance;
+
+  const validStatuses = ["UNPAID", "PARTIAL", "PAID", "OVERDUE", "OVERPAID"];
+  if (data.status && validStatuses.includes(data.status)) {
+    updateData.status = data.status;
+  } else {
+    updateData.status = newBalance === 0 ? "PAID" : newPaid > 0 ? "PARTIAL" : "UNPAID";
+  }
+
+  const updated = await prisma.invoice.update({
+    where: { id: invoiceId },
+    data: updateData,
+    include: { chapter: { include: { institution: true } } },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      actor: "Admin",
+      action: "INVOICE_UPDATED",
+      entityType: "Invoice",
+      entityId: invoiceId,
+      afterJson: JSON.stringify(data),
+    },
+  }).catch(() => {});
+
+  return mapInvoice(updated);
+}
+
+export async function clearRallyInvoices(): Promise<{ cleared: number; message: string }> {
+  // Unlink all matched payments from invoices (they keep payment history but invoices reset)
+  await prisma.payment.updateMany({
+    where: { status: "MATCHED" },
+    data: { invoiceId: null, status: "UNMATCHED" },
+  });
+
+  const count = await prisma.invoice.count();
+  await prisma.invoice.deleteMany({});
+
+  await prisma.auditLog.create({
+    data: {
+      actor: "Admin",
+      action: "INVOICES_CLEARED",
+      entityType: "Invoice",
+      entityId: "all",
+      afterJson: JSON.stringify({ clearedAt: new Date().toISOString(), count }),
+    },
+  }).catch(() => {});
+
+  return { cleared: count, message: `${count} invoice(s) cleared. Payment history retained.` };
+}
+
 // ─── SYSTEM STATS ────────────────────────────────────────────────────────────
 
 export async function getSystemStats() {

@@ -282,6 +282,17 @@ function PortalContent() {
   });
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [allAttendeesList, setAllAttendeesList] = useState<Attendee[]>([]);
+
+  // Edit/Delete Payments & Invoices state
+  const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
+  const [showEditPaymentModal, setShowEditPaymentModal] = useState(false);
+  const [editPaymentForm, setEditPaymentForm] = useState({ amount: "", payerName: "", mpesaReceiptNumber: "", reference: "", method: "MPESA_DARAJA" });
+  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
+  const [showEditInvoiceModal, setShowEditInvoiceModal] = useState(false);
+  const [editInvoiceForm, setEditInvoiceForm] = useState({ amountDue: "", amountPaid: "", dueDate: "", status: "" });
+  const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
+  const [deletingInvoiceId, setDeletingInvoiceId] = useState<string | null>(null);
+  const [clearingInvoices, setClearingInvoices] = useState(false);
   
   // Dynamic Users & RBAC State
   const [usersList, setUsersList] = useState<UserAccount[]>([]);
@@ -2448,12 +2459,16 @@ function PortalContent() {
                 {/* 4 KPI Cards (Matches image1.png Chapter Portal) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                   {/* Card 1: Total Attendees */}
-                  <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm flex flex-col justify-between">
+                  <div
+                    onClick={() => setChapterActiveTab("attendees")}
+                    className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm flex flex-col justify-between cursor-pointer hover:border-blue-400 hover:shadow-md transition-all group"
+                    title="Click to view and manage delegates"
+                  >
                     <div className="flex items-center justify-between mb-4">
-                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500 group-hover:text-blue-600 transition-colors">
                         Total Attendees
                       </span>
-                      <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                      <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform">
                         <Users className="w-5 h-5" />
                       </div>
                     </div>
@@ -2463,24 +2478,31 @@ function PortalContent() {
                           ? attendeesList.length
                           : (currentChapter.attendeesCount ?? 0)}
                       </span>
-                      <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 mt-2">
-                        <TrendingUp className="w-3.5 h-3.5" />
-                        <span>
-                          {attendeesList.length > 0
-                            ? `${attendeesList.length} registered delegates`
-                            : "No delegates registered yet"}
+                      <div className="flex items-center justify-between text-xs font-semibold text-emerald-600 mt-2">
+                        <span className="flex items-center gap-1">
+                          <TrendingUp className="w-3.5 h-3.5" />
+                          <span>
+                            {attendeesList.length > 0
+                              ? `${attendeesList.length} registered delegates`
+                              : "No delegates registered yet"}
+                          </span>
                         </span>
-                      </span>
+                        <span className="text-[11px] font-bold text-blue-600 group-hover:underline">View Roster →</span>
+                      </div>
                     </div>
                   </div>
 
                   {/* Card 2: Chapter Fee */}
-                  <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm flex flex-col justify-between">
+                  <div
+                    onClick={() => setChapterActiveTab("payments")}
+                    className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm flex flex-col justify-between cursor-pointer hover:border-teal-400 hover:shadow-md transition-all group"
+                    title="Click to view invoices and make payment"
+                  >
                     <div className="flex items-center justify-between mb-4">
-                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500 group-hover:text-teal-700 transition-colors">
                         Your Chapter Fee
                       </span>
-                      <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center">
+                      <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center group-hover:scale-105 transition-transform">
                         <Building2 className="w-5 h-5" />
                       </div>
                     </div>
@@ -2488,19 +2510,24 @@ function PortalContent() {
                       <span className="font-heading font-black text-3xl text-navy-950">
                         {currentInvoice ? formatCurrency(currentInvoice.amountDue) : <span className="text-slate-400 text-xl">Pending invoice</span>}
                       </span>
-                      <span className="text-xs text-slate-500 block mt-2">
-                        {currentInvoice ? "Based on capability tier" : "Invoice will be issued by admin"}
-                      </span>
+                      <div className="flex items-center justify-between text-xs text-slate-500 mt-2">
+                        <span>{currentInvoice ? "Based on capability tier" : "Invoice will be issued by admin"}</span>
+                        <span className="text-[11px] font-bold text-teal-700 group-hover:underline">Payments →</span>
+                      </div>
                     </div>
                   </div>
 
                   {/* Card 3: Paid Amount */}
-                  <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm flex flex-col justify-between">
+                  <div
+                    onClick={() => setChapterActiveTab("payments")}
+                    className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm flex flex-col justify-between cursor-pointer hover:border-amber-400 hover:shadow-md transition-all group"
+                    title="Click to view payment history"
+                  >
                     <div className="flex items-center justify-between mb-4">
-                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500 group-hover:text-amber-700 transition-colors">
                         Paid Amount
                       </span>
-                      <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
+                      <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center group-hover:scale-105 transition-transform">
                         <CreditCard className="w-5 h-5" />
                       </div>
                     </div>
@@ -2508,11 +2535,14 @@ function PortalContent() {
                       <span className="font-heading font-black text-3xl text-navy-950">
                         {currentInvoice ? formatCurrency(currentInvoice.amountPaid) : <span className="text-slate-400 text-xl">KSh 0</span>}
                       </span>
-                      <span className="text-xs font-bold text-amber-700 block mt-2">
-                        {currentInvoice && currentInvoice.amountDue > 0
-                          ? `${Math.round((currentInvoice.amountPaid / currentInvoice.amountDue) * 100)}% of required amount`
-                          : "No payment recorded yet"}
-                      </span>
+                      <div className="flex items-center justify-between text-xs font-bold text-amber-700 mt-2">
+                        <span>
+                          {currentInvoice && currentInvoice.amountDue > 0
+                            ? `${Math.round((currentInvoice.amountPaid / currentInvoice.amountDue) * 100)}% of required amount`
+                            : "No payment recorded yet"}
+                        </span>
+                        <span className="text-[11px] font-bold text-amber-700 group-hover:underline">History →</span>
+                      </div>
                     </div>
                   </div>
 
@@ -2557,39 +2587,61 @@ function PortalContent() {
                       </span>
                     </div>
 
-                    {/* Stylized Trend Visualization Curve */}
-                    <div className="h-56 relative flex items-end justify-between gap-2 pt-8 px-4 pb-2 border-b border-slate-100">
-                      {[
-                        { month: "Jan", count: 40, height: "15%" },
-                        { month: "Feb", count: 65, height: "25%" },
-                        { month: "Mar", count: 90, height: "35%" },
-                        { month: "Apr", count: 110, height: "42%" },
-                        { month: "May", count: 135, height: "50%" },
-                        { month: "Jun", count: 160, height: "60%" },
-                        { month: "Jul", count: 185, height: "70%" },
-                        { month: "Aug", count: 215, height: "82%" },
-                        { month: "Sep", count: 248, height: "95%" },
-                      ].map((bar) => (
-                        <div key={bar.month} className="flex-1 flex flex-col items-center gap-2 group">
-                          <div className="w-full bg-slate-100 rounded-t-lg relative flex items-end justify-center group-hover:bg-teal-100 transition-colors" style={{ height: "180px" }}>
-                            <div 
-                              className="w-full rounded-t-lg bg-gradient-to-t from-teal-700 to-teal-500 group-hover:from-teal-600 group-hover:to-teal-400 transition-all relative"
-                              style={{ height: bar.height }}
-                            >
-                              {bar.month === "Sep" && (
-                                <span className="absolute -top-7 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded bg-navy-950 text-white font-mono font-bold text-[10px] shadow-sm whitespace-nowrap">
-                                  {bar.count} Confirmed
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <span className="text-[11px] font-semibold text-slate-500">{bar.month}</span>
+                    {/* Live Attendee Registration Trend */}
+                    {(() => {
+                      const total = attendeesList.length || currentChapter.attendeesCount || 0;
+                      const target = currentChapter.approximateMembers || Math.max(total, 1);
+                      // Build monthly buckets from real attendee data
+                      const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+                      const monthCounts: Record<string, number> = {};
+                      if (attendeesList.length > 0) {
+                        attendeesList.forEach(a => {
+                          if (a.registrationDate) {
+                            const d = new Date(a.registrationDate);
+                            if (!isNaN(d.getTime())) {
+                              const key = months[d.getMonth()];
+                              monthCounts[key] = (monthCounts[key] || 0) + 1;
+                            }
+                          }
+                        });
+                      }
+                      const now = new Date();
+                      const currentMonthIdx = now.getMonth();
+                      const bars = months.slice(0, currentMonthIdx + 1).map(m => ({
+                        month: m,
+                        count: monthCounts[m] || 0,
+                      }));
+                      if (bars.length === 0) bars.push({ month: months[currentMonthIdx], count: total });
+                      const maxCount = Math.max(...bars.map(b => b.count), 1);
+                      return (
+                        <div className="h-56 relative flex items-end justify-between gap-2 pt-8 px-4 pb-2 border-b border-slate-100">
+                          {bars.map((bar, i) => {
+                            const heightPct = `${Math.round((bar.count / maxCount) * 90) + 5}%`;
+                            const isLast = i === bars.length - 1;
+                            return (
+                              <div key={bar.month} className="flex-1 flex flex-col items-center gap-2 group">
+                                <div className="w-full bg-slate-100 rounded-t-lg relative flex items-end justify-center group-hover:bg-teal-100 transition-colors" style={{ height: "180px" }}>
+                                  <div
+                                    className="w-full rounded-t-lg bg-gradient-to-t from-teal-700 to-teal-500 group-hover:from-teal-600 group-hover:to-teal-400 transition-all relative"
+                                    style={{ height: heightPct }}
+                                  >
+                                    {isLast && bar.count > 0 && (
+                                      <span className="absolute -top-7 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded bg-navy-950 text-white font-mono font-bold text-[10px] shadow-sm whitespace-nowrap">
+                                        {bar.count} Confirmed
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <span className="text-[11px] font-semibold text-slate-500">{bar.month}</span>
+                              </div>
+                            );
+                          })}
                         </div>
-                      ))}
-                    </div>
+                      );
+                    })()}
 
                     <div className="pt-4 flex items-center justify-between text-xs text-slate-500">
-                      <span>Target Delegation: {currentChapter.approximateMembers ?? 250} Members</span>
+                      <span>Registered: {attendeesList.length || currentChapter.attendeesCount || 0} / {currentChapter.approximateMembers ?? "—"} target</span>
                       <span className="text-teal-700 font-bold">
                         {currentChapter.approximateMembers && currentChapter.approximateMembers > 0
                           ? `${Math.min(100, Math.round(((attendeesList.length || currentChapter.attendeesCount || 0) / currentChapter.approximateMembers) * 100))}% of target reached`
@@ -3313,6 +3365,7 @@ function PortalContent() {
                             <th className="py-3 px-4 text-right">Amount (KSh)</th>
                             <th className="py-3 px-4">Timestamp</th>
                             <th className="py-3 px-4 text-center">Status</th>
+                            <th className="py-3 px-4 text-center">Actions</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -3339,6 +3392,39 @@ function PortalContent() {
                                 }`}>
                                   {pay.status}
                                 </span>
+                              </td>
+                              <td className="py-3.5 px-4 text-center">
+                                <button
+                                  onClick={() => {
+                                    setEditingPayment(pay);
+                                    setEditPaymentForm({ amount: String(pay.amount), payerName: pay.payerName || "", mpesaReceiptNumber: pay.mpesaReceiptNumber || "", reference: pay.reference || "", method: pay.method });
+                                    setShowEditPaymentModal(true);
+                                  }}
+                                  className="p-1 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                  title="Edit payment"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    if (!confirm(`Delete this payment of ${formatCurrency(pay.amount)}? This will reverse the invoice balance.`)) return;
+                                    setDeletingPaymentId(pay.id);
+                                    try {
+                                      const res = await fetch(`/api/payments?paymentId=${pay.id}`, { method: "DELETE" });
+                                      const data = await res.json();
+                                      if (data.success) {
+                                        setPaymentsList(prev => prev.filter(p => p.id !== pay.id));
+                                        refreshInvoicesAndPayments();
+                                      } else alert(data.error || "Failed to delete");
+                                    } catch { alert("Network error"); }
+                                    finally { setDeletingPaymentId(null); }
+                                  }}
+                                  disabled={deletingPaymentId === pay.id}
+                                  className="p-1 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors disabled:opacity-40 ml-1"
+                                  title="Delete payment"
+                                >
+                                  {deletingPaymentId === pay.id ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>}
+                                </button>
                               </td>
                             </tr>
                           ))}
@@ -6209,7 +6295,7 @@ function PortalContent() {
                     <h1 className="font-heading font-black text-2xl text-navy-950">Payments & Reconciliation</h1>
                     <p className="text-xs text-slate-500 mt-1">Central treasury: M-Pesa Paybill 4082200 incoming transactions matched against chapter invoices.</p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <button
                       onClick={handleSyncMpesa}
                       disabled={syncingMpesa}
@@ -6234,6 +6320,27 @@ function PortalContent() {
                     >
                       <Plus className="w-3.5 h-3.5 text-amber-400" />
                       <span>Record Payment</span>
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!confirm(`Clear ALL ${invoicesList.length} invoice(s) after rally completion? Payment transaction history is kept. This cannot be undone.`)) return;
+                        setClearingInvoices(true);
+                        try {
+                          const res = await fetch("/api/invoices", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "clear_all" }) });
+                          const data = await res.json();
+                          if (data.success) {
+                            setInvoicesList([]);
+                            alert(data.message || "Invoices cleared successfully.");
+                          } else alert(data.error || "Failed to clear invoices");
+                        } catch { alert("Network error"); }
+                        finally { setClearingInvoices(false); }
+                      }}
+                      disabled={clearingInvoices || invoicesList.length === 0}
+                      className="px-4 py-2.5 rounded-xl bg-rose-50 border border-rose-200 hover:bg-rose-100 text-xs font-bold text-rose-700 flex items-center gap-1.5 shadow-sm transition-all disabled:opacity-50"
+                      title="Clear all invoices after rally ends (payment history is preserved)"
+                    >
+                      {clearingInvoices ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>}
+                      <span>Clear Invoices (Post-Rally)</span>
                     </button>
                   </div>
                 </div>
@@ -6369,20 +6476,48 @@ function PortalContent() {
                                   {pay.status}
                                 </span>
                               </td>
-                              <td className="py-3.5 px-4 text-center">
-                                {pay.status === "UNMATCHED" ? (
+                              <td className="py-3.5 px-4">
+                                <div className="flex items-center justify-center gap-1">
+                                  {pay.status === "UNMATCHED" && (
+                                    <button
+                                      onClick={() => handleOpenReconcileModal(pay)}
+                                      className="px-2 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-navy-950 text-[10px] font-bold shadow-sm transition-all"
+                                    >
+                                      Match
+                                    </button>
+                                  )}
                                   <button
-                                    onClick={() => handleOpenReconcileModal(pay)}
-                                    className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-navy-950 text-[11px] font-bold shadow-sm transition-all"
+                                    onClick={() => {
+                                      setEditingPayment(pay);
+                                      setEditPaymentForm({ amount: String(pay.amount), payerName: pay.payerName || "", mpesaReceiptNumber: pay.mpesaReceiptNumber || "", reference: pay.reference || "", method: pay.method });
+                                      setShowEditPaymentModal(true);
+                                    }}
+                                    className="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                    title="Edit"
                                   >
-                                    Reconcile / Match
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                                   </button>
-                                ) : (
-                                  <span className="text-[11px] text-slate-400 font-semibold flex items-center justify-center gap-1">
-                                    <Check className="w-3.5 h-3.5 text-emerald-600" />
-                                    Reconciled
-                                  </span>
-                                )}
+                                  <button
+                                    onClick={async () => {
+                                      if (!confirm(`Delete payment of ${formatCurrency(pay.amount)} from ${pay.payerName || "payer"}? Invoice balance will be reversed.`)) return;
+                                      setDeletingPaymentId(pay.id);
+                                      try {
+                                        const res = await fetch(`/api/payments?paymentId=${pay.id}`, { method: "DELETE" });
+                                        const data = await res.json();
+                                        if (data.success) {
+                                          setPaymentsList(prev => prev.filter(p => p.id !== pay.id));
+                                          refreshInvoicesAndPayments();
+                                        } else alert(data.error || "Delete failed");
+                                      } catch { alert("Network error"); }
+                                      finally { setDeletingPaymentId(null); }
+                                    }}
+                                    disabled={deletingPaymentId === pay.id}
+                                    className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors disabled:opacity-40"
+                                    title="Delete"
+                                  >
+                                    {deletingPaymentId === pay.id ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>}
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           ))}
@@ -6454,23 +6589,56 @@ function PortalContent() {
                                   {inv.status}
                                 </span>
                               </td>
-                              <td className="py-3.5 px-4 text-center">
-                                <button
-                                  onClick={() => {
-                                    setAdminPaymentForm({
-                                      invoiceId: inv.id,
-                                      amount: inv.balance > 0 ? String(inv.balance) : "",
-                                      receipt: "",
-                                      payerName: inv.institutionName,
-                                      phone: "",
-                                      method: "MPESA_DARAJA",
-                                    });
-                                    setShowRecordPaymentModal(true);
-                                  }}
-                                  className="px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 text-[11px] font-bold transition-all"
-                                >
-                                  + Payment
-                                </button>
+                              <td className="py-3.5 px-4">
+                                <div className="flex items-center justify-center gap-1">
+                                  <button
+                                    onClick={() => {
+                                      setAdminPaymentForm({
+                                        invoiceId: inv.id,
+                                        amount: inv.balance > 0 ? String(inv.balance) : "",
+                                        receipt: "",
+                                        payerName: inv.institutionName,
+                                        phone: "",
+                                        method: "MPESA_DARAJA",
+                                      });
+                                      setShowRecordPaymentModal(true);
+                                    }}
+                                    className="px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 text-[10px] font-bold transition-all"
+                                  >
+                                    + Pay
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setEditingInvoice(inv);
+                                      setEditInvoiceForm({ amountDue: String(inv.amountDue), amountPaid: String(inv.amountPaid), dueDate: inv.dueDate || "", status: inv.status });
+                                      setShowEditInvoiceModal(true);
+                                    }}
+                                    className="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                    title="Edit invoice"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                  </button>
+                                  <button
+                                    onClick={async () => {
+                                      if (!confirm(`Delete invoice ${inv.invoiceNumber} for ${inv.institutionName}? Linked payments will be unmatched.`)) return;
+                                      setDeletingInvoiceId(inv.id);
+                                      try {
+                                        const res = await fetch(`/api/invoices?invoiceId=${inv.id}`, { method: "DELETE" });
+                                        const data = await res.json();
+                                        if (data.success) {
+                                          setInvoicesList(prev => prev.filter(i => i.id !== inv.id));
+                                          refreshInvoicesAndPayments();
+                                        } else alert(data.error || "Delete failed");
+                                      } catch { alert("Network error"); }
+                                      finally { setDeletingInvoiceId(null); }
+                                    }}
+                                    disabled={deletingInvoiceId === inv.id}
+                                    className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors disabled:opacity-40"
+                                    title="Delete invoice"
+                                  >
+                                    {deletingInvoiceId === inv.id ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>}
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           ))}
@@ -10853,6 +11021,174 @@ function PortalContent() {
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 12: EDIT PAYMENT                                    */}
+      {/* ========================================================= */}
+      {showEditPaymentModal && editingPayment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="px-6 pt-6 pb-4 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h3 className="font-heading font-black text-lg text-navy-950">Edit Payment</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Update payment details. Amount changes will recalculate linked invoice balance.</p>
+              </div>
+              <button onClick={() => { setShowEditPaymentModal(false); setEditingPayment(null); }} className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setReconcilingLoading(true);
+                try {
+                  const res = await fetch("/api/payments", {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      paymentId: editingPayment.id,
+                      amount: Number(editPaymentForm.amount),
+                      payerName: editPaymentForm.payerName,
+                      mpesaReceiptNumber: editPaymentForm.mpesaReceiptNumber,
+                      reference: editPaymentForm.reference,
+                      method: editPaymentForm.method,
+                    }),
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                    setShowEditPaymentModal(false);
+                    setEditingPayment(null);
+                    refreshInvoicesAndPayments();
+                  } else {
+                    alert(data.error || "Failed to update payment");
+                  }
+                } catch { alert("Network error"); }
+                finally { setReconcilingLoading(false); }
+              }}
+              className="p-6 space-y-4 text-xs"
+            >
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">Amount (KES) *</label>
+                  <input type="number" required min="1" value={editPaymentForm.amount} onChange={e => setEditPaymentForm(prev => ({ ...prev, amount: e.target.value }))} className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none font-semibold" />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">Method</label>
+                  <select value={editPaymentForm.method} onChange={e => setEditPaymentForm(prev => ({ ...prev, method: e.target.value }))} className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none">
+                    <option value="MPESA_DARAJA">M-Pesa Daraja</option>
+                    <option value="BANK_TRANSFER">Bank Transfer</option>
+                    <option value="CASH">Cash</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">Payer Name</label>
+                <input type="text" value={editPaymentForm.payerName} onChange={e => setEditPaymentForm(prev => ({ ...prev, payerName: e.target.value }))} className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none" />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">M-Pesa Receipt #</label>
+                <input type="text" value={editPaymentForm.mpesaReceiptNumber} onChange={e => setEditPaymentForm(prev => ({ ...prev, mpesaReceiptNumber: e.target.value }))} className="w-full px-3 py-2 border border-slate-300 rounded-xl font-mono uppercase focus:ring-2 focus:ring-teal-600 focus:outline-none" />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">Chapter Reference</label>
+                <input type="text" value={editPaymentForm.reference} onChange={e => setEditPaymentForm(prev => ({ ...prev, reference: e.target.value }))} className="w-full px-3 py-2 border border-slate-300 rounded-xl font-mono focus:ring-2 focus:ring-teal-600 focus:outline-none" />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => { setShowEditPaymentModal(false); setEditingPayment(null); }} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold hover:bg-slate-50 transition-all">Cancel</button>
+                <button type="submit" disabled={reconcilingLoading} className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-bold shadow-md transition-all flex items-center justify-center gap-1.5">
+                  {reconcilingLoading ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /><span>Saving...</span></> : <><Check className="w-3.5 h-3.5" /><span>Save Changes</span></>}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 13: EDIT INVOICE                                    */}
+      {/* ========================================================= */}
+      {showEditInvoiceModal && editingInvoice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="px-6 pt-6 pb-4 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h3 className="font-heading font-black text-lg text-navy-950">Edit Invoice</h3>
+                <p className="text-xs text-slate-400 mt-0.5">{editingInvoice.invoiceNumber} — {editingInvoice.institutionName}</p>
+              </div>
+              <button onClick={() => { setShowEditInvoiceModal(false); setEditingInvoice(null); }} className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setReconcilingLoading(true);
+                try {
+                  const res = await fetch("/api/invoices", {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      invoiceId: editingInvoice.id,
+                      amountDue: Number(editInvoiceForm.amountDue),
+                      amountPaid: Number(editInvoiceForm.amountPaid),
+                      dueDate: editInvoiceForm.dueDate,
+                      status: editInvoiceForm.status || undefined,
+                    }),
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                    setShowEditInvoiceModal(false);
+                    setEditingInvoice(null);
+                    refreshInvoicesAndPayments();
+                  } else {
+                    alert(data.error || "Failed to update invoice");
+                  }
+                } catch { alert("Network error"); }
+                finally { setReconcilingLoading(false); }
+              }}
+              className="p-6 space-y-4 text-xs"
+            >
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">Amount Due (KES) *</label>
+                  <input type="number" required min="0" value={editInvoiceForm.amountDue} onChange={e => setEditInvoiceForm(prev => ({ ...prev, amountDue: e.target.value }))} className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none font-semibold" />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">Amount Paid (KES)</label>
+                  <input type="number" min="0" value={editInvoiceForm.amountPaid} onChange={e => setEditInvoiceForm(prev => ({ ...prev, amountPaid: e.target.value }))} className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none font-semibold" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">Due Date</label>
+                  <input type="date" value={editInvoiceForm.dueDate ? editInvoiceForm.dueDate.split("T")[0] : ""} onChange={e => setEditInvoiceForm(prev => ({ ...prev, dueDate: e.target.value }))} className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">Override Status</label>
+                  <select value={editInvoiceForm.status} onChange={e => setEditInvoiceForm(prev => ({ ...prev, status: e.target.value }))} className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none">
+                    <option value="">Auto-calculate</option>
+                    <option value="UNPAID">UNPAID</option>
+                    <option value="PARTIAL">PARTIAL</option>
+                    <option value="PAID">PAID</option>
+                  </select>
+                </div>
+              </div>
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-600">
+                <span className="font-bold">Calculated Balance: </span>
+                <span className="font-mono font-black text-amber-700">
+                  {formatCurrency(Math.max(0, (Number(editInvoiceForm.amountDue) || 0) - (Number(editInvoiceForm.amountPaid) || 0)))}
+                </span>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => { setShowEditInvoiceModal(false); setEditingInvoice(null); }} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold hover:bg-slate-50 transition-all">Cancel</button>
+                <button type="submit" disabled={reconcilingLoading} className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-bold shadow-md transition-all flex items-center justify-center gap-1.5">
+                  {reconcilingLoading ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /><span>Saving...</span></> : <><Check className="w-3.5 h-3.5" /><span>Update Invoice</span></>}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

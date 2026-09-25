@@ -6,6 +6,8 @@ import {
   addRallyHistoryItem 
 } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/rallies/history
  * Returns the persistent rally history and archives from DB

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getNewsPosts, createNewsPost, updateNewsPost, deleteNewsPost } from "@/lib/db";
 
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/news
  * Fetches all news articles and announcements.

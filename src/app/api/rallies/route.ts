@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getCurrentRally, updateCurrentRally, createRally, deleteRally } from "@/lib/db";
 import { CURRENT_RALLY as FALLBACK_RALLY } from "@/lib/data";
 
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/rallies
  * Returns the current/active rally for public and admin consumption.
