@@ -127,11 +127,10 @@ export default function AttendeePortalPage() {
                   <td className="py-3.5 px-4 font-mono text-xs text-slate-700">{att.admission}</td>
                   <td className="py-3.5 px-4 text-xs font-semibold">
                     <span
-                      className={`px-2 py-0.5 rounded ${
-                        att.ageCategory === "UNDER_18"
-                          ? "bg-amber-100 text-amber-900 font-bold"
-                          : "bg-slate-100 text-slate-700"
-                      }`}
+                      className={`px-2 py-0.5 rounded ${att.ageCategory === "UNDER_18"
+                        ? "bg-amber-100 text-amber-900 font-bold"
+                        : "bg-slate-100 text-slate-700"
+                        }`}
                     >
                       {att.ageCategory === "UNDER_18" ? "Under 18 (Minor)" : "Adult (18+)"}
                     </span>
@@ -153,11 +152,10 @@ export default function AttendeePortalPage() {
                   </td>
                   <td className="py-3.5 px-4">
                     <span
-                      className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold uppercase ${
-                        att.status === "CONFIRMED"
-                          ? "bg-emerald-100 text-emerald-800"
-                          : "bg-rose-100 text-rose-800"
-                      }`}
+                      className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold uppercase ${att.status === "CONFIRMED"
+                        ? "bg-emerald-100 text-emerald-800"
+                        : "bg-rose-100 text-rose-800"
+                        }`}
                     >
                       {att.status}
                     </span>

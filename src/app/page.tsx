@@ -322,24 +322,22 @@ export default function HomePage() {
                       Official Rally
                     </span>
                     <span
-                      className={`px-3 py-1 rounded-full border text-xs font-bold flex items-center gap-1.5 backdrop-blur-sm ${
-                        currentRally.state === "REGISTRATION_OPEN"
+                      className={`px-3 py-1 rounded-full border text-xs font-bold flex items-center gap-1.5 backdrop-blur-sm ${currentRally.state === "REGISTRATION_OPEN"
                           ? "bg-emerald-500/20 border-emerald-400/30 text-emerald-300"
                           : currentRally.state === "FEES_LOCKED"
-                          ? "bg-amber-500/20 border-amber-400/30 text-amber-300"
-                          : currentRally.state === "IN_PROGRESS"
-                          ? "bg-purple-500/20 border-purple-400/30 text-purple-300"
-                          : currentRally.state === "COMPLETED"
-                          ? "bg-blue-500/20 border-blue-400/30 text-blue-300"
-                          : "bg-slate-500/20 border-slate-400/30 text-slate-300"
-                      }`}
+                            ? "bg-amber-500/20 border-amber-400/30 text-amber-300"
+                            : currentRally.state === "IN_PROGRESS"
+                              ? "bg-purple-500/20 border-purple-400/30 text-purple-300"
+                              : currentRally.state === "COMPLETED"
+                                ? "bg-blue-500/20 border-blue-400/30 text-blue-300"
+                                : "bg-slate-500/20 border-slate-400/30 text-slate-300"
+                        }`}
                     >
                       <span
-                        className={`w-2 h-2 rounded-full ${
-                          currentRally.state === "REGISTRATION_OPEN"
+                        className={`w-2 h-2 rounded-full ${currentRally.state === "REGISTRATION_OPEN"
                             ? "bg-emerald-400 animate-pulse"
                             : "bg-slate-400"
-                        }`}
+                          }`}
                       />
                       {(currentRally.state || "REGISTRATION OPEN").replace(/_/g, " ")}
                     </span>
@@ -392,7 +390,7 @@ export default function HomePage() {
                   <div className="flex flex-wrap items-center gap-4 pt-2">
                     {currentRally.state === "REGISTRATION_OPEN" ? (
                       <Link
-                        href="/apply"
+                        href="/register"
                         className="px-8 py-3.5 rounded-full bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold text-sm shadow-lg hover:shadow-amber-500/25 transition-all flex items-center gap-2"
                       >
                         <span>Register Now</span>
@@ -593,10 +591,10 @@ export default function HomePage() {
                             src={normalizeGoogleImageUrl(item.imageUrl)}
                             alt={item.altText || item.title}
                             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                            onError={(e) => { 
+                            onError={(e) => {
                               const target = e.target as HTMLImageElement;
                               target.onerror = null;
-                              target.src = "/placeholder-gallery.jpg"; 
+                              target.src = "/placeholder-gallery.jpg";
                             }}
                           />
                           <div className="absolute inset-0 bg-navy-950/20 group-hover:bg-navy-950/40 transition-colors" />

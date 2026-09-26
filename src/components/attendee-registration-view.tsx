@@ -84,7 +84,7 @@ export function AttendeeRegistrationView({ chapterCode }: AttendeeRegistrationVi
           setChapters(json.data);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // Determine active chapter from code or fallback
@@ -185,11 +185,11 @@ export function AttendeeRegistrationView({ chapterCode }: AttendeeRegistrationVi
         guardianConsent:
           formData.ageCategory === "UNDER_18"
             ? {
-                guardianName: formData.guardianName.trim() || "Parent/Guardian",
-                guardianPhone: formData.guardianPhone.trim() || "+254 700 000 000",
-                consentGiven: formData.guardianConsentGiven,
-                consentDate: new Date().toISOString().split("T")[0],
-              }
+              guardianName: formData.guardianName.trim() || "Parent/Guardian",
+              guardianPhone: formData.guardianPhone.trim() || "+254 700 000 000",
+              consentGiven: formData.guardianConsentGiven,
+              consentDate: new Date().toISOString().split("T")[0],
+            }
             : undefined,
       };
 
@@ -232,11 +232,6 @@ export function AttendeeRegistrationView({ chapterCode }: AttendeeRegistrationVi
         <section className="relative pt-32 pb-16 bg-navy-950 text-white overflow-hidden">
           <div className="absolute inset-0 opacity-15 bg-[radial-gradient(#14b8a6_1px,transparent_1px)] [background-size:20px_20px]" />
           <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-teal-500/10 border border-teal-500/30 text-teal-300 text-xs font-bold uppercase tracking-wider mb-6">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Coastal Unity Rally 2026 • Delegate Accreditation</span>
-            </div>
-
             <h1 className="font-heading font-black text-3xl sm:text-5xl text-white tracking-tight">
               Institutional Delegate Registration
             </h1>
@@ -263,7 +258,7 @@ export function AttendeeRegistrationView({ chapterCode }: AttendeeRegistrationVi
 
         {/* Content Container */}
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 -mt-8">
-          
+
           {/* SUCCESS SCREEN: DIGITAL DELEGATE PASS */}
           {registeredAttendee ? (
             <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl p-6 sm:p-10 space-y-8 animate-in fade-in zoom-in-95 duration-300">
@@ -321,7 +316,7 @@ export function AttendeeRegistrationView({ chapterCode }: AttendeeRegistrationVi
                     <span className="text-slate-400 text-[10px] uppercase font-bold block">Rally Dates</span>
                     <span className="font-medium text-slate-200 block mt-0.5 flex items-center gap-1.5">
                       <Calendar className="w-3.5 h-3.5 text-teal-400" />
-                      <span>15 – 17 November 2026</span>
+                      <span>{CURRENT_RALLY.startDate}</span>
                     </span>
                   </div>
                   <div>
