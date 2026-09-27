@@ -37,6 +37,23 @@ interface AttendeeRegistrationViewProps {
   chapterCode?: string;
 }
 
+/** Format a date range from ISO strings into e.g. "15 – 17 November 2026" */
+function formatRallyDates(startIso?: string | null, endIso?: string | null): string {
+  if (!startIso) return "TBA";
+  const opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "long", year: "numeric", timeZone: "Africa/Nairobi" };
+  const optsDay: Intl.DateTimeFormatOptions = { day: "numeric", timeZone: "Africa/Nairobi" };
+  const start = new Date(startIso);
+  const end = endIso ? new Date(endIso) : null;
+  if (!end || start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()) {
+    // Same month/year — compact: "15 – 17 November 2026"
+    const startDay = start.toLocaleDateString("en-KE", optsDay);
+    const endFull = end ? end.toLocaleDateString("en-KE", opts) : start.toLocaleDateString("en-KE", opts);
+    return end ? `${startDay} – ${endFull}` : endFull;
+  }
+  // Different months
+  return `${start.toLocaleDateString("en-KE", opts)} – ${end.toLocaleDateString("en-KE", opts)}`;
+}
+
 export function AttendeeRegistrationView({ chapterCode }: AttendeeRegistrationViewProps) {
   const [chapters, setChapters] = useState<Chapter[]>(MEMBER_CHAPTERS);
   const [selectedChapterId, setSelectedChapterId] = useState<string>("");
@@ -49,6 +66,20 @@ export function AttendeeRegistrationView({ chapterCode }: AttendeeRegistrationVi
     attendee?: Attendee;
     message?: string;
   } | null>(null);
+
+  // Live rally data from API (falls back to static CURRENT_RALLY)
+  const [liveRally, setLiveRally] = useState<typeof CURRENT_RALLY>(CURRENT_RALLY);
+
+  useEffect(() => {
+    fetch("/api/rallies")
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.success && j.data) {
+          setLiveRally(j.data);
+        }
+      })
+      .catch(() => { /* keep static fallback */ });
+  }, []);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -229,14 +260,14 @@ export function AttendeeRegistrationView({ chapterCode }: AttendeeRegistrationVi
 
       <main className="flex-1 pb-20">
         {/* Top Hero Banner */}
-        <section className="relative pt-32 pb-16 bg-navy-950 text-white overflow-hidden">
+        <section className="relative pt-32 pb-8 bg-navy-950 text-white overflow-hidden">
           <div className="absolute inset-0 opacity-15 bg-[radial-gradient(#14b8a6_1px,transparent_1px)] [background-size:20px_20px]" />
           <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <h1 className="font-heading font-black text-3xl sm:text-5xl text-white tracking-tight">
               Institutional Delegate Registration
             </h1>
             <p className="mt-4 text-slate-300 max-w-2xl mx-auto text-sm sm:text-base leading-relaxed">
-              Official registration portal for Seventh-day Adventist university and college students attending the {CURRENT_RALLY.title}. Check if your chapter leadership has registered you, or submit your delegate accreditation details.
+              Official registration portal for Seventh-day Adventist university and college students attending the {liveRally.title}. Check if your chapter leadership has registered you, or submit your delegate accreditation details.
             </p>
 
             {/* Institution Badge Pill */}
@@ -257,11 +288,11 @@ export function AttendeeRegistrationView({ chapterCode }: AttendeeRegistrationVi
         </section>
 
         {/* Content Container */}
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 -mt-8">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
 
           {/* SUCCESS SCREEN: DIGITAL DELEGATE PASS */}
           {registeredAttendee ? (
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl p-6 sm:p-10 space-y-8 animate-in fade-in zoom-in-95 duration-300">
+            <div className="-mt-10 bg-white rounded-3xl border border-slate-200 shadow-2xl p-6 sm:p-10 space-y-8 animate-in fade-in zoom-in-95 duration-300">
               <div className="text-center space-y-3">
                 <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-inner">
                   <CheckCircle2 className="w-10 h-10" />
@@ -270,7 +301,7 @@ export function AttendeeRegistrationView({ chapterCode }: AttendeeRegistrationVi
                   Registration Confirmed!
                 </h2>
                 <p className="text-sm text-slate-600 max-w-md mx-auto">
-                  Your delegate accreditation for {CURRENT_RALLY.title} has been successfully recorded in the central CUCASO registry.
+                  Your delegate accreditation for {liveRally.title} has been successfully recorded in the central CUCASO registry.
                 </p>
               </div>
 
@@ -316,14 +347,14 @@ export function AttendeeRegistrationView({ chapterCode }: AttendeeRegistrationVi
                     <span className="text-slate-400 text-[10px] uppercase font-bold block">Rally Dates</span>
                     <span className="font-medium text-slate-200 block mt-0.5 flex items-center gap-1.5">
                       <Calendar className="w-3.5 h-3.5 text-teal-400" />
-                      <span>{CURRENT_RALLY.startDate}</span>
+                      <span>{formatRallyDates(liveRally.startDate, liveRally.endDate)}</span>
                     </span>
                   </div>
                   <div>
                     <span className="text-slate-400 text-[10px] uppercase font-bold block">Venue</span>
                     <span className="font-medium text-slate-200 block mt-0.5 flex items-center gap-1.5">
                       <MapPin className="w-3.5 h-3.5 text-teal-400" />
-                      <span>{CURRENT_RALLY.venueName}, {CURRENT_RALLY.venueLocation}</span>
+                      <span>{liveRally.venueName || "Mombasa Sports Complex"}, {liveRally.venueLocation || "Mombasa Island, Coast Region, Kenya"}</span>
                     </span>
                   </div>
                 </div>
@@ -357,7 +388,7 @@ export function AttendeeRegistrationView({ chapterCode }: AttendeeRegistrationVi
               </div>
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-6 pt-8">
 
               {/* Chapter Selector & Sharing Hub (If multi-chapter or direct link) */}
               <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">

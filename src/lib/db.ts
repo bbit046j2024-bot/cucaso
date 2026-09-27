@@ -2005,7 +2005,7 @@ export async function createGalleryItem(data: {
 
 export async function deleteGalleryItem(id: string) {
   try {
-    await prisma.galleryItem.delete({ where: { id } });
+    await prisma.galleryItem.deleteMany({ where: { id } });
     return true;
   } catch {
     return false;
@@ -2086,7 +2086,7 @@ export async function updateLeadership(
 
 export async function deleteLeadership(id: string) {
   try {
-    await prisma.leadership.delete({ where: { id } });
+    await prisma.leadership.deleteMany({ where: { id } });
     return true;
   } catch (err) {
     console.error("Error deleting leader:", err);
@@ -2494,10 +2494,13 @@ export async function updateNewsPost(id: string, updates: Partial<NewsPost>): Pr
 }
 
 export async function deleteNewsPost(id: string): Promise<boolean> {
+  // deleteMany avoids P2025 when item only exists in memory (not yet persisted to DB)
   try {
-    await prisma.cmsPost.delete({ where: { id } });
-  } catch (e) {
-    console.warn("Prisma cmsPost delete error:", e);
+    await prisma.cmsPost.deleteMany({ where: { id } });
+  } catch (e: any) {
+    if (e?.code !== "P2025") {
+      console.warn("Prisma cmsPost delete error:", e);
+    }
   }
   const prevLen = IN_MEMORY_NEWS.length;
   IN_MEMORY_NEWS = IN_MEMORY_NEWS.filter(p => p.id !== id);
@@ -2657,13 +2660,20 @@ export async function createDocumentResource(data: Partial<ResourceDocument>): P
 }
 
 export async function deleteDocumentResource(id: string): Promise<boolean> {
+  // Use deleteMany to avoid P2025 (record not found) errors on in-memory-only documents
+  let dbDeleted = false;
   try {
-    await prisma.document.delete({ where: { id } });
-  } catch (e) {
-    console.warn("Prisma document delete error:", e);
+    const result = await prisma.document.deleteMany({ where: { id } });
+    dbDeleted = result.count > 0;
+  } catch (e: any) {
+    // Only log genuine unexpected errors, not "record not found"
+    if (e?.code !== "P2025") {
+      console.warn("Prisma document delete error:", e);
+    }
   }
   const prevLen = IN_MEMORY_DOCUMENTS.length;
   IN_MEMORY_DOCUMENTS = IN_MEMORY_DOCUMENTS.filter(d => d.id !== id);
-  return IN_MEMORY_DOCUMENTS.length < prevLen;
+  const memDeleted = IN_MEMORY_DOCUMENTS.length < prevLen;
+  return dbDeleted || memDeleted;
 }
 

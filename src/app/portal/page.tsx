@@ -84,7 +84,10 @@ import {
   Inbox,
   MessageSquare,
   Mail,
-  Heart
+  Heart,
+  Lock,
+  EyeOff,
+  Send
 } from "lucide-react";
 
 function PortalContent() {
@@ -101,7 +104,7 @@ function PortalContent() {
 
   // Admin Portal active tab
   const [adminActiveTab, setAdminActiveTab] = useState<
-    "overview" | "chapters" | "rallies" | "attendees" | "payments" | "funding" | "reports" | "leadership" | "gallery" | "news" | "resources" | "inbox" | "users" | "settings" | "audit"
+    "overview" | "chapters" | "rallies" | "attendees" | "payments" | "funding" | "reports" | "leadership" | "gallery" | "news" | "resources" | "inbox" | "users" | "settings" | "audit" | "notifications"
   >("overview");
 
   useEffect(() => {
@@ -292,6 +295,73 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
   });
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [allAttendeesList, setAllAttendeesList] = useState<Attendee[]>([]);
+
+  // Notifications Bell & Dropdown State
+  const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
+  const [portalNotifications, setPortalNotifications] = useState<any[]>([
+    {
+      id: "notif-1",
+      title: "Donation Received via M-Pesa STK",
+      body: "KES 5,000 received for Student Welfare & Subsidies. Ref: QKD8291410.",
+      time: "10 mins ago",
+      type: "SUCCESS",
+      read: false,
+    },
+    {
+      id: "notif-2",
+      title: "Chapter Registration Approved",
+      body: "TUM SDA Chapter was approved by Central Council with Tier 1 status.",
+      time: "2 hours ago",
+      type: "INFO",
+      read: false,
+    },
+    {
+      id: "notif-3",
+      title: "Fee Lock Milestone",
+      body: "Coast Rally fee snapshot is scheduled for lock on 1 November. 8 chapters pending.",
+      time: "1 day ago",
+      type: "WARNING",
+      read: true,
+    },
+  ]);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(2);
+
+  // Settings & Password State
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+  const [showPassword, setShowPassword] = useState(false);
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordFeedback, setPasswordFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const [orgSettings, setOrgSettings] = useState({
+    orgName: "Coastal Universities and Colleges Adventist Students Organization",
+    acronym: "CUCASO",
+    location: "Mombasa Coast Field Secretariat, Mombasa, Kenya",
+    email: "secretariat@cucaso.org",
+    phone: "+254 706 398 658",
+    paybill: "4082200",
+    contingency: "10%",
+  });
+  const [savingOrgSettings, setSavingOrgSettings] = useState(false);
+
+  // Broadcast & Notifications State
+  const [newBroadcast, setNewBroadcast] = useState({
+    title: "",
+    body: "",
+    type: "INFO" as "INFO" | "WARNING" | "URGENT" | "SUCCESS",
+    channel: "IN_APP" as "IN_APP" | "SMS" | "EMAIL",
+  });
+  const [broadcasting, setBroadcasting] = useState(false);
+  const [notifFilter, setNotifFilter] = useState<"ALL" | "UNREAD">("ALL");
+
+  // Admin User Password Reset Modal State
+  const [resetTargetUser, setResetTargetUser] = useState<UserAccount | null>(null);
+  const [adminResetPasswordForm, setAdminResetPasswordForm] = useState({ newPassword: "", confirmPassword: "" });
+  const [adminResetLoading, setAdminResetLoading] = useState(false);
+  const [adminResetFeedback, setAdminResetFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Edit/Delete Payments & Invoices state
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
@@ -620,6 +690,196 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
     }
   };
 
+  // Notifications Handlers
+  const fetchNotifications = async () => {
+    try {
+      const res = await fetch("/api/notifications");
+      const j = await res.json();
+      if (j.success && Array.isArray(j.data)) {
+        setPortalNotifications(j.data);
+        setUnreadNotifCount(j.unreadCount || 0);
+      }
+    } catch (e) {
+      console.error("Failed to load notifications", e);
+    }
+  };
+
+  const handleMarkNotificationRead = async (id: string) => {
+    setPortalNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    setUnreadNotifCount(prev => Math.max(0, prev - 1));
+    try {
+      await fetch("/api/notifications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notificationId: id }),
+      });
+    } catch {}
+  };
+
+  const handleMarkAllNotificationsRead = async () => {
+    setPortalNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    setUnreadNotifCount(0);
+    try {
+      await fetch("/api/notifications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ markAllAsRead: true }),
+      });
+    } catch {}
+  };
+
+  const handleDeleteNotification = async (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const target = portalNotifications.find(n => n.id === id);
+    setPortalNotifications(prev => prev.filter(n => n.id !== id));
+    if (target && !target.read) {
+      setUnreadNotifCount(prev => Math.max(0, prev - 1));
+    }
+    try {
+      await fetch(`/api/notifications?id=${id}`, {
+        method: "DELETE",
+      });
+      setLocationToast("Notification removed.");
+      setTimeout(() => setLocationToast(null), 2500);
+    } catch (err) {
+      console.error("Failed to delete notification", err);
+    }
+  };
+
+  const handleClearAllNotifications = async () => {
+    if (!confirm("Are you sure you want to clear all notifications?")) return;
+    setPortalNotifications([]);
+    setUnreadNotifCount(0);
+    try {
+      await fetch("/api/notifications", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clearAll: true }),
+      });
+      setLocationToast("All notifications cleared.");
+      setTimeout(() => setLocationToast(null), 2500);
+    } catch (err) {
+      console.error("Failed to clear notifications", err);
+    }
+  };
+
+  // Admin Password Change CRUD
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordFeedback(null);
+
+    if (!passwordForm.newPassword || passwordForm.newPassword.length < 8) {
+      setPasswordFeedback({ type: "error", text: "New password must be at least 8 characters long." });
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordFeedback({ type: "error", text: "New password and confirmation do not match." });
+      return;
+    }
+
+    setPasswordLoading(true);
+    try {
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(passwordForm),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPasswordFeedback({ type: "success", text: "Password updated successfully!" });
+        setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+        setShowChangePasswordModal(false);
+        setLocationToast("Password updated successfully!");
+        setTimeout(() => setLocationToast(null), 3000);
+      } else {
+        setPasswordFeedback({ type: "error", text: data.error || "Failed to update password." });
+      }
+    } catch (err: any) {
+      setPasswordFeedback({ type: "error", text: err.message || "Network error updating password." });
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
+  // Admin System Settings CRUD
+  const handleSaveOrgSettings = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingOrgSettings(true);
+    setTimeout(() => {
+      setSavingOrgSettings(false);
+      setLocationToast("Platform & Organization settings saved successfully!");
+      setTimeout(() => setLocationToast(null), 3000);
+    }, 600);
+  };
+
+  const handleBroadcastNotification = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newBroadcast.title.trim() || !newBroadcast.body.trim()) return;
+    setBroadcasting(true);
+    try {
+      const res = await fetch("/api/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newBroadcast),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPortalNotifications(prev => [data.data, ...prev]);
+        setUnreadNotifCount(prev => prev + 1);
+        setNewBroadcast({ title: "", body: "", type: "INFO", channel: "IN_APP" });
+        setLocationToast("Announcement broadcasted successfully to all chapters & delegates!");
+        setTimeout(() => setLocationToast(null), 3000);
+      }
+    } catch (err: any) {
+      console.error(err);
+    } finally {
+      setBroadcasting(false);
+    }
+  };
+
+  const handleAdminResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetTargetUser) return;
+    if (adminResetPasswordForm.newPassword.length < 8) {
+      setAdminResetFeedback({ type: "error", text: "Password must be at least 8 characters long." });
+      return;
+    }
+    if (adminResetPasswordForm.newPassword !== adminResetPasswordForm.confirmPassword) {
+      setAdminResetFeedback({ type: "error", text: "Passwords do not match." });
+      return;
+    }
+    setAdminResetLoading(true);
+    setAdminResetFeedback(null);
+    try {
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          targetUserId: resetTargetUser.id,
+          newPassword: adminResetPasswordForm.newPassword,
+          confirmPassword: adminResetPasswordForm.confirmPassword,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAdminResetFeedback({ type: "success", text: `Password for ${resetTargetUser.name} reset successfully!` });
+        setLocationToast(`Password reset for ${resetTargetUser.name}!`);
+        setTimeout(() => {
+          setResetTargetUser(null);
+          setAdminResetPasswordForm({ newPassword: "", confirmPassword: "" });
+          setAdminResetFeedback(null);
+          setLocationToast(null);
+        }, 2000);
+      } else {
+        setAdminResetFeedback({ type: "error", text: data.error || "Failed to reset password." });
+      }
+    } catch (err: any) {
+      setAdminResetFeedback({ type: "error", text: err.message || "Network error resetting password." });
+    } finally {
+      setAdminResetLoading(false);
+    }
+  };
+
   // Dynamic Council Leadership Directory State
   const [councilLeaders, setCouncilLeaders] = useState<ExecutiveLeader[]>([]);
 
@@ -637,11 +897,6 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
     avatarUrl: "",
   });
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
-  const [passwordForm, setPasswordForm] = useState({
-    current: "",
-    newPassword: "",
-    confirmPassword: "",
-  });
   const [passwordToast, setPasswordToast] = useState<string | null>(null);
   const [showLeadershipModal, setShowLeadershipModal] = useState(false);
   const [leadershipForm, setLeadershipForm] = useState({
@@ -1868,20 +2123,6 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
     }
   };
 
-  // Change Password Handler
-  const handleChangePassword = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!passwordForm.newPassword || passwordForm.newPassword !== passwordForm.confirmPassword) {
-      setPasswordToast("New passwords do not match. Please verify.");
-      setTimeout(() => setPasswordToast(null), 4000);
-      return;
-    }
-    setShowChangePasswordModal(false);
-    setPasswordForm({ current: "", newPassword: "", confirmPassword: "" });
-    setLocationToast("Password updated successfully! Your account is secured.");
-    setTimeout(() => setLocationToast(null), 4000);
-  };
-
   // Sign Out Handler
   const handleSignOut = () => {
     if (confirm("Are you sure you want to sign out of the CUCASO Portal?")) {
@@ -2329,6 +2570,22 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                 </button>
 
                 <button
+                  onClick={() => setAdminActiveTab("notifications")}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${adminActiveTab === "notifications"
+                    ? "bg-amber-600 text-navy-950 font-bold shadow-md"
+                    : "hover:bg-white/5 text-slate-300 hover:text-white"
+                    }`}
+                >
+                  <Bell className="w-4 h-4" />
+                  <span className="flex-1 text-left">Notifications</span>
+                  {unreadNotifCount > 0 && (
+                    <span className="px-1.5 py-0.5 rounded-full bg-amber-400 text-navy-950 text-[10px] font-bold">
+                      {unreadNotifCount}
+                    </span>
+                  )}
+                </button>
+
+                <button
                   onClick={() => setAdminActiveTab("settings")}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${adminActiveTab === "settings"
                     ? "bg-amber-600 text-navy-950 font-bold shadow-md"
@@ -2398,11 +2655,96 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
             </div>
 
             {/* Right: Notifications + User */}
-            <div className="flex items-center gap-3">
-              <button className="relative p-2.5 rounded-xl text-slate-500 hover:bg-slate-100 transition-colors">
-                <Bell className="w-5 h-5" />
-                <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-amber-500 ring-2 ring-white" />
-              </button>
+            <div className="flex items-center gap-3 relative">
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowNotificationsDropdown(!showNotificationsDropdown)}
+                  className="relative p-2.5 rounded-xl text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                  title="Notifications"
+                >
+                  <Bell className="w-5 h-5" />
+                  {unreadNotifCount > 0 && (
+                    <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500 text-white text-[10px] font-black flex items-center justify-center ring-2 ring-white">
+                      {unreadNotifCount}
+                    </span>
+                  )}
+                </button>
+
+                {/* Notifications Dropdown Modal */}
+                {showNotificationsDropdown && (
+                  <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl border border-slate-200 shadow-2xl z-50 overflow-hidden animate-in fade-in-50 slide-in-from-top-2">
+                    <div className="p-3.5 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-heading font-black text-xs text-navy-950">Notifications</span>
+                        {unreadNotifCount > 0 && (
+                          <span className="px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold">
+                            {unreadNotifCount} new
+                          </span>
+                        )}
+                      </div>
+                      {unreadNotifCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleMarkAllNotificationsRead}
+                          className="text-[10px] font-bold text-teal-700 hover:underline cursor-pointer"
+                        >
+                          Mark all read
+                        </button>
+                      )}
+                    </div>
+                    <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+                      {portalNotifications.length === 0 ? (
+                        <div className="p-6 text-center text-xs text-slate-400">No notifications</div>
+                      ) : (
+                        portalNotifications.slice(0, 5).map((n) => (
+                          <div
+                            key={n.id}
+                            onClick={() => handleMarkNotificationRead(n.id)}
+                            className={`p-3.5 flex items-start gap-3 hover:bg-slate-50 transition-colors cursor-pointer group ${
+                              !n.read ? "bg-teal-50/40" : ""
+                            }`}
+                          >
+                            <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${!n.read ? "bg-teal-500" : "bg-slate-300"}`} />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-1">
+                                <span className={`text-xs font-bold truncate ${!n.read ? "text-navy-950" : "text-slate-700"}`}>
+                                  {n.title}
+                                </span>
+                                <div className="flex items-center gap-1.5 flex-shrink-0">
+                                  <span className="text-[9px] text-slate-400">{n.time}</span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleDeleteNotification(n.id, e)}
+                                    className="p-1 text-slate-300 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors"
+                                    title="Delete notification"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </div>
+                              <p className="text-[11px] text-slate-500 line-clamp-2 mt-0.5">{n.body}</p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <div className="p-2.5 bg-slate-50 border-t border-slate-100 text-center">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowNotificationsDropdown(false);
+                          if (activePortal === "ADMIN") setAdminActiveTab("notifications");
+                          else setChapterActiveTab("notifications");
+                        }}
+                        className="text-xs font-bold text-teal-700 hover:text-teal-800 cursor-pointer"
+                      >
+                        View all in Notifications page →
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               <div className="flex items-center gap-3 pl-3 border-l border-slate-200">
                 <div className={`w-9 h-9 rounded-full font-black text-xs flex items-center justify-center shadow-sm ${activePortal === "CHAPTER"
@@ -3987,42 +4329,222 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
               </div>
             )}
 
-            {/* VIEW D-4: NOTIFICATIONS */}
-            {activePortal === "CHAPTER" && chapterActiveTab === "notifications" && (
+            {/* VIEW: NOTIFICATIONS (CHAPTER & ADMIN) */}
+            {((activePortal === "CHAPTER" && chapterActiveTab === "notifications") ||
+              (activePortal === "ADMIN" && adminActiveTab === "notifications")) && (
               <div className="space-y-6 animate-in fade-in duration-200">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
-                    <h1 className="font-heading font-black text-2xl text-navy-950">Notifications</h1>
-                    <p className="text-xs text-slate-500 mt-1">Official communications from the CUCASO Central Secretariat.</p>
+                    <h1 className="font-heading font-black text-2xl text-navy-950">Notifications & Announcements</h1>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {activePortal === "ADMIN"
+                        ? "Dispatch central communications, broadcast SMS/Email alerts, and monitor system events."
+                        : "Official communications from the CUCASO Central Secretariat and real-time event updates."}
+                    </p>
                   </div>
-                  <span className="px-3 py-1 rounded-full bg-rose-100 text-rose-800 font-bold text-xs">3 Unread</span>
+                  <div className="flex items-center gap-2">
+                    {unreadNotifCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleMarkAllNotificationsRead}
+                        className="px-3.5 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-700 text-xs font-bold transition-colors cursor-pointer"
+                      >
+                        Mark all as read
+                      </button>
+                    )}
+                    {portalNotifications.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleClearAllNotifications}
+                        className="px-3.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+                        title="Delete all notifications"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Clear all</span>
+                      </button>
+                    )}
+                    <span className="px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs">
+                      {unreadNotifCount} Unread
+                    </span>
+                  </div>
                 </div>
-                <div className="space-y-3">
-                  {[
-                    { title: "Invoice Due Reminder — 10 November 2026", body: `Your chapter (${currentChapter.code}) has an outstanding invoice balance. Please complete payment via M-Pesa Paybill 4082200 before the deadline.`, time: "2 hours ago", type: "URGENT", read: false },
-                    { title: "Coastal Unity Rally 2026 — Registration Now Open", body: "Chapter delegate registration is officially open. Use the Chapter Portal to add, edit, and submit your delegation list before the 1 November cutoff.", time: "3 days ago", type: "INFO", read: false },
-                    { title: "Fee Lock Date Approaching — 1 November 2026", body: "The rally fee schedule will be locked on 1 November 2026. Ensure all attendees are registered before this date to avoid surcharges.", time: "5 days ago", type: "WARNING", read: false },
-                    { title: "Chapter Accreditation Confirmed", body: `Your chapter (${currentChapter.institutionName}) has been officially approved and assigned ${currentChapter.tierId?.replace("_", " ") || "Tier 1"} status by the CUCASO Executive Council.`, time: "2 months ago", type: "SUCCESS", read: true },
-                    { title: "Welcome to the CUCASO Chapter Portal", body: "Your chapter portal access has been activated. You can now register delegates, view your invoice, and access all rally documents.", time: "6 months ago", type: "INFO", read: true },
-                  ].map((notif) => (
-                    <div key={notif.title} className={`p-5 rounded-2xl border shadow-sm flex items-start gap-4 ${notif.read ? "bg-white border-slate-200" : "bg-blue-50/50 border-blue-200"}`}>
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${notif.type === "URGENT" ? "bg-rose-100 text-rose-700" :
-                        notif.type === "WARNING" ? "bg-amber-100 text-amber-700" :
-                          notif.type === "SUCCESS" ? "bg-emerald-100 text-emerald-700" :
-                            "bg-blue-100 text-blue-700"
-                        }`}>
-                        <Bell className="w-5 h-5" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-3 mb-1">
-                          <span className={`font-bold text-sm ${notif.read ? "text-slate-700" : "text-slate-900"}`}>{notif.title}</span>
-                          {!notif.read && <span className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0" />}
+
+                {/* Admin Broadcast Announcement Composer */}
+                {activePortal === "ADMIN" && (
+                  <div className="bg-gradient-to-br from-navy-900 to-navy-950 rounded-3xl p-6 text-white shadow-xl space-y-4 border border-navy-800">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold">
+                          <Bell className="w-4 h-4" />
                         </div>
-                        <p className="text-xs text-slate-500 leading-relaxed">{notif.body}</p>
-                        <span className="text-[10px] text-slate-400 block mt-2">{notif.time}</span>
+                        <div>
+                          <h3 className="font-heading font-bold text-sm text-white">Broadcast New Announcement</h3>
+                          <p className="text-[11px] text-slate-400">Send an instant alert to all active chapters and delegates.</p>
+                        </div>
                       </div>
+                      <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-teal-500/20 text-teal-300">
+                        Admin Dispatcher
+                      </span>
                     </div>
-                  ))}
+
+                    <form onSubmit={handleBroadcastNotification} className="space-y-3">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="md:col-span-2">
+                          <label className="block text-[11px] font-bold text-slate-300 mb-1">Announcement Title</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="e.g. Rally Registration Cutoff & Fee Finalization"
+                            value={newBroadcast.title}
+                            onChange={(e) => setNewBroadcast({ ...newBroadcast, title: e.target.value })}
+                            className="w-full px-3.5 py-2 rounded-xl bg-white/10 border border-white/15 text-xs text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-400"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-300 mb-1">Priority</label>
+                            <select
+                              value={newBroadcast.type}
+                              onChange={(e) => setNewBroadcast({ ...newBroadcast, type: e.target.value as any })}
+                              className="w-full px-3 py-2 rounded-xl bg-navy-800 border border-white/15 text-xs text-white focus:outline-none focus:ring-2 focus:ring-teal-400"
+                            >
+                              <option value="INFO">Info</option>
+                              <option value="WARNING">Warning</option>
+                              <option value="URGENT">Urgent</option>
+                              <option value="SUCCESS">Success</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-300 mb-1">Channel</label>
+                            <select
+                              value={newBroadcast.channel}
+                              onChange={(e) => setNewBroadcast({ ...newBroadcast, channel: e.target.value as any })}
+                              className="w-full px-3 py-2 rounded-xl bg-navy-800 border border-white/15 text-xs text-white focus:outline-none focus:ring-2 focus:ring-teal-400"
+                            >
+                              <option value="IN_APP">In-App Portal</option>
+                              <option value="SMS">SMS Gateway</option>
+                              <option value="EMAIL">Email Dispatch</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-300 mb-1">Message Body</label>
+                        <textarea
+                          required
+                          rows={2}
+                          placeholder="Type communication details to broadcast..."
+                          value={newBroadcast.body}
+                          onChange={(e) => setNewBroadcast({ ...newBroadcast, body: e.target.value })}
+                          className="w-full px-3.5 py-2 rounded-xl bg-white/10 border border-white/15 text-xs text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-400 resize-none"
+                        />
+                      </div>
+
+                      <div className="flex justify-end pt-1">
+                        <button
+                          type="submit"
+                          disabled={broadcasting}
+                          className="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          <span>{broadcasting ? "Dispatching..." : "Dispatch Announcement"}</span>
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                )}
+
+                {/* Filter Tabs */}
+                <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+                  <button
+                    type="button"
+                    onClick={() => setNotifFilter("ALL")}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      notifFilter === "ALL" ? "bg-navy-950 text-white shadow-sm" : "text-slate-500 hover:bg-slate-100"
+                    }`}
+                  >
+                    All ({portalNotifications.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNotifFilter("UNREAD")}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      notifFilter === "UNREAD" ? "bg-navy-950 text-white shadow-sm" : "text-slate-500 hover:bg-slate-100"
+                    }`}
+                  >
+                    Unread ({unreadNotifCount})
+                  </button>
+                </div>
+
+                {/* Notification List */}
+                <div className="space-y-3">
+                  {portalNotifications
+                    .filter((notif) => (notifFilter === "UNREAD" ? !notif.read : true))
+                    .map((notif) => (
+                      <div
+                        key={notif.id || notif.title}
+                        onClick={() => handleMarkNotificationRead(notif.id)}
+                        className={`p-5 rounded-2xl border shadow-sm flex items-start gap-4 transition-all cursor-pointer ${
+                          notif.read ? "bg-white border-slate-200 hover:border-slate-300" : "bg-teal-50/40 border-teal-200 hover:border-teal-300"
+                        }`}
+                      >
+                        <div
+                          className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                            notif.type === "URGENT"
+                              ? "bg-rose-100 text-rose-700"
+                              : notif.type === "WARNING"
+                              ? "bg-amber-100 text-amber-700"
+                              : notif.type === "SUCCESS"
+                              ? "bg-emerald-100 text-emerald-700"
+                              : "bg-teal-100 text-teal-700"
+                          }`}
+                        >
+                          <Bell className="w-5 h-5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-3 mb-1">
+                            <div className="flex items-center gap-2">
+                              <span className={`font-bold text-sm ${notif.read ? "text-slate-700" : "text-navy-950 font-black"}`}>
+                                {notif.title}
+                              </span>
+                              {notif.channel && (
+                                <span className="text-[9px] uppercase px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 font-bold">
+                                  {notif.channel.replace("_", " ")}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <span className="text-[10px] text-slate-400">{notif.time}</span>
+                              {!notif.read ? (
+                                <span className="w-2.5 h-2.5 rounded-full bg-teal-500 ring-2 ring-white" title="Unread" />
+                              ) : (
+                                <span className="text-[10px] text-slate-400">Read</span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={(e) => handleDeleteNotification(notif.id, e)}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors flex items-center gap-1 text-[11px] font-semibold cursor-pointer ml-1"
+                                title="Delete this notification"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span className="hidden sm:inline">Delete</span>
+                              </button>
+                            </div>
+                          </div>
+                          <p className="text-xs text-slate-600 leading-relaxed">{notif.body}</p>
+                        </div>
+                      </div>
+                    ))}
+                  {portalNotifications.filter((n) => (notifFilter === "UNREAD" ? !n.read : true)).length === 0 && (
+                    <div className="p-12 text-center bg-white rounded-3xl border border-slate-200">
+                      <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
+                        <Bell className="w-6 h-6" />
+                      </div>
+                      <h4 className="font-heading font-bold text-slate-700 text-sm">No notifications found</h4>
+                      <p className="text-xs text-slate-400 mt-1">You are all caught up with official communications.</p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -4079,7 +4601,7 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                       </button>
                       <button
                         onClick={() => {
-                          setPasswordForm({ current: "", newPassword: "", confirmPassword: "" });
+                          setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
                           setShowChangePasswordModal(true);
                         }}
                         className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors flex items-center gap-2"
@@ -8265,72 +8787,427 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
             {/* VIEW H-6: ADMIN SYSTEM SETTINGS */}
             {activePortal === "ADMIN" && adminActiveTab === "settings" && (
               <div className="space-y-8 animate-in fade-in duration-200">
-                <div>
-                  <h1 className="font-heading font-black text-2xl text-navy-950">System Settings</h1>
-                  <p className="text-xs text-slate-500 mt-1">Configure platform-wide defaults, notification templates, M-Pesa integration, and organizational metadata.</p>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h1 className="font-heading font-black text-2xl text-navy-950">System Settings & Security</h1>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Configure platform security credentials, M-Pesa integration parameters, organization metadata, and user accounts.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 text-xs font-bold border border-emerald-200 flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      <span>Security Engine Active</span>
+                    </span>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Org Settings */}
+                  {/* CARD 1: Admin Password & Security (CRUD) */}
                   <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
-                    <h3 className="font-heading font-bold text-base text-navy-950 pb-2 border-b border-slate-100">Organization Settings</h3>
-                    {[
-                      { label: "Organization Name", value: "Coastal Universities and Colleges Adventist Students Organization" },
-                      { label: "Acronym", value: "CUCASO" },
-                      { label: "HQ Location", value: "Mombasa Coast Field Secretariat, Mombasa, Kenya" },
-                      { label: "Primary Contact Email", value: "secretariat@cucaso.org" },
-                      { label: "Constitution Status", value: "Approved & Active" },
-                    ].map((item) => (
-                      <div key={item.label} className="flex items-start justify-between gap-4 text-xs">
-                        <span className="text-slate-500 font-semibold w-40 flex-shrink-0">{item.label}</span>
-                        <span className="font-bold text-slate-900 text-right">{item.value}</span>
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold">
+                          <Key className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h3 className="font-heading font-bold text-sm text-navy-950">Change Administrator Password</h3>
+                          <p className="text-[11px] text-slate-400">Secure credential updates via Argon2id hashing.</p>
+                        </div>
                       </div>
-                    ))}
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                        Argon2id
+                      </span>
+                    </div>
+
+                    {passwordFeedback && (
+                      <div
+                        className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+                          passwordFeedback.type === "success"
+                            ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                            : "bg-rose-50 text-rose-800 border border-rose-200"
+                        }`}
+                      >
+                        {passwordFeedback.type === "success" ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                        ) : (
+                          <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+                        )}
+                        <span>{passwordFeedback.text}</span>
+                      </div>
+                    )}
+
+                    <form onSubmit={handleChangePassword} className="space-y-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">Current Password</label>
+                        <div className="relative">
+                          <input
+                            type={showPassword ? "text" : "password"}
+                            placeholder="Enter current password"
+                            value={passwordForm.currentPassword}
+                            onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                            className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                          >
+                            {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1">New Password (min 8 chars)</label>
+                          <input
+                            type={showPassword ? "text" : "password"}
+                            required
+                            placeholder="New secure password"
+                            value={passwordForm.newPassword}
+                            onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                            className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1">Confirm New Password</label>
+                          <input
+                            type={showPassword ? "text" : "password"}
+                            required
+                            placeholder="Repeat new password"
+                            value={passwordForm.confirmPassword}
+                            onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                            className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700"
+                          />
+                        </div>
+                      </div>
+
+                      {passwordForm.newPassword.length > 0 && (
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-[10px] text-slate-500 font-semibold">
+                            <span>Password Strength</span>
+                            <span>
+                              {passwordForm.newPassword.length < 8
+                                ? "Too short (min 8 chars)"
+                                : passwordForm.newPassword.length >= 12
+                                ? "Strong"
+                                : "Good"}
+                            </span>
+                          </div>
+                          <div className="w-full h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                            <div
+                              className={`h-full transition-all duration-300 ${
+                                passwordForm.newPassword.length < 8
+                                  ? "w-1/4 bg-rose-500"
+                                  : passwordForm.newPassword.length >= 12
+                                  ? "w-full bg-emerald-500"
+                                  : "w-2/3 bg-amber-500"
+                              }`}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex justify-end pt-2">
+                        <button
+                          type="submit"
+                          disabled={passwordLoading}
+                          className="px-5 py-2 rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                        >
+                          <Lock className="w-3.5 h-3.5" />
+                          <span>{passwordLoading ? "Updating..." : "Update Password"}</span>
+                        </button>
+                      </div>
+                    </form>
                   </div>
 
-                  {/* Financial Settings */}
+                  {/* CARD 2: User Password Reset Override (Admin CRUD) */}
                   <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
-                    <h3 className="font-heading font-bold text-base text-navy-950 pb-2 border-b border-slate-100">Financial & Payment Settings</h3>
-                    {[
-                      { label: "Central M-Pesa Paybill", value: "4082200" },
-                      { label: "Currency", value: "KES (Kenyan Shilling)" },
-                      { label: "Default Contingency %", value: "10%" },
-                      { label: "Fee Allocation Mode", value: "Capability-Weighted" },
-                      { label: "Payment Gateway", value: "Safaricom M-Pesa Daraja API" },
-                      { label: "Bank Integration", value: "KCB & Equity Bank (Wire Transfer)" },
-                    ].map((item) => (
-                      <div key={item.label} className="flex items-start justify-between gap-4 text-xs">
-                        <span className="text-slate-500 font-semibold w-40 flex-shrink-0">{item.label}</span>
-                        <span className="font-bold text-slate-900 text-right font-mono">{item.value}</span>
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center font-bold">
+                          <Users className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h3 className="font-heading font-bold text-sm text-navy-950">Reset User Account Password</h3>
+                          <p className="text-[11px] text-slate-400">Administrative override for chapter reps and council members.</p>
+                        </div>
                       </div>
-                    ))}
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
+                        Admin Override
+                      </span>
+                    </div>
+
+                    {adminResetFeedback && (
+                      <div
+                        className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+                          adminResetFeedback.type === "success"
+                            ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                            : "bg-rose-50 text-rose-800 border border-rose-200"
+                        }`}
+                      >
+                        {adminResetFeedback.type === "success" ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                        ) : (
+                          <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+                        )}
+                        <span>{adminResetFeedback.text}</span>
+                      </div>
+                    )}
+
+                    <form onSubmit={handleAdminResetPassword} className="space-y-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">Target Account</label>
+                        <select
+                          value={resetTargetUser?.id || ""}
+                          onChange={(e) => {
+                            const found = usersList.find((u) => u.id === e.target.value);
+                            setResetTargetUser(found || null);
+                          }}
+                          className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-700"
+                        >
+                          <option value="">-- Select a User Account to Reset --</option>
+                          {usersList.map((u) => (
+                            <option key={u.id} value={u.id}>
+                              {u.name} ({u.email}) — [{u.role}]
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {resetTargetUser && (
+                        <>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-700 mb-1">New Password (min 8 chars)</label>
+                              <input
+                                type="password"
+                                required
+                                placeholder="Temporary password"
+                                value={adminResetPasswordForm.newPassword}
+                                onChange={(e) => setAdminResetPasswordForm({ ...adminResetPasswordForm, newPassword: e.target.value })}
+                                className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-700 mb-1">Confirm Password</label>
+                              <input
+                                type="password"
+                                required
+                                placeholder="Confirm temporary password"
+                                value={adminResetPasswordForm.confirmPassword}
+                                onChange={(e) => setAdminResetPasswordForm({ ...adminResetPasswordForm, confirmPassword: e.target.value })}
+                                className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex justify-end pt-2">
+                            <button
+                              type="submit"
+                              disabled={adminResetLoading}
+                              className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                            >
+                              <Key className="w-3.5 h-3.5" />
+                              <span>{adminResetLoading ? "Resetting..." : `Reset ${resetTargetUser.name.split(" ")[0]}'s Password`}</span>
+                            </button>
+                          </div>
+                        </>
+                      )}
+
+                      {!resetTargetUser && (
+                        <p className="text-[11px] text-slate-400 italic">
+                          Choose a user account from the dropdown above to reset their credentials immediately without needing their old password.
+                        </p>
+                      )}
+                    </form>
                   </div>
 
-                  {/* Notification Templates */}
+                  {/* CARD 3: Organization & Secretariat Settings (CRUD) */}
+                  <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-teal-100 text-teal-800 flex items-center justify-center font-bold">
+                          <Building2 className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h3 className="font-heading font-bold text-sm text-navy-950">Organization Profile</h3>
+                          <p className="text-[11px] text-slate-400">Institutional names, acronyms, and secretariat contact details.</p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-50 text-teal-700">
+                        Editable
+                      </span>
+                    </div>
+
+                    <form onSubmit={handleSaveOrgSettings} className="space-y-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">Organization Name</label>
+                        <input
+                          type="text"
+                          value={orgSettings.orgName}
+                          onChange={(e) => setOrgSettings({ ...orgSettings, orgName: e.target.value })}
+                          className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-700"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1">Acronym</label>
+                          <input
+                            type="text"
+                            value={orgSettings.acronym}
+                            onChange={(e) => setOrgSettings({ ...orgSettings, acronym: e.target.value })}
+                            className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-700 font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1">Primary Phone</label>
+                          <input
+                            type="text"
+                            value={orgSettings.phone}
+                            onChange={(e) => setOrgSettings({ ...orgSettings, phone: e.target.value })}
+                            className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-700 font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">Secretariat Email</label>
+                        <input
+                          type="email"
+                          value={orgSettings.email}
+                          onChange={(e) => setOrgSettings({ ...orgSettings, email: e.target.value })}
+                          className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-700"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">HQ Secretariat Location</label>
+                        <input
+                          type="text"
+                          value={orgSettings.location}
+                          onChange={(e) => setOrgSettings({ ...orgSettings, location: e.target.value })}
+                          className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-700"
+                        />
+                      </div>
+
+                      <div className="flex justify-end pt-2">
+                        <button
+                          type="submit"
+                          disabled={savingOrgSettings}
+                          className="px-5 py-2 rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                        >
+                          <Save className="w-3.5 h-3.5" />
+                          <span>{savingOrgSettings ? "Saving..." : "Save Organization Settings"}</span>
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+
+                  {/* CARD 4: Financial & M-Pesa Integration Settings (CRUD) */}
+                  <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+                          <CreditCard className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h3 className="font-heading font-bold text-sm text-navy-950">Financial & Gateway Parameters</h3>
+                          <p className="text-[11px] text-slate-400">M-Pesa Daraja Paybill and contingency funding rules.</p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
+                        Daraja Ready
+                      </span>
+                    </div>
+
+                    <form onSubmit={handleSaveOrgSettings} className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1">Central M-Pesa Paybill</label>
+                          <input
+                            type="text"
+                            value={orgSettings.paybill}
+                            onChange={(e) => setOrgSettings({ ...orgSettings, paybill: e.target.value })}
+                            className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-700 font-mono font-bold"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1">Contingency Rate</label>
+                          <input
+                            type="text"
+                            value={orgSettings.contingency}
+                            onChange={(e) => setOrgSettings({ ...orgSettings, contingency: e.target.value })}
+                            className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-700 font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-500 font-semibold">Payment Engine</span>
+                          <span className="font-bold text-emerald-700 font-mono">Safaricom Daraja API 2.0</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-500 font-semibold">Operating Currency</span>
+                          <span className="font-bold text-slate-900 font-mono">KES (Kenyan Shilling)</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-500 font-semibold">Capitation Allocation</span>
+                          <span className="font-bold text-slate-900">Capability-Weighted</span>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end pt-2">
+                        <button
+                          type="submit"
+                          disabled={savingOrgSettings}
+                          className="px-5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                        >
+                          <Save className="w-3.5 h-3.5" />
+                          <span>{savingOrgSettings ? "Saving..." : "Save Financial Settings"}</span>
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+
+                {/* Notification Delivery Templates & Governance */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-3">
-                    <h3 className="font-heading font-bold text-base text-navy-950 pb-2 border-b border-slate-100">Notification Templates</h3>
+                    <h3 className="font-heading font-bold text-base text-navy-950 pb-2 border-b border-slate-100">
+                      Automated Notification Channels
+                    </h3>
                     {[
-                      { name: "Chapter Approval Email", status: "Active", type: "Email" },
-                      { name: "Invoice Dispatch SMS", status: "Active", type: "SMS" },
-                      { name: "Payment Confirmation Email", status: "Active", type: "Email" },
-                      { name: "Fee Lock Reminder SMS", status: "Active", type: "SMS" },
-                      { name: "Rally Countdown Push", status: "Inactive", type: "Push" },
+                      { name: "Chapter Approval Email", status: "Active", type: "Email", target: "Chapter Executives" },
+                      { name: "Invoice Dispatch SMS", status: "Active", type: "SMS", target: "Treasurers" },
+                      { name: "Payment Confirmation Email", status: "Active", type: "Email", target: "Payers" },
+                      { name: "Fee Lock Reminder SMS", status: "Active", type: "SMS", target: "All Chapters" },
+                      { name: "Rally Countdown Push", status: "Active", type: "Push", target: "Portal Users" },
                     ].map((tmpl) => (
                       <div key={tmpl.name} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs">
                         <div>
                           <span className="font-bold text-slate-900">{tmpl.name}</span>
-                          <span className="text-slate-400 ml-2 text-[10px]">{tmpl.type}</span>
+                          <span className="text-slate-400 ml-2 text-[10px]">({tmpl.target})</span>
                         </div>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${tmpl.status === "Active" ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"}`}>
-                          {tmpl.status}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-700 font-mono">
+                            {tmpl.type}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                            {tmpl.status}
+                          </span>
+                        </div>
                       </div>
                     ))}
                   </div>
 
-                  {/* Approval Quorum Rules */}
                   <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-3">
-                    <h3 className="font-heading font-bold text-base text-navy-950 pb-2 border-b border-slate-100">Governance Rules</h3>
+                    <h3 className="font-heading font-bold text-base text-navy-950 pb-2 border-b border-slate-100">
+                      Constitutional Governance Rules
+                    </h3>
                     {[
                       { rule: "Chapter Approval Quorum", value: "Simple majority (7 of 12 executive votes)" },
                       { rule: "Tier Assignment Authority", value: "Organization Secretary + Treasurer sign-off" },
@@ -8567,8 +9444,8 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                 <input
                   type="password"
                   required
-                  value={passwordForm.current}
-                  onChange={(e) => setPasswordForm(prev => ({ ...prev, current: e.target.value }))}
+                  value={passwordForm.currentPassword}
+                  onChange={(e) => setPasswordForm(prev => ({ ...prev, currentPassword: e.target.value }))}
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
                   placeholder="••••••••"
                 />
