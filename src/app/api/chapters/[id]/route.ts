@@ -36,9 +36,10 @@ export async function PUT(
       );
     }
     return NextResponse.json({ success: true, data: updated });
-  } catch (error) {
+  } catch (error: any) {
+    console.error("PUT /api/chapters/[id] error:", error);
     return NextResponse.json(
-      { success: false, error: "Failed to update chapter" },
+      { success: false, error: error?.message || "Failed to update chapter" },
       { status: 500 }
     );
   }

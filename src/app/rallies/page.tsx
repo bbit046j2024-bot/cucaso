@@ -8,18 +8,18 @@ import { Footer } from "@/components/footer";
 import { RallyCountdown } from "@/components/rally-countdown";
 import { CURRENT_RALLY, RALLY_COST_ITEMS } from "@/lib/data";
 import { formatCurrency } from "@/lib/utils";
-import { 
-  Calendar, 
-  MapPin, 
-  Clock, 
-  Users, 
-  Mic, 
-  Music, 
-  Award, 
-  Compass, 
-  ChevronRight, 
-  CheckCircle2, 
-  Sparkles, 
+import {
+  Calendar,
+  MapPin,
+  Clock,
+  Users,
+  Mic,
+  Music,
+  Award,
+  Compass,
+  ChevronRight,
+  CheckCircle2,
+  Sparkles,
   ArrowRight,
   ShieldCheck,
   CreditCard,
@@ -42,7 +42,7 @@ export default function RalliesPage() {
           setCurrentRally(json.data);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
 
     fetch("/api/rallies/history")
       .then((res) => res.json())
@@ -51,7 +51,7 @@ export default function RalliesPage() {
           setRallyHistory(json.data);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   const formattedDate = currentRally?.startDate ? (
@@ -115,22 +115,20 @@ export default function RalliesPage() {
                         <span>{formattedDate}</span>
                       </div>
                       <span
-                        className={`px-3 py-1 rounded-full border text-xs font-bold flex items-center gap-1.5 ${
-                          currentRally.state === "REGISTRATION_OPEN"
-                            ? "bg-emerald-500/20 border-emerald-400/30 text-emerald-300"
-                            : currentRally.state === "FEES_LOCKED"
+                        className={`px-3 py-1 rounded-full border text-xs font-bold flex items-center gap-1.5 ${currentRally.state === "REGISTRATION_OPEN"
+                          ? "bg-emerald-500/20 border-emerald-400/30 text-emerald-300"
+                          : currentRally.state === "FEES_LOCKED"
                             ? "bg-amber-500/20 border-amber-400/30 text-amber-300"
                             : currentRally.state === "IN_PROGRESS"
-                            ? "bg-purple-500/20 border-purple-400/30 text-purple-300"
-                            : currentRally.state === "COMPLETED"
-                            ? "bg-blue-500/20 border-blue-400/30 text-blue-300"
-                            : "bg-slate-500/20 border-slate-400/30 text-slate-300"
-                        }`}
+                              ? "bg-purple-500/20 border-purple-400/30 text-purple-300"
+                              : currentRally.state === "COMPLETED"
+                                ? "bg-blue-500/20 border-blue-400/30 text-blue-300"
+                                : "bg-slate-500/20 border-slate-400/30 text-slate-300"
+                          }`}
                       >
                         <span
-                          className={`w-2 h-2 rounded-full ${
-                            currentRally.state === "REGISTRATION_OPEN" ? "bg-emerald-400 animate-pulse" : "bg-slate-400"
-                          }`}
+                          className={`w-2 h-2 rounded-full ${currentRally.state === "REGISTRATION_OPEN" ? "bg-emerald-400 animate-pulse" : "bg-slate-400"
+                            }`}
                         />
                         {(currentRally.state || "REGISTRATION OPEN").replace(/_/g, " ")}
                       </span>
@@ -161,7 +159,7 @@ export default function RalliesPage() {
                     <div className="flex flex-wrap items-center gap-3 pt-2">
                       {currentRally.state === "REGISTRATION_OPEN" ? (
                         <Link
-                          href="/apply"
+                          href="/register"
                           className="px-7 py-3 rounded-full bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold text-xs shadow-lg transition-all flex items-center gap-2"
                         >
                           <span>Register Now</span>
@@ -226,11 +224,10 @@ export default function RalliesPage() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all ${
-                    activeTab === tab.id
-                      ? "bg-navy-900 text-white shadow-sm"
-                      : "text-slate-600 hover:text-navy-950 hover:bg-slate-100"
-                  }`}
+                  className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all ${activeTab === tab.id
+                    ? "bg-navy-900 text-white shadow-sm"
+                    : "text-slate-600 hover:text-navy-950 hover:bg-slate-100"
+                    }`}
                 >
                   {tab.label}
                 </button>
@@ -242,7 +239,7 @@ export default function RalliesPage() {
         {/* Tab Content Panes */}
         <section className="py-12 md:py-16">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            
+
             {/* 1. OVERVIEW TAB */}
             {activeTab === "overview" && (
               <div className="space-y-12 animate-in fade-in duration-200">
@@ -339,13 +336,12 @@ export default function RalliesPage() {
                               </p>
                             </div>
                             <span
-                              className={`px-3 py-1 rounded-full text-xs font-bold self-start sm:self-auto ${
-                                isActive
-                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                  : isCompleted
+                              className={`px-3 py-1 rounded-full text-xs font-bold self-start sm:self-auto ${isActive
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : isCompleted
                                   ? "bg-slate-100 text-slate-700 border border-slate-200"
                                   : "bg-amber-50 text-amber-800 border border-amber-200"
-                              }`}
+                                }`}
                             >
                               {rally.status || (isCompleted ? "Completed" : "Upcoming")}
                             </span>
@@ -388,17 +384,15 @@ export default function RalliesPage() {
                       return (
                         <div
                           key={dayNumber}
-                          className={`p-6 rounded-2xl border transition-all ${
-                            isSabbath
-                              ? "bg-amber-50/50 border-amber-200"
-                              : "bg-slate-50 border-slate-200"
-                          }`}
+                          className={`p-6 rounded-2xl border transition-all ${isSabbath
+                            ? "bg-amber-50/50 border-amber-200"
+                            : "bg-slate-50 border-slate-200"
+                            }`}
                         >
                           <div className="flex items-center gap-3 mb-3">
                             <span
-                              className={`w-8 h-8 rounded-lg font-bold text-xs flex items-center justify-center text-white ${
-                                isSabbath ? "bg-amber-600" : "bg-navy-950"
-                              }`}
+                              className={`w-8 h-8 rounded-lg font-bold text-xs flex items-center justify-center text-white ${isSabbath ? "bg-amber-600" : "bg-navy-950"
+                                }`}
                             >
                               D{dayNumber}
                             </span>
@@ -409,9 +403,8 @@ export default function RalliesPage() {
                               <div className="flex flex-wrap items-center gap-2 mt-0.5">
                                 {day.timeRange && (
                                   <span
-                                    className={`text-xs font-semibold ${
-                                      isSabbath ? "text-amber-800" : "text-teal-700"
-                                    }`}
+                                    className={`text-xs font-semibold ${isSabbath ? "text-amber-800" : "text-teal-700"
+                                      }`}
                                   >
                                     {day.timeRange}
                                   </span>

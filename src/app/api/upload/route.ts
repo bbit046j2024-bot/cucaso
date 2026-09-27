@@ -41,17 +41,36 @@ export async function POST(request: Request) {
       }
     }
 
-    // High-fidelity fallback: base64 Data URL
-    const mimeType = file.type || "image/jpeg";
-    const base64Data = buffer.toString("base64");
-    const dataUrl = `data:${mimeType};base64,${base64Data}`;
+    // High-fidelity fallback: save to public/uploads/
+    try {
+      const fs = await import("fs/promises");
+      const path = await import("path");
+      const uploadsDir = path.join(process.cwd(), "public", "uploads");
+      await fs.mkdir(uploadsDir, { recursive: true });
+      const rawExt = (file.type?.split("/")[1] || "png").replace("svg+xml", "svg");
+      const ext = ["jpeg", "jpg", "png", "webp", "gif", "svg"].includes(rawExt) ? rawExt : "png";
+      const safeName = `upload-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const filePath = path.join(uploadsDir, safeName);
+      await fs.writeFile(filePath, buffer);
 
-    return NextResponse.json({
-      success: true,
-      url: dataUrl,
-      format: mimeType.split("/")[1] || "jpeg",
-      bytes: buffer.length,
-    });
+      return NextResponse.json({
+        success: true,
+        url: `/uploads/${safeName}`,
+        format: ext,
+        bytes: buffer.length,
+      });
+    } catch (diskErr) {
+      console.warn("Could not save to disk, using data URL fallback:", diskErr);
+      const mimeType = file.type || "image/jpeg";
+      const base64Data = buffer.toString("base64");
+      const dataUrl = `data:${mimeType};base64,${base64Data}`;
+      return NextResponse.json({
+        success: true,
+        url: dataUrl,
+        format: mimeType.split("/")[1] || "jpeg",
+        bytes: buffer.length,
+      });
+    }
   } catch (error: any) {
     console.error("Upload error:", error);
     return NextResponse.json(

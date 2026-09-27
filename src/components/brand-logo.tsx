@@ -31,22 +31,17 @@ export function BrandLogo({
 
   const content = (
     <div className={`flex items-center gap-3 group ${className}`}>
-      {/* Circular crop — zoomed to just the badge emblem */}
+      {/* Circular crop — CUCASO emblem badge from logo.png */}
       <div
-        className="relative flex-shrink-0 rounded-full overflow-hidden shadow-sm group-hover:scale-105 transition-transform duration-200"
+        className="relative flex-shrink-0 rounded-full overflow-hidden shadow-sm group-hover:scale-105 transition-transform duration-200 bg-white"
         style={{ width: s.px, height: s.px }}
       >
         <Image
-          src="/logo.jpeg"
+          src="/logo.png"
           alt="CUCASO Emblem"
-          // Render at 2.5× the container so the badge fills it well
-          width={Math.round(s.px * 2.5)}
-          height={Math.round(s.px * 2.5)}
-          // object-cover + object-position shifts into the badge zone.
-          // The JPEG is tall portrait; "center 22%" brings the circular
-          // emblem (which sits in the upper portion) into view.
-          className="w-full h-full object-cover"
-          style={{ objectPosition: "center 22%" }}
+          fill
+          sizes={`${s.px}px`}
+          className="object-cover object-center"
           priority
         />
       </div>

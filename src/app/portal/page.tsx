@@ -8,45 +8,40 @@ import { BrandLogo } from "@/components/brand-logo";
 import { SystemSwitcher } from "@/components/system-switcher";
 import { EmbeddedCoastalMap } from "@/components/embedded-coastal-map";
 import { Chapter, CoastalAreaPreset, UserAccount, ExecutiveLeader, NewsPost, ResourceDocument, CostItem } from "@/types";
-import { 
-  MEMBER_CHAPTERS, 
-  CURRENT_RALLY, 
-  RALLY_COST_ITEMS, 
-  CAPABILITY_TIERS, 
+import {
+  CAPABILITY_TIERS,
   COASTAL_AREA_PRESETS,
-  AUDIT_LOGS,
-  EXECUTIVE_COUNCIL,
 } from "@/lib/data";
 import type { Invoice, Payment, ChapterApplication, AuditLogEntry, Attendee } from "@/types";
 import { calculateCapabilityFees } from "@/lib/cost-engine";
 import { formatCurrency, normalizeGoogleImageUrl, isGoogleAlbumOrFolder, getAlbumTypeLabel } from "@/lib/utils";
-import { 
-  LayoutDashboard, 
-  Building2, 
-  Users, 
-  CreditCard, 
-  Calendar, 
-  FileText, 
-  Bell, 
-  User, 
-  LogOut, 
-  ShieldCheck, 
-  PieChart, 
-  FileSpreadsheet, 
-  Settings, 
-  History, 
-  CheckCircle2, 
-  Clock, 
-  AlertTriangle, 
-  TrendingUp, 
-  Plus, 
-  Search, 
-  Filter, 
-  Upload, 
-  Download, 
-  ChevronDown, 
-  ExternalLink, 
-  ArrowUpRight, 
+import {
+  LayoutDashboard,
+  Building2,
+  Users,
+  CreditCard,
+  Calendar,
+  FileText,
+  Bell,
+  User,
+  LogOut,
+  ShieldCheck,
+  PieChart,
+  FileSpreadsheet,
+  Settings,
+  History,
+  CheckCircle2,
+  Clock,
+  AlertTriangle,
+  TrendingUp,
+  Plus,
+  Search,
+  Filter,
+  Upload,
+  Download,
+  ChevronDown,
+  ExternalLink,
+  ArrowUpRight,
   ArrowDownRight,
   ArrowRight,
   Menu,
@@ -126,8 +121,8 @@ function PortalContent() {
   // Mobile sidebar open
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Dynamic Chapters and Locations
-  const [chaptersList, setChaptersList] = useState<Chapter[]>(MEMBER_CHAPTERS);
+  // Dynamic Chapters and Locations — loaded exclusively from database
+  const [chaptersList, setChaptersList] = useState<Chapter[]>([]);
   const [chaptersSubTab, setChaptersSubTab] = useState<"map" | "list" | "onboarding">("map");
   const [editingChapter, setEditingChapter] = useState<Chapter | null>(null);
   const [mapSelectedChapterId, setMapSelectedChapterId] = useState<string>("ch-tum");
@@ -146,9 +141,24 @@ function PortalContent() {
       .catch((e) => console.warn("Live chapters fetch error:", e));
   }, []);
 
+const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
+  id: "default-chapter",
+  code: "CHAPTER",
+  institutionName: "Loading Chapter...",
+  chapterName: "Seventh-day Adventist Chapter",
+  type: "COLLEGE",
+  sector: "PUBLIC",
+  location: "Coast",
+  status: "APPROVED",
+  tierId: "TIER_3",
+  approximateMembers: 0,
+  attendeesCount: 0,
+  createdAt: "",
+};
+
   // Chapter state data
   const currentChapter = useMemo(() => {
-    return chaptersList.find((c) => c.id === selectedChapterId) || chaptersList[0] || MEMBER_CHAPTERS[0];
+    return chaptersList.find((c) => c.id === selectedChapterId) || chaptersList[0] || DEFAULT_CHAPTER_PLACEHOLDER;
   }, [chaptersList, selectedChapterId]);
 
   const [invoicesList, setInvoicesList] = useState<Invoice[]>([]);
@@ -177,12 +187,12 @@ function PortalContent() {
     fetch("/api/invoices")
       .then(r => r.json())
       .then(j => { if (j.success && Array.isArray(j.data)) setInvoicesList(j.data); })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setInvoicesLoading(false));
     fetch("/api/payments")
       .then(r => r.json())
       .then(j => { if (j.success && Array.isArray(j.data)) setPaymentsList(j.data); })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setPaymentsLoading(false));
   }, [selectedChapterId, activePortal]);
 
@@ -196,7 +206,7 @@ function PortalContent() {
     fetch(`/api/attendees?chapterId=${selectedChapterId}`)
       .then(r => r.json())
       .then(j => { if (j.success) setAttendeesList(j.data); })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setAttendeesLoading(false));
   }, [selectedChapterId]);
   const [attendeeSearch, setAttendeeSearch] = useState("");
@@ -244,7 +254,7 @@ function PortalContent() {
   });
 
   // ─── Funding & Cost Engine — CRUD State ─────────────────────────────────
-  const [costItemsList, setCostItemsList] = useState<CostItem[]>(RALLY_COST_ITEMS);
+  const [costItemsList, setCostItemsList] = useState<CostItem[]>([]);
   const [costItemsLoading, setCostItemsLoading] = useState(false);
   const [contingency, setContingency] = useState<number>(10);
 
@@ -293,7 +303,7 @@ function PortalContent() {
   const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
   const [deletingInvoiceId, setDeletingInvoiceId] = useState<string | null>(null);
   const [clearingInvoices, setClearingInvoices] = useState(false);
-  
+
   // Dynamic Users & RBAC State
   const [usersList, setUsersList] = useState<UserAccount[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
@@ -311,8 +321,8 @@ function PortalContent() {
   const [inviteUserSubmitting, setInviteUserSubmitting] = useState(false);
 
   // Dynamic Rallies State
-  const [ralliesList, setRalliesList] = useState<any[]>([CURRENT_RALLY]);
-  const [currentRallyData, setCurrentRallyData] = useState<any>(CURRENT_RALLY);
+  const [ralliesList, setRalliesList] = useState<any[]>([]);
+  const [currentRallyData, setCurrentRallyData] = useState<any>(null);
   const [showCreateRallyModal, setShowCreateRallyModal] = useState(false);
   const [showEditRallyModal, setShowEditRallyModal] = useState(false);
   const [savingRally, setSavingRally] = useState(false);
@@ -331,33 +341,32 @@ function PortalContent() {
     state: "DRAFT" as const,
   });
   const [editRallyForm, setEditRallyForm] = useState({
-    title: CURRENT_RALLY.title,
-    theme: CURRENT_RALLY.theme,
-    venueName: CURRENT_RALLY.venueName,
-    venueLocation: CURRENT_RALLY.venueLocation,
-    capacity: CURRENT_RALLY.capacity,
-    startDate: "2026-11-15",
-    endDate: "2026-11-17",
-    registrationDeadline: "2026-11-01",
-    feeLockDate: "2026-11-01",
-    paymentDeadline: "2026-11-10",
-    state: CURRENT_RALLY.state,
-    posterUrl: CURRENT_RALLY.posterUrl ?? "",
-    // Dynamic sections stored as JSON strings for editing
-    programmeJson: JSON.stringify(CURRENT_RALLY.programme ?? [], null, 2),
-    venueAddress: CURRENT_RALLY.venueAccess?.address ?? "",
-    venueDescription: CURRENT_RALLY.venueAccess?.description ?? "",
-    venueDirections: CURRENT_RALLY.venueAccess?.directions ?? "",
-    venueParkingInfo: CURRENT_RALLY.venueAccess?.parkingInfo ?? "",
-    venueSecurityInfo: CURRENT_RALLY.venueAccess?.securityInfo ?? "",
-    venueMedicalInfo: CURRENT_RALLY.venueAccess?.medicalInfo ?? "",
-    venueAccommodationNotes: CURRENT_RALLY.venueAccess?.accommodationNotes ?? "",
-    feesPaybillNumber: CURRENT_RALLY.feesAndCapitation?.paybillNumber ?? "4082200",
-    feesAccountInstructions: CURRENT_RALLY.feesAndCapitation?.accountInstructions ?? "",
-    feesDeadlineText: CURRENT_RALLY.feesAndCapitation?.deadlineText ?? "",
-    feesPhilosophyTitle: CURRENT_RALLY.feesAndCapitation?.philosophyTitle ?? "",
-    feesPhilosophyText: CURRENT_RALLY.feesAndCapitation?.philosophyText ?? "",
-    feeTiersJson: JSON.stringify(CURRENT_RALLY.feesAndCapitation?.tiers ?? [], null, 2),
+    title: "",
+    theme: "",
+    venueName: "",
+    venueLocation: "",
+    capacity: 3000,
+    startDate: "",
+    endDate: "",
+    registrationDeadline: "",
+    feeLockDate: "",
+    paymentDeadline: "",
+    state: "DRAFT" as "DRAFT" | "REGISTRATION_OPEN" | "ACTIVE" | "COMPLETED" | "CANCELLED",
+    posterUrl: "",
+    programmeJson: "[]",
+    venueAddress: "",
+    venueDescription: "",
+    venueDirections: "",
+    venueParkingInfo: "",
+    venueSecurityInfo: "",
+    venueMedicalInfo: "",
+    venueAccommodationNotes: "",
+    feesPaybillNumber: "4082200",
+    feesAccountInstructions: "",
+    feesDeadlineText: "",
+    feesPhilosophyTitle: "",
+    feesPhilosophyText: "",
+    feeTiersJson: "[]",
   });
 
   // Poster upload mode: "url" = paste a link, "file" = upload a file
@@ -388,14 +397,14 @@ function PortalContent() {
   };
 
   // Dynamic Programme Days (No JSON needed for managers)
-  const [programmeDays, setProgrammeDays] = useState<any[]>(CURRENT_RALLY.programme || []);
+  const [programmeDays, setProgrammeDays] = useState<any[]>([]);
 
   // Dynamic Fee Tiers (No JSON needed for managers)
   const [feeTiersList, setFeeTiersList] = useState<Array<{
     tierName: string;
     range: string;
     description: string;
-  }>>(CURRENT_RALLY.feesAndCapitation?.tiers || []);
+  }>>([]);
 
   // Dynamic Rally History (loaded from persistent DB endpoint /api/rallies/history)
   const [rallyHistoryList, setRallyHistoryList] = useState<any[]>([]);
@@ -479,28 +488,28 @@ function PortalContent() {
           }));
         }
       })
-      .catch(() => {});
+      .catch(() => { });
 
     fetch("/api/news")
       .then(r => r.json())
       .then(j => {
         if (j.success && Array.isArray(j.data)) setNewsList(j.data);
       })
-      .catch(() => {});
+      .catch(() => { });
 
     fetch("/api/resources")
       .then(r => r.json())
       .then(j => {
         if (j.success && Array.isArray(j.data)) setResourcesList(j.data);
       })
-      .catch(() => {});
+      .catch(() => { });
 
     fetch("/api/rallies/history")
       .then(r => r.json())
       .then(j => {
         if (j.success && Array.isArray(j.data)) setRallyHistoryList(j.data);
       })
-      .catch(() => {});
+      .catch(() => { });
 
     fetchInboxData();
   }, []);
@@ -653,14 +662,8 @@ function PortalContent() {
   const [savingLeadership, setSavingLeadership] = useState(false);
 
   // Gallery Management State
-  const [galleryPhotos, setGalleryPhotos] = useState<any[]>([
-    { id: "g1", title: "CUCASO Annual Rally Convocation", event: "Rally 2026", date: "2026-11-14", url: "https://images.unsplash.com/photo-1511578314322-379afb476865?w=800&auto=format&fit=crop&q=80", category: "Rally", uploader: "Communications Dir" },
-    { id: "g2", title: "Delegates Worship & Praise Evening", event: "Rally 2026", date: "2026-11-14", url: "https://images.unsplash.com/photo-1438232992991-995b7058bbb3?w=800&auto=format&fit=crop&q=80", category: "Worship", uploader: "Communications Dir" },
-    { id: "g3", title: "Executive Council Strategy Summit", event: "Leadership Retreat", date: "2026-08-20", url: "https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=800&auto=format&fit=crop&q=80", category: "Leadership", uploader: "Secretary" },
-    { id: "g4", title: "Coastal Chapters Joint Fellowship", event: "Joint Fellowship", date: "2026-09-05", url: "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=800&auto=format&fit=crop&q=80", category: "Fellowship", uploader: "TUM Chapter" },
-    { id: "g5", title: "Community Medical Camp & Outreach", event: "Community Outreach", date: "2026-07-12", url: "https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?w=800&auto=format&fit=crop&q=80", category: "Community", uploader: "Chaplaincy" },
-    { id: "g6", title: "Sports Gala & Relay Tournament", event: "Sports Gala", date: "2026-06-18", url: "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=800&auto=format&fit=crop&q=80", category: "Sports", uploader: "Sports Coordinator" },
-  ]);
+  // Gallery — loaded exclusively from database API
+  const [galleryPhotos, setGalleryPhotos] = useState<any[]>([]);
   const [galleryCategoryFilter, setGalleryCategoryFilter] = useState<string>("ALL");
   const [showUploadGalleryModal, setShowUploadGalleryModal] = useState(false);
   const [galleryUploadMethod, setGalleryUploadMethod] = useState<"google" | "album" | "batch" | "file">("google");
@@ -689,7 +692,7 @@ function PortalContent() {
     fetch("/api/users")
       .then(r => r.json())
       .then(j => { if (j.success && Array.isArray(j.data)) setUsersList(j.data); })
-      .catch(() => {});
+      .catch(() => { });
 
     fetch("/api/leadership")
       .then(r => r.json())
@@ -698,7 +701,7 @@ function PortalContent() {
           setCouncilLeaders(j.data);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
 
     fetch("/api/gallery")
       .then(r => r.json())
@@ -730,7 +733,7 @@ function PortalContent() {
           }));
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   useEffect(() => {
@@ -738,19 +741,19 @@ function PortalContent() {
     fetch("/api/applications")
       .then(r => r.json())
       .then(j => { if (j.success && Array.isArray(j.data)) setAdminApplications(j.data); })
-      .catch(() => {});
+      .catch(() => { });
     fetch("/api/payments")
       .then(r => r.json())
       .then(j => { if (j.success && Array.isArray(j.data) && j.data.length > 0) setPaymentsList(j.data); })
-      .catch(() => {});
+      .catch(() => { });
     fetch("/api/attendees")
       .then(r => r.json())
       .then(j => { if (j.success && Array.isArray(j.data)) setAllAttendeesList(j.data); })
-      .catch(() => {});
+      .catch(() => { });
     fetch("/api/users")
       .then(r => r.json())
       .then(j => { if (j.success && Array.isArray(j.data)) setUsersList(j.data); })
-      .catch(() => {});
+      .catch(() => { });
   }, [activePortal]);
 
   // Admin capability calculations
@@ -784,7 +787,7 @@ function PortalContent() {
       .then((j) => {
         if (j.success && Array.isArray(j.data)) setCostItemsList(j.data);
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setCostItemsLoading(false));
   }, [currentRallyData?.id]);
 
@@ -945,7 +948,7 @@ function PortalContent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          rallyId: CURRENT_RALLY.id,
+          rallyId: currentRallyData?.id,
           chapterId: selectedChapterId,
           fullName: newAttendee.fullName,
           admissionOrIdNumber: newAttendee.admissionOrIdNumber,
@@ -1220,7 +1223,7 @@ function PortalContent() {
   // Handler: Open Reconciliation Modal for Unmatched Payment
   const handleOpenReconcileModal = (pay: Payment) => {
     setReconcilingPayment(pay);
-    const matchedInv = invoicesList.find(i => 
+    const matchedInv = invoicesList.find(i =>
       (pay.reference && i.paymentReference.toLowerCase().includes(pay.reference.toLowerCase())) ||
       (pay.chapterId && i.chapterId === pay.chapterId)
     );
@@ -1818,17 +1821,26 @@ function PortalContent() {
         secretaryPhone: leadershipForm.secretaryPhone,
         secretaryPhoto: leadershipForm.secretaryPhoto,
       };
-      await fetch(`/api/chapters/${currentChapter.id}`, {
+      const res = await fetch(`/api/chapters/${currentChapter.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updates),
       });
-      setChaptersList(prev => prev.map(c => c.id === currentChapter.id ? { ...c, ...updates } : c));
+      const json = await res.json();
+      if (json.success && json.data) {
+        setChaptersList(prev => prev.map(c => c.id === currentChapter.id ? { ...c, ...json.data } : c));
+      } else {
+        setChaptersList(prev => prev.map(c => c.id === currentChapter.id ? { ...c, ...updates } : c));
+      }
       setShowLeadershipModal(false);
       setLocationToast(`Leadership updated for ${currentChapter.institutionName}!`);
       setTimeout(() => setLocationToast(null), 4000);
     } catch (err) {
       console.error("Failed to save chapter leadership", err);
+      setLocationToast("Leadership updated locally.");
+      setChaptersList(prev => prev.map(c => c.id === currentChapter.id ? { ...c, ...leadershipForm } : c));
+      setShowLeadershipModal(false);
+      setTimeout(() => setLocationToast(null), 4000);
     } finally {
       setSavingLeadership(false);
     }
@@ -1873,7 +1885,7 @@ function PortalContent() {
   // Sign Out Handler
   const handleSignOut = () => {
     if (confirm("Are you sure you want to sign out of the CUCASO Portal?")) {
-      fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+      fetch("/api/auth/logout", { method: "POST" }).catch(() => { });
       setLocationToast("Signed out from CUCASO Portal. Redirecting...");
       setTimeout(() => {
         window.location.href = "/";
@@ -1955,7 +1967,7 @@ function PortalContent() {
             transition-transform duration-300 ease-in-out
             max-lg:fixed max-lg:inset-y-0 max-lg:top-0 max-lg:z-40
             lg:relative lg:translate-x-0
-            ${ sidebarOpen ? "translate-x-0" : "max-lg:-translate-x-full" }
+            ${sidebarOpen ? "translate-x-0" : "max-lg:-translate-x-full"}
           `}
         >
           <div>
@@ -1978,22 +1990,20 @@ function PortalContent() {
               <div className="flex items-center rounded-xl bg-navy-900 p-1 gap-1">
                 <button
                   onClick={() => setActivePortal("CHAPTER")}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
-                    activePortal === "CHAPTER"
-                      ? "bg-teal-500 text-navy-950 shadow-sm"
-                      : "text-slate-400 hover:text-slate-200"
-                  }`}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-bold transition-all ${activePortal === "CHAPTER"
+                    ? "bg-teal-500 text-navy-950 shadow-sm"
+                    : "text-slate-400 hover:text-slate-200"
+                    }`}
                 >
                   <Building2 className="w-3 h-3" />
                   <span>Chapter</span>
                 </button>
                 <button
                   onClick={() => setActivePortal("ADMIN")}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
-                    activePortal === "ADMIN"
-                      ? "bg-amber-400 text-navy-950 shadow-sm"
-                      : "text-slate-400 hover:text-slate-200"
-                  }`}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-bold transition-all ${activePortal === "ADMIN"
+                    ? "bg-amber-400 text-navy-950 shadow-sm"
+                    : "text-slate-400 hover:text-slate-200"
+                    }`}
                 >
                   <ShieldCheck className="w-3 h-3" />
                   <span>Admin</span>
@@ -2024,11 +2034,10 @@ function PortalContent() {
               <nav className="p-4 space-y-1 text-xs font-semibold">
                 <button
                   onClick={() => setChapterActiveTab("dashboard")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
-                    chapterActiveTab === "dashboard"
-                      ? "bg-teal-600 text-white font-bold shadow-md"
-                      : "hover:bg-white/5 text-slate-300 hover:text-white"
-                  }`}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${chapterActiveTab === "dashboard"
+                    ? "bg-teal-600 text-white font-bold shadow-md"
+                    : "hover:bg-white/5 text-slate-300 hover:text-white"
+                    }`}
                 >
                   <LayoutDashboard className="w-4 h-4" />
                   <span>Dashboard</span>
@@ -2036,11 +2045,10 @@ function PortalContent() {
 
                 <button
                   onClick={() => setChapterActiveTab("my-chapter")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
-                    chapterActiveTab === "my-chapter"
-                      ? "bg-teal-600 text-white font-bold shadow-md"
-                      : "hover:bg-white/5 text-slate-300 hover:text-white"
-                  }`}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${chapterActiveTab === "my-chapter"
+                    ? "bg-teal-600 text-white font-bold shadow-md"
+                    : "hover:bg-white/5 text-slate-300 hover:text-white"
+                    }`}
                 >
                   <Building2 className="w-4 h-4" />
                   <span>My Chapter</span>
@@ -2048,11 +2056,10 @@ function PortalContent() {
 
                 <button
                   onClick={() => setChapterActiveTab("attendees")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
-                    chapterActiveTab === "attendees"
-                      ? "bg-teal-600 text-white font-bold shadow-md"
-                      : "hover:bg-white/5 text-slate-300 hover:text-white"
-                  }`}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${chapterActiveTab === "attendees"
+                    ? "bg-teal-600 text-white font-bold shadow-md"
+                    : "hover:bg-white/5 text-slate-300 hover:text-white"
+                    }`}
                 >
                   <Users className="w-4 h-4" />
                   <span className="flex-1 text-left">Attendees</span>
@@ -2063,11 +2070,10 @@ function PortalContent() {
 
                 <button
                   onClick={() => setChapterActiveTab("payments")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
-                    chapterActiveTab === "payments"
-                      ? "bg-teal-600 text-white font-bold shadow-md"
-                      : "hover:bg-white/5 text-slate-300 hover:text-white"
-                  }`}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${chapterActiveTab === "payments"
+                    ? "bg-teal-600 text-white font-bold shadow-md"
+                    : "hover:bg-white/5 text-slate-300 hover:text-white"
+                    }`}
                 >
                   <CreditCard className="w-4 h-4" />
                   <span>Payments & Invoices</span>
@@ -2075,11 +2081,10 @@ function PortalContent() {
 
                 <button
                   onClick={() => setChapterActiveTab("rally-info")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
-                    chapterActiveTab === "rally-info"
-                      ? "bg-teal-600 text-white font-bold shadow-md"
-                      : "hover:bg-white/5 text-slate-300 hover:text-white"
-                  }`}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${chapterActiveTab === "rally-info"
+                    ? "bg-teal-600 text-white font-bold shadow-md"
+                    : "hover:bg-white/5 text-slate-300 hover:text-white"
+                    }`}
                 >
                   <Calendar className="w-4 h-4" />
                   <span>Rally Info</span>
@@ -2087,11 +2092,10 @@ function PortalContent() {
 
                 <button
                   onClick={() => setChapterActiveTab("gallery")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
-                    chapterActiveTab === "gallery"
-                      ? "bg-teal-600 text-white font-bold shadow-md"
-                      : "hover:bg-white/5 text-slate-300 hover:text-white"
-                  }`}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${chapterActiveTab === "gallery"
+                    ? "bg-teal-600 text-white font-bold shadow-md"
+                    : "hover:bg-white/5 text-slate-300 hover:text-white"
+                    }`}
                 >
                   <Camera className="w-4 h-4" />
                   <span className="flex-1 text-left">Gallery</span>
@@ -2102,11 +2106,10 @@ function PortalContent() {
 
                 <button
                   onClick={() => setChapterActiveTab("news")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
-                    chapterActiveTab === "news"
-                      ? "bg-teal-600 text-white font-bold shadow-md"
-                      : "hover:bg-white/5 text-slate-300 hover:text-white"
-                  }`}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${chapterActiveTab === "news"
+                    ? "bg-teal-600 text-white font-bold shadow-md"
+                    : "hover:bg-white/5 text-slate-300 hover:text-white"
+                    }`}
                 >
                   <Newspaper className="w-4 h-4" />
                   <span className="flex-1 text-left">News & Bulletins</span>
@@ -2119,11 +2122,10 @@ function PortalContent() {
 
                 <button
                   onClick={() => setChapterActiveTab("documents")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
-                    chapterActiveTab === "documents"
-                      ? "bg-teal-600 text-white font-bold shadow-md"
-                      : "hover:bg-white/5 text-slate-300 hover:text-white"
-                  }`}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${chapterActiveTab === "documents"
+                    ? "bg-teal-600 text-white font-bold shadow-md"
+                    : "hover:bg-white/5 text-slate-300 hover:text-white"
+                    }`}
                 >
                   <FolderArchive className="w-4 h-4" />
                   <span>Resources & Docs</span>
@@ -2131,11 +2133,10 @@ function PortalContent() {
 
                 <button
                   onClick={() => setChapterActiveTab("notifications")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
-                    chapterActiveTab === "notifications"
-                      ? "bg-teal-600 text-white font-bold shadow-md"
-                      : "hover:bg-white/5 text-slate-300 hover:text-white"
-                  }`}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${chapterActiveTab === "notifications"
+                    ? "bg-teal-600 text-white font-bold shadow-md"
+                    : "hover:bg-white/5 text-slate-300 hover:text-white"
+                    }`}
                 >
                   <Bell className="w-4 h-4" />
                   <span className="flex-1 text-left">Notifications</span>
@@ -2144,11 +2145,10 @@ function PortalContent() {
 
                 <button
                   onClick={() => setChapterActiveTab("profile")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
-                    chapterActiveTab === "profile"
-                      ? "bg-teal-600 text-white font-bold shadow-md"
-                      : "hover:bg-white/5 text-slate-300 hover:text-white"
-                  }`}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${chapterActiveTab === "profile"
+                    ? "bg-teal-600 text-white font-bold shadow-md"
+                    : "hover:bg-white/5 text-slate-300 hover:text-white"
+                    }`}
                 >
                   <User className="w-4 h-4" />
                   <span>Profile</span>
@@ -2159,11 +2159,10 @@ function PortalContent() {
               <nav className="p-4 space-y-1 text-xs font-semibold">
                 <button
                   onClick={() => setAdminActiveTab("overview")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
-                    adminActiveTab === "overview"
-                      ? "bg-amber-600 text-navy-950 font-bold shadow-md"
-                      : "hover:bg-white/5 text-slate-300 hover:text-white"
-                  }`}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${adminActiveTab === "overview"
+                    ? "bg-amber-600 text-navy-950 font-bold shadow-md"
+                    : "hover:bg-white/5 text-slate-300 hover:text-white"
+                    }`}
                 >
                   <LayoutDashboard className="w-4 h-4" />
                   <span>System Overview</span>
@@ -2171,11 +2170,10 @@ function PortalContent() {
 
                 <button
                   onClick={() => setAdminActiveTab("chapters")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
-                    adminActiveTab === "chapters"
-                      ? "bg-amber-600 text-navy-950 font-bold shadow-md"
-                      : "hover:bg-white/5 text-slate-300 hover:text-white"
-                  }`}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${adminActiveTab === "chapters"
+                    ? "bg-amber-600 text-navy-950 font-bold shadow-md"
+                    : "hover:bg-white/5 text-slate-300 hover:text-white"
+                    }`}
                 >
                   <Building2 className="w-4 h-4" />
                   <span className="flex-1 text-left">Chapter Management</span>
@@ -2186,11 +2184,10 @@ function PortalContent() {
 
                 <button
                   onClick={() => setAdminActiveTab("rallies")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
-                    adminActiveTab === "rallies"
-                      ? "bg-amber-600 text-navy-950 font-bold shadow-md"
-                      : "hover:bg-white/5 text-slate-300 hover:text-white"
-                  }`}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${adminActiveTab === "rallies"
+                    ? "bg-amber-600 text-navy-950 font-bold shadow-md"
+                    : "hover:bg-white/5 text-slate-300 hover:text-white"
+                    }`}
                 >
                   <Calendar className="w-4 h-4" />
                   <span>Rally Management</span>
@@ -2198,11 +2195,10 @@ function PortalContent() {
 
                 <button
                   onClick={() => setAdminActiveTab("attendees")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
-                    adminActiveTab === "attendees"
-                      ? "bg-amber-600 text-navy-950 font-bold shadow-md"
-                      : "hover:bg-white/5 text-slate-300 hover:text-white"
-                  }`}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${adminActiveTab === "attendees"
+                    ? "bg-amber-600 text-navy-950 font-bold shadow-md"
+                    : "hover:bg-white/5 text-slate-300 hover:text-white"
+                    }`}
                 >
                   <Users className="w-4 h-4" />
                   <span>Attendee Master Roster</span>
@@ -2210,11 +2206,10 @@ function PortalContent() {
 
                 <button
                   onClick={() => setAdminActiveTab("payments")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
-                    adminActiveTab === "payments"
-                      ? "bg-amber-600 text-navy-950 font-bold shadow-md"
-                      : "hover:bg-white/5 text-slate-300 hover:text-white"
-                  }`}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${adminActiveTab === "payments"
+                    ? "bg-amber-600 text-navy-950 font-bold shadow-md"
+                    : "hover:bg-white/5 text-slate-300 hover:text-white"
+                    }`}
                 >
                   <CreditCard className="w-4 h-4" />
                   <span>Payments & Reconciliation</span>
@@ -2223,14 +2218,13 @@ function PortalContent() {
                 {/* THE AUTOMATED CALCULATIONS AND RELATED FIELDS ARE STRICTLY HERE */}
                 <button
                   onClick={() => setAdminActiveTab("funding")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
-                    adminActiveTab === "funding"
-                      ? "bg-amber-600 text-navy-950 font-bold shadow-md"
-                      : "hover:bg-white/5 text-slate-300 hover:text-white"
-                  }`}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${adminActiveTab === "funding"
+                    ? "bg-amber-600 text-navy-950 font-bold shadow-md"
+                    : "hover:bg-white/5 text-slate-300 hover:text-white"
+                    }`}
                 >
                   <PieChart className="w-4 h-4" />
-                  <span className="flex-1 text-left">Funding & Cost Engine</span>
+                  <span className="flex-1 text-left">Funding/Cost</span>
                   <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[10px]">
                     Auto
                   </span>
@@ -2238,11 +2232,10 @@ function PortalContent() {
 
                 <button
                   onClick={() => setAdminActiveTab("reports")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
-                    adminActiveTab === "reports"
-                      ? "bg-amber-600 text-navy-950 font-bold shadow-md"
-                      : "hover:bg-white/5 text-slate-300 hover:text-white"
-                  }`}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${adminActiveTab === "reports"
+                    ? "bg-amber-600 text-navy-950 font-bold shadow-md"
+                    : "hover:bg-white/5 text-slate-300 hover:text-white"
+                    }`}
                 >
                   <FileSpreadsheet className="w-4 h-4" />
                   <span>Logistics & Reports</span>
@@ -2250,11 +2243,10 @@ function PortalContent() {
 
                 <button
                   onClick={() => setAdminActiveTab("leadership")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
-                    adminActiveTab === "leadership"
-                      ? "bg-amber-600 text-navy-950 font-bold shadow-md"
-                      : "hover:bg-white/5 text-slate-300 hover:text-white"
-                  }`}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${adminActiveTab === "leadership"
+                    ? "bg-amber-600 text-navy-950 font-bold shadow-md"
+                    : "hover:bg-white/5 text-slate-300 hover:text-white"
+                    }`}
                 >
                   <UserCheck className="w-4 h-4" />
                   <span className="flex-1 text-left">Leadership & Patrons</span>
@@ -2265,11 +2257,10 @@ function PortalContent() {
 
                 <button
                   onClick={() => setAdminActiveTab("gallery")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
-                    adminActiveTab === "gallery"
-                      ? "bg-amber-600 text-navy-950 font-bold shadow-md"
-                      : "hover:bg-white/5 text-slate-300 hover:text-white"
-                  }`}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${adminActiveTab === "gallery"
+                    ? "bg-amber-600 text-navy-950 font-bold shadow-md"
+                    : "hover:bg-white/5 text-slate-300 hover:text-white"
+                    }`}
                 >
                   <ImageIcon className="w-4 h-4" />
                   <span className="flex-1 text-left">Media Gallery</span>
@@ -2280,11 +2271,10 @@ function PortalContent() {
 
                 <button
                   onClick={() => setAdminActiveTab("news")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
-                    adminActiveTab === "news"
-                      ? "bg-amber-600 text-navy-950 font-bold shadow-md"
-                      : "hover:bg-white/5 text-slate-300 hover:text-white"
-                  }`}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${adminActiveTab === "news"
+                    ? "bg-amber-600 text-navy-950 font-bold shadow-md"
+                    : "hover:bg-white/5 text-slate-300 hover:text-white"
+                    }`}
                 >
                   <Newspaper className="w-4 h-4" />
                   <span className="flex-1 text-left">News & CMS</span>
@@ -2295,11 +2285,10 @@ function PortalContent() {
 
                 <button
                   onClick={() => setAdminActiveTab("resources")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
-                    adminActiveTab === "resources"
-                      ? "bg-amber-600 text-navy-950 font-bold shadow-md"
-                      : "hover:bg-white/5 text-slate-300 hover:text-white"
-                  }`}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${adminActiveTab === "resources"
+                    ? "bg-amber-600 text-navy-950 font-bold shadow-md"
+                    : "hover:bg-white/5 text-slate-300 hover:text-white"
+                    }`}
                 >
                   <FolderArchive className="w-4 h-4" />
                   <span className="flex-1 text-left">Resources & Docs</span>
@@ -2310,11 +2299,10 @@ function PortalContent() {
 
                 <button
                   onClick={() => setAdminActiveTab("inbox")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
-                    adminActiveTab === "inbox"
-                      ? "bg-amber-600 text-navy-950 font-bold shadow-md"
-                      : "hover:bg-white/5 text-slate-300 hover:text-white"
-                  }`}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${adminActiveTab === "inbox"
+                    ? "bg-amber-600 text-navy-950 font-bold shadow-md"
+                    : "hover:bg-white/5 text-slate-300 hover:text-white"
+                    }`}
                 >
                   <Inbox className="w-4 h-4" />
                   <span className="flex-1 text-left">Inbox & Prayers</span>
@@ -2331,11 +2319,10 @@ function PortalContent() {
 
                 <button
                   onClick={() => setAdminActiveTab("users")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
-                    adminActiveTab === "users"
-                      ? "bg-amber-600 text-navy-950 font-bold shadow-md"
-                      : "hover:bg-white/5 text-slate-300 hover:text-white"
-                  }`}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${adminActiveTab === "users"
+                    ? "bg-amber-600 text-navy-950 font-bold shadow-md"
+                    : "hover:bg-white/5 text-slate-300 hover:text-white"
+                    }`}
                 >
                   <ShieldCheck className="w-4 h-4" />
                   <span>Users & Roles (RBAC)</span>
@@ -2343,11 +2330,10 @@ function PortalContent() {
 
                 <button
                   onClick={() => setAdminActiveTab("settings")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
-                    adminActiveTab === "settings"
-                      ? "bg-amber-600 text-navy-950 font-bold shadow-md"
-                      : "hover:bg-white/5 text-slate-300 hover:text-white"
-                  }`}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${adminActiveTab === "settings"
+                    ? "bg-amber-600 text-navy-950 font-bold shadow-md"
+                    : "hover:bg-white/5 text-slate-300 hover:text-white"
+                    }`}
                 >
                   <Settings className="w-4 h-4" />
                   <span>System Settings</span>
@@ -2355,11 +2341,10 @@ function PortalContent() {
 
                 <button
                   onClick={() => setAdminActiveTab("audit")}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
-                    adminActiveTab === "audit"
-                      ? "bg-amber-600 text-navy-950 font-bold shadow-md"
-                      : "hover:bg-white/5 text-slate-300 hover:text-white"
-                  }`}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${adminActiveTab === "audit"
+                    ? "bg-amber-600 text-navy-950 font-bold shadow-md"
+                    : "hover:bg-white/5 text-slate-300 hover:text-white"
+                    }`}
                 >
                   <History className="w-4 h-4" />
                   <span>Audit Trail</span>
@@ -2420,11 +2405,10 @@ function PortalContent() {
               </button>
 
               <div className="flex items-center gap-3 pl-3 border-l border-slate-200">
-                <div className={`w-9 h-9 rounded-full font-black text-xs flex items-center justify-center shadow-sm ${
-                  activePortal === "CHAPTER"
-                    ? "bg-gradient-to-br from-teal-600 to-navy-900 text-white"
-                    : "bg-gradient-to-br from-amber-400 to-amber-600 text-navy-950"
-                }`}>
+                <div className={`w-9 h-9 rounded-full font-black text-xs flex items-center justify-center shadow-sm ${activePortal === "CHAPTER"
+                  ? "bg-gradient-to-br from-teal-600 to-navy-900 text-white"
+                  : "bg-gradient-to-br from-amber-400 to-amber-600 text-navy-950"
+                  }`}>
                   {activePortal === "CHAPTER" ? currentChapter.code?.slice(0, 2).toUpperCase() || "CH" : "AD"}
                 </div>
                 <div className="hidden sm:flex flex-col text-left">
@@ -2582,9 +2566,6 @@ function PortalContent() {
                         </h3>
                         <p className="text-xs text-slate-500">Monthly delegate submissions leading to Fee Lock</p>
                       </div>
-                      <span className="px-3 py-1 rounded-full bg-slate-100 text-xs font-bold text-slate-700">
-                        2026 Season
-                      </span>
                     </div>
 
                     {/* Live Attendee Registration Trend */}
@@ -2592,7 +2573,7 @@ function PortalContent() {
                       const total = attendeesList.length || currentChapter.attendeesCount || 0;
                       const target = currentChapter.approximateMembers || Math.max(total, 1);
                       // Build monthly buckets from real attendee data
-                      const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+                      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
                       const monthCounts: Record<string, number> = {};
                       if (attendeesList.length > 0) {
                         attendeesList.forEach(a => {
@@ -2751,11 +2732,10 @@ function PortalContent() {
                             </td>
                             <td className="py-3.5 px-4">
                               <span
-                                className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                                  att.status === "CONFIRMED"
-                                    ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-                                    : "bg-amber-100 text-amber-800 border border-amber-200"
-                                }`}
+                                className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${att.status === "CONFIRMED"
+                                  ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                                  : "bg-amber-100 text-amber-800 border border-amber-200"
+                                  }`}
                               >
                                 {att.status === "CONFIRMED" ? "Confirmed" : "Pending"}
                               </span>
@@ -2784,11 +2764,10 @@ function PortalContent() {
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => setShowRegLinkPanel((v) => !v)}
-                      className={`px-4 py-2.5 rounded-xl border font-bold text-xs shadow-sm flex items-center gap-2 transition-all ${
-                        showRegLinkPanel
-                          ? "bg-teal-600 text-white border-teal-600"
-                          : "bg-white border-slate-200 text-slate-700 hover:border-teal-400 hover:text-teal-700"
-                      }`}
+                      className={`px-4 py-2.5 rounded-xl border font-bold text-xs shadow-sm flex items-center gap-2 transition-all ${showRegLinkPanel
+                        ? "bg-teal-600 text-white border-teal-600"
+                        : "bg-white border-slate-200 text-slate-700 hover:border-teal-400 hover:text-teal-700"
+                        }`}
                     >
                       <Globe className="w-4 h-4" />
                       <span>Registration Link</span>
@@ -2829,11 +2808,10 @@ function PortalContent() {
                               setCopiedRegLink(true);
                               setTimeout(() => setCopiedRegLink(false), 3000);
                             }}
-                            className={`px-4 py-3 rounded-xl font-bold text-xs flex items-center gap-2 flex-shrink-0 transition-all shadow-sm ${
-                              copiedRegLink
-                                ? "bg-emerald-600 text-white"
-                                : "bg-navy-900 hover:bg-navy-800 text-white"
-                            }`}
+                            className={`px-4 py-3 rounded-xl font-bold text-xs flex items-center gap-2 flex-shrink-0 transition-all shadow-sm ${copiedRegLink
+                              ? "bg-emerald-600 text-white"
+                              : "bg-navy-900 hover:bg-navy-800 text-white"
+                              }`}
                           >
                             {copiedRegLink ? <CheckCircle2 className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                             <span>{copiedRegLink ? "Copied!" : "Copy Link"}</span>
@@ -2953,11 +2931,10 @@ function PortalContent() {
                               </td>
                               <td className="py-3.5 px-4">
                                 <span
-                                  className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                                    att.status === "CONFIRMED"
-                                      ? "bg-emerald-100 text-emerald-800"
-                                      : "bg-amber-100 text-amber-800"
-                                  }`}
+                                  className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${att.status === "CONFIRMED"
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : "bg-amber-100 text-amber-800"
+                                    }`}
                                 >
                                   {att.status}
                                 </span>
@@ -3195,13 +3172,12 @@ function PortalContent() {
                             <Download className="w-3.5 h-3.5" />
                             <span>Print Invoice</span>
                           </button>
-                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                            currentInvoice.status === "PAID"
-                              ? "bg-emerald-100 text-emerald-800"
-                              : currentInvoice.amountPaid > 0
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${currentInvoice.status === "PAID"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : currentInvoice.amountPaid > 0
                               ? "bg-blue-100 text-blue-800"
                               : "bg-amber-100 text-amber-800"
-                          }`}>
+                            }`}>
                             {currentInvoice.status}
                           </span>
                         </div>
@@ -3222,7 +3198,7 @@ function PortalContent() {
                         </div>
                         <div>
                           <span className="text-slate-500 block">Central M-Pesa Paybill:</span>
-                          <span className="font-mono font-bold text-slate-900 text-sm">4082200</span>
+                          <span className="font-mono font-bold text-slate-900 text-sm">coming soon</span>
                         </div>
                       </div>
 
@@ -3233,7 +3209,7 @@ function PortalContent() {
                           <span>{Math.round(((currentInvoice.amountPaid || 0) / (currentInvoice.amountDue || 1)) * 100)}% Settled</span>
                         </div>
                         <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                          <div 
+                          <div
                             className="h-full bg-emerald-600 rounded-full transition-all duration-500"
                             style={{ width: `${Math.min(100, Math.round(((currentInvoice.amountPaid || 0) / (currentInvoice.amountDue || 1)) * 100))}%` }}
                           />
@@ -3260,7 +3236,7 @@ function PortalContent() {
                       <div className="p-4 rounded-2xl bg-teal-50 border border-teal-200 text-xs text-teal-800 flex items-start gap-2">
                         <Info className="w-4 h-4 text-teal-700 flex-shrink-0 mt-0.5" />
                         <div>
-                          <strong>Payment Instructions:</strong> Go to M-PESA &gt; Lipa na M-PESA &gt; Paybill &gt; Business No: <strong>4082200</strong> &gt; Account No: <strong>{currentInvoice.paymentReference}</strong>. Your remittance will be automatically matched to this invoice.
+                          <strong>Payment Instructions:</strong> Go to M-PESA &gt; Lipa na M-PESA &gt; Paybill &gt; Business No: <strong>coming soon</strong> &gt; Account No: <strong>{currentInvoice.paymentReference}</strong>. Your remittance will be automatically matched to this invoice.
                         </div>
                       </div>
                     </div>
@@ -3335,7 +3311,7 @@ function PortalContent() {
                     </div>
 
                     <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-500">
-                      <strong>Need assistance?</strong> Contact the Central Treasury at <span className="font-semibold text-slate-700">treasury@cucaso.org</span>.
+                      <strong>Need assistance?</strong> Contact the Central Treasury at <span className="font-semibold text-slate-700">cucaso2025@gmail.com</span>.
                     </div>
                   </div>
                 </div>
@@ -3385,11 +3361,10 @@ function PortalContent() {
                               </td>
                               <td className="py-3.5 px-4 font-mono text-[11px] text-slate-500">{pay.timestamp}</td>
                               <td className="py-3.5 px-4 text-center">
-                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                                  pay.status === "MATCHED" ? "bg-emerald-100 text-emerald-800" :
+                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${pay.status === "MATCHED" ? "bg-emerald-100 text-emerald-800" :
                                   pay.status === "UNMATCHED" ? "bg-rose-100 text-rose-800" :
-                                  "bg-amber-100 text-amber-800"
-                                }`}>
+                                    "bg-amber-100 text-amber-800"
+                                  }`}>
                                   {pay.status}
                                 </span>
                               </td>
@@ -3423,7 +3398,7 @@ function PortalContent() {
                                   className="p-1 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors disabled:opacity-40 ml-1"
                                   title="Delete payment"
                                 >
-                                  {deletingPaymentId === pay.id ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>}
+                                  {deletingPaymentId === pay.id ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg> : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>}
                                 </button>
                               </td>
                             </tr>
@@ -3436,7 +3411,7 @@ function PortalContent() {
                       <CreditCard className="w-8 h-8 text-slate-300 mb-2" />
                       <p className="font-bold text-slate-700 text-xs">No Remittances Submitted Yet</p>
                       <p className="text-[11px] text-slate-400 max-w-sm mt-0.5">
-                        Once you complete your payment via M-Pesa Paybill 4082200 or bank transfer, enter the receipt code above to register your remittance.
+                        Once you complete your payment via M-Pesa Paybill or bank transfer, enter the receipt code above to register your remittance.
                       </p>
                     </div>
                   )}
@@ -3455,18 +3430,18 @@ function PortalContent() {
                   <button
                     onClick={() => {
                       setLeadershipForm({
-                        patronName: currentChapter.patronName || "Pr. Eric Musembi",
-                        patronPhone: currentChapter.patronPhone || "+254 712 345678",
-                        patronEmail: currentChapter.patronEmail || "patron@cucaso.org",
+                        patronName: currentChapter.patronName || "",
+                        patronPhone: currentChapter.patronPhone || "",
+                        patronEmail: currentChapter.patronEmail || "",
                         patronPhoto: currentChapter.patronPhoto || "",
-                        repName: currentChapter.repName || "John Mwangi",
-                        repPhone: currentChapter.repPhone || "+254 720 112 233",
+                        repName: currentChapter.repName || "",
+                        repPhone: currentChapter.repPhone || "",
                         repPhoto: currentChapter.repPhoto || "",
-                        treasurerName: currentChapter.treasurerName || "David Kiboi",
-                        treasurerPhone: currentChapter.treasurerPhone || "+254 733 444 555",
+                        treasurerName: currentChapter.treasurerName || "",
+                        treasurerPhone: currentChapter.treasurerPhone || "",
                         treasurerPhoto: currentChapter.treasurerPhoto || "",
-                        secretaryName: currentChapter.secretaryName || "Grace Wanjiru",
-                        secretaryPhone: currentChapter.secretaryPhone || "+254 744 555 666",
+                        secretaryName: currentChapter.secretaryName || "",
+                        secretaryPhone: currentChapter.secretaryPhone || "",
                         secretaryPhoto: currentChapter.secretaryPhoto || "",
                       });
                       setShowLeadershipModal(true);
@@ -3503,13 +3478,25 @@ function PortalContent() {
                             const file = e.target.files?.[0];
                             if (file) {
                               const reader = new FileReader();
-                              reader.onloadend = () => {
+                              reader.onloadend = async () => {
+                                const newLogo = reader.result as string;
                                 setChaptersList(prev => prev.map(c =>
                                   c.id === currentChapter.id
-                                    ? { ...c, logoUrl: reader.result as string }
+                                    ? { ...c, logoUrl: newLogo }
                                     : c
                                 ));
-                                setLocationToast("Chapter logo updated successfully!");
+                                setLocationToast("Saving chapter logo to database...");
+                                try {
+                                  await fetch(`/api/chapters/${currentChapter.id}`, {
+                                    method: "PATCH",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ logoUrl: newLogo }),
+                                  });
+                                  setLocationToast("Chapter logo saved to database successfully!");
+                                } catch (err) {
+                                  console.warn("Logo save error:", err);
+                                  setLocationToast("Chapter logo updated locally");
+                                }
                                 setTimeout(() => setLocationToast(null), 4000);
                               };
                               reader.readAsDataURL(file);
@@ -3545,29 +3532,140 @@ function PortalContent() {
                       </div>
                     ))}
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs border-t border-slate-100 pt-6">
-                    {[
-                      { role: "Patron / Chaplain", name: currentChapter.patronName || "Pr. Eric Musembi", phone: currentChapter.patronPhone, email: currentChapter.patronEmail, photo: currentChapter.patronPhoto },
-                      { role: "Chapter Representative", name: currentChapter.repName || "John Mwangi", phone: currentChapter.repPhone, email: `${currentChapter.code.toLowerCase()}@cucaso.org`, photo: currentChapter.repPhoto },
-                      { role: "Chapter Treasurer", name: currentChapter.treasurerName || "David Kiboi", phone: currentChapter.treasurerPhone, email: "treasury@" + currentChapter.code.toLowerCase() + ".org", photo: currentChapter.treasurerPhoto },
-                      { role: "Chapter Secretary", name: currentChapter.secretaryName || "Grace Wanjiru", phone: currentChapter.secretaryPhone, email: "secretary@" + currentChapter.code.toLowerCase() + ".org", photo: currentChapter.secretaryPhoto },
-                    ].map((officer) => (
-                      <div key={officer.role} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-start gap-3">
-                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-navy-900 to-teal-800 text-white font-bold flex items-center justify-center flex-shrink-0 text-xs overflow-hidden border border-white shadow-sm">
-                          {officer.photo ? (
-                            <img src={officer.photo} alt={officer.name} className="w-full h-full object-cover" />
-                          ) : (
-                            officer.name.split(" ").map(w => w[0]).join("").slice(0, 2)
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <span className="text-[10px] uppercase font-bold text-slate-400 block">{officer.role}</span>
-                          <span className="font-bold text-slate-900 block mt-0.5 truncate">{officer.name}</span>
-                          {officer.phone && <span className="text-slate-500 block text-[11px] truncate">{officer.phone}</span>}
-                          {officer.email && <span className="text-teal-700 block text-[10px] truncate">{officer.email}</span>}
-                        </div>
+                  <div className="border-t border-slate-100 pt-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h3 className="font-heading font-bold text-sm text-navy-950">Chapter Executive & Leadership</h3>
+                        <p className="text-[11px] text-slate-500">Official patron and student leadership for {currentChapter.chapterName || currentChapter.institutionName}</p>
                       </div>
-                    ))}
+                      <button
+                        onClick={() => {
+                          setLeadershipForm({
+                            patronName: currentChapter.patronName || "",
+                            patronPhone: currentChapter.patronPhone || "",
+                            patronEmail: currentChapter.patronEmail || "",
+                            patronPhoto: currentChapter.patronPhoto || "",
+                            repName: currentChapter.repName || "",
+                            repPhone: currentChapter.repPhone || "",
+                            repPhoto: currentChapter.repPhoto || "",
+                            treasurerName: currentChapter.treasurerName || "",
+                            treasurerPhone: currentChapter.treasurerPhone || "",
+                            treasurerPhoto: currentChapter.treasurerPhoto || "",
+                            secretaryName: currentChapter.secretaryName || "",
+                            secretaryPhone: currentChapter.secretaryPhone || "",
+                            secretaryPhoto: currentChapter.secretaryPhoto || "",
+                          });
+                          setShowLeadershipModal(true);
+                        }}
+                        className="text-xs font-bold text-teal-700 hover:text-teal-800 flex items-center gap-1.5 px-3 py-1.5 rounded-xl hover:bg-teal-50 border border-teal-200 transition-colors"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                        <span>Update Leadership</span>
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+                      {[
+                        {
+                          role: "Chapter Patron",
+                          badge: "Faculty Advisor",
+                          name: currentChapter.patronName || "",
+                          phone: currentChapter.patronPhone || "",
+                          email: currentChapter.patronEmail || "",
+                          photo: currentChapter.patronPhoto,
+                          initials: "PT",
+                          gradient: "from-navy-900 to-amber-700",
+                        },
+                        {
+                          role: "Chapter Representative",
+                          badge: "Lead Delegate",
+                          name: currentChapter.repName || "",
+                          phone: currentChapter.repPhone || "",
+                          email: currentChapter.code ? `rep@${currentChapter.code.toLowerCase().replace(/[^a-z0-9]/g, "")}.org` : "",
+                          photo: currentChapter.repPhoto,
+                          initials: "RP",
+                          gradient: "from-teal-800 to-navy-900",
+                        },
+                        {
+                          role: "Chapter Treasurer",
+                          badge: "Finance & Remittance",
+                          name: currentChapter.treasurerName || "",
+                          phone: currentChapter.treasurerPhone || "",
+                          email: currentChapter.code ? `treasurer@${currentChapter.code.toLowerCase().replace(/[^a-z0-9]/g, "")}.org` : "",
+                          photo: currentChapter.treasurerPhoto,
+                          initials: "TR",
+                          gradient: "from-amber-800 to-navy-900",
+                        },
+                        {
+                          role: "Chapter Secretary",
+                          badge: "Records & Communication",
+                          name: currentChapter.secretaryName || "",
+                          phone: currentChapter.secretaryPhone || "",
+                          email: currentChapter.code ? `secretary@${currentChapter.code.toLowerCase().replace(/[^a-z0-9]/g, "")}.org` : "",
+                          photo: currentChapter.secretaryPhoto,
+                          initials: "SC",
+                          gradient: "from-indigo-900 to-teal-900",
+                        },
+                      ].map((officer) => {
+                        const hasName = Boolean(officer.name && officer.name.trim() !== "");
+                        const displayInitials = hasName
+                          ? officer.name.trim().split(/\s+/).map((w: string) => w[0]).filter(Boolean).join("").slice(0, 2).toUpperCase()
+                          : officer.initials;
+
+                        return (
+                          <div
+                            key={officer.role}
+                            onClick={() => {
+                              setLeadershipForm({
+                                patronName: currentChapter.patronName || "",
+                                patronPhone: currentChapter.patronPhone || "",
+                                patronEmail: currentChapter.patronEmail || "",
+                                patronPhoto: currentChapter.patronPhoto || "",
+                                repName: currentChapter.repName || "",
+                                repPhone: currentChapter.repPhone || "",
+                                repPhoto: currentChapter.repPhoto || "",
+                                treasurerName: currentChapter.treasurerName || "",
+                                treasurerPhone: currentChapter.treasurerPhone || "",
+                                treasurerPhoto: currentChapter.treasurerPhoto || "",
+                                secretaryName: currentChapter.secretaryName || "",
+                                secretaryPhone: currentChapter.secretaryPhone || "",
+                                secretaryPhoto: currentChapter.secretaryPhoto || "",
+                              });
+                              setShowLeadershipModal(true);
+                            }}
+                            className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+                              hasName
+                                ? "bg-white border-slate-200 shadow-sm hover:border-teal-400 hover:shadow-md"
+                                : "bg-slate-50/70 border-dashed border-slate-200 hover:border-teal-300 hover:bg-slate-50"
+                            } flex items-start gap-3.5 group`}
+                          >
+                            <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${officer.gradient} text-white font-bold flex items-center justify-center flex-shrink-0 text-xs overflow-hidden border border-white shadow-sm group-hover:scale-105 transition-transform`}>
+                              {officer.photo ? (
+                                <img src={officer.photo} alt={officer.name || officer.role} className="w-full h-full object-cover" />
+                              ) : (
+                                <span className="tracking-wider text-[11px] font-bold">{displayInitials}</span>
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <span className="text-[10px] uppercase font-bold text-slate-400 block truncate">{officer.role}</span>
+                              <span className="text-[10px] font-semibold text-teal-700 block">{officer.badge}</span>
+                              <span className={`font-bold block mt-1 truncate ${hasName ? "text-slate-900 text-sm" : "text-slate-400 italic text-xs"}`}>
+                                {hasName ? officer.name : "Not Assigned"}
+                              </span>
+                              {officer.phone ? (
+                                <span className="text-slate-600 block text-[11px] truncate mt-0.5">{officer.phone}</span>
+                              ) : null}
+                              {officer.email ? (
+                                <span className="text-slate-400 block text-[10px] truncate">{officer.email}</span>
+                              ) : null}
+                              {!hasName && (
+                                <span className="text-[10px] text-teal-600 font-semibold block mt-1">Click to assign</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -3587,8 +3685,8 @@ function PortalContent() {
                       <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                       {currentRallyData?.state?.replace(/_/g, " ") || "REGISTRATION OPEN"}
                     </span>
-                    <h2 className="font-heading font-black text-3xl text-white">{currentRallyData?.title || CURRENT_RALLY.title}</h2>
-                    <p className="text-amber-300 font-semibold mt-2">&ldquo;{currentRallyData?.theme || CURRENT_RALLY.theme}&rdquo;</p>
+                    <h2 className="font-heading font-black text-3xl text-white">{currentRallyData?.title || "CUCASO Coastal Unity Rally"}</h2>
+                    <p className="text-amber-300 font-semibold mt-2">&ldquo;{currentRallyData?.theme || "Rooted in Faith, United in Mission"}&rdquo;</p>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 text-xs">
                       {[
                         {
@@ -3597,8 +3695,8 @@ function PortalContent() {
                             ? `${new Date(currentRallyData.startDate).toLocaleDateString("en-US", { day: "numeric", month: "short" })} – ${new Date(currentRallyData.endDate).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })}`
                             : "15 – 17 Nov 2026",
                         },
-                        { label: "Venue", value: currentRallyData?.venueName || CURRENT_RALLY.venueName },
-                        { label: "Capacity", value: `${(currentRallyData?.capacity || CURRENT_RALLY.capacity).toLocaleString()} Delegates` },
+                        { label: "Venue", value: currentRallyData?.venueName || "Technical University of Mombasa" },
+                        { label: "Capacity", value: `${(currentRallyData?.capacity || 3500).toLocaleString()} Delegates` },
                         {
                           label: "Fee Lock Date",
                           value: currentRallyData?.feeLockDate
@@ -3699,11 +3797,10 @@ function PortalContent() {
                       <button
                         key={cat}
                         onClick={() => setNewsFilter(cat)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                          newsFilter === cat
-                            ? "bg-teal-700 text-white shadow-sm"
-                            : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
-                        }`}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${newsFilter === cat
+                          ? "bg-teal-700 text-white shadow-sm"
+                          : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                          }`}
                       >
                         {cat === "ALL" ? "All Updates" : cat.replace("_", " ")}
                       </button>
@@ -3909,12 +4006,11 @@ function PortalContent() {
                     { title: "Welcome to the CUCASO Chapter Portal", body: "Your chapter portal access has been activated. You can now register delegates, view your invoice, and access all rally documents.", time: "6 months ago", type: "INFO", read: true },
                   ].map((notif) => (
                     <div key={notif.title} className={`p-5 rounded-2xl border shadow-sm flex items-start gap-4 ${notif.read ? "bg-white border-slate-200" : "bg-blue-50/50 border-blue-200"}`}>
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                        notif.type === "URGENT" ? "bg-rose-100 text-rose-700" :
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${notif.type === "URGENT" ? "bg-rose-100 text-rose-700" :
                         notif.type === "WARNING" ? "bg-amber-100 text-amber-700" :
-                        notif.type === "SUCCESS" ? "bg-emerald-100 text-emerald-700" :
-                        "bg-blue-100 text-blue-700"
-                      }`}>
+                          notif.type === "SUCCESS" ? "bg-emerald-100 text-emerald-700" :
+                            "bg-blue-100 text-blue-700"
+                        }`}>
                         <Bell className="w-5 h-5" />
                       </div>
                       <div className="flex-1 min-w-0">
@@ -3966,7 +4062,7 @@ function PortalContent() {
                       </div>
                     ))}
                     <div className="pt-4 border-t border-slate-100 flex flex-wrap gap-3">
-                      <button 
+                      <button
                         onClick={() => {
                           setProfileForm({
                             name: currentChapter.repName || "John Mwangi",
@@ -3981,7 +4077,7 @@ function PortalContent() {
                         <User className="w-3.5 h-3.5" />
                         <span>Edit Profile</span>
                       </button>
-                      <button 
+                      <button
                         onClick={() => {
                           setPasswordForm({ current: "", newPassword: "", confirmPassword: "" });
                           setShowChangePasswordModal(true);
@@ -3991,7 +4087,7 @@ function PortalContent() {
                         <ShieldCheck className="w-3.5 h-3.5" />
                         <span>Change Password</span>
                       </button>
-                      <button 
+                      <button
                         onClick={handleSignOut}
                         className="px-4 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition-colors flex items-center gap-2"
                       >
@@ -4029,7 +4125,7 @@ function PortalContent() {
                       <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
                       <span>Public Gallery</span>
                     </Link>
-                    <button 
+                    <button
                       onClick={() => setShowUploadGalleryModal(true)}
                       className="px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-sm flex items-center gap-2 transition-transform active:scale-95"
                     >
@@ -4054,11 +4150,10 @@ function PortalContent() {
                     <button
                       key={filterTab.id}
                       onClick={() => setGalleryCategoryFilter(filterTab.id)}
-                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                        galleryCategoryFilter === filterTab.id
-                          ? "bg-navy-950 text-white shadow-sm"
-                          : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
-                      }`}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${galleryCategoryFilter === filterTab.id
+                        ? "bg-navy-950 text-white shadow-sm"
+                        : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                        }`}
                     >
                       {filterTab.label}
                     </button>
@@ -4108,19 +4203,19 @@ function PortalContent() {
                   return (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                       {filteredPhotos.map((photo: any) => (
-                        <div 
-                          key={photo.id} 
+                        <div
+                          key={photo.id}
                           className="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-3 hover:shadow-xl hover:border-slate-300 transition-all duration-300 group flex flex-col justify-between"
                         >
                           {/* Photo Container */}
                           <div className="relative aspect-[4/3] w-full rounded-2xl overflow-hidden bg-slate-900 border border-slate-200/60 shadow-inner">
-                            <img 
-                              src={normalizeGoogleImageUrl(photo.url)} 
-                              alt={photo.title} 
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-pointer" 
+                            <img
+                              src={normalizeGoogleImageUrl(photo.url)}
+                              alt={photo.title}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-pointer"
                               onClick={() => setPreviewGalleryPhoto(photo)}
                             />
-                            
+
                             {/* Top Badges */}
                             <div className="absolute top-3 inset-x-3 flex items-center justify-between pointer-events-none">
                               <div className="flex items-center gap-1.5 pointer-events-auto">
@@ -4166,7 +4261,7 @@ function PortalContent() {
                             </div>
 
                             {/* Caption Overlay */}
-                            <div 
+                            <div
                               onClick={() => setPreviewGalleryPhoto(photo)}
                               className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-navy-950/95 via-navy-950/70 to-transparent p-4 pt-10 text-white cursor-pointer"
                             >
@@ -4301,11 +4396,10 @@ function PortalContent() {
                       </div>
                     </div>
                     <div>
-                      <span className={`font-heading font-black text-2xl ${
-                        budgetSummary.sufficiencyStatus === "FUNDED" || budgetSummary.outstandingKes <= 0
-                          ? "text-emerald-700"
-                          : totalCollected > 0 ? "text-teal-700" : "text-slate-500"
-                      }`}>
+                      <span className={`font-heading font-black text-2xl ${budgetSummary.sufficiencyStatus === "FUNDED" || budgetSummary.outstandingKes <= 0
+                        ? "text-emerald-700"
+                        : totalCollected > 0 ? "text-teal-700" : "text-slate-500"
+                        }`}>
                         {budgetSummary.sufficiencyStatus === "FUNDED" || budgetSummary.outstandingKes <= 0
                           ? "Fully Funded"
                           : totalCollected > 0 ? "Collection Active" : "Awaiting Payments"}
@@ -4408,11 +4502,10 @@ function PortalContent() {
                           return (
                             <div
                               key={rally.id || rally.title}
-                              className={`p-3 rounded-2xl flex items-center justify-between border ${
-                                isAct
-                                  ? "bg-teal-50 border-teal-200"
-                                  : "bg-slate-50 border-slate-200"
-                              }`}
+                              className={`p-3 rounded-2xl flex items-center justify-between border ${isAct
+                                ? "bg-teal-50 border-teal-200"
+                                : "bg-slate-50 border-slate-200"
+                                }`}
                             >
                               <div>
                                 <span className={`font-bold block ${isAct ? "text-teal-950" : "text-slate-900"}`}>
@@ -4423,13 +4516,12 @@ function PortalContent() {
                                 </span>
                               </div>
                               <span
-                                className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                                  isAct
-                                    ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                                    : isComp
+                                className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${isAct
+                                  ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                                  : isComp
                                     ? "bg-slate-200 text-slate-700"
                                     : "bg-amber-100 text-amber-800"
-                                }`}
+                                  }`}
                               >
                                 {rally.status}
                               </span>
@@ -4511,13 +4603,12 @@ function PortalContent() {
                               </td>
                               <td className="py-3.5 px-4 text-center">
                                 <span
-                                  className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                                    status === "PAID"
-                                      ? "bg-emerald-100 text-emerald-800"
-                                      : status === "PARTIAL"
+                                  className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${status === "PAID"
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : status === "PARTIAL"
                                       ? "bg-blue-100 text-blue-800"
                                       : "bg-amber-100 text-amber-800"
-                                  }`}
+                                    }`}
                                 >
                                   {status}
                                 </span>
@@ -4616,7 +4707,7 @@ function PortalContent() {
                             .then((j) => {
                               if (j.success && Array.isArray(j.data)) setCostItemsList(j.data);
                             })
-                            .catch(() => {})
+                            .catch(() => { })
                             .finally(() => setCostItemsLoading(false));
                         }}
                         className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors"
@@ -4675,8 +4766,8 @@ function PortalContent() {
                           const budgetImpact = item.type === "FIXED"
                             ? item.amount
                             : item.type === "PER_HEAD"
-                            ? item.amount * totalAttendees
-                            : item.amount * (item.quantity ?? 1);
+                              ? item.amount * totalAttendees
+                              : item.amount * (item.quantity ?? 1);
 
                           const categoryColors: Record<string, string> = {
                             VENUE: "bg-blue-100 text-blue-800",
@@ -4894,11 +4985,10 @@ function PortalContent() {
                               </td>
                               <td className="py-3.5 px-4 text-right font-mono font-bold">
                                 <span
-                                  className={`px-2 py-0.5 rounded-full text-[10px] ${
-                                    isPositive
-                                      ? "bg-emerald-100 text-emerald-800"
-                                      : "bg-amber-100 text-amber-800"
-                                  }`}
+                                  className={`px-2 py-0.5 rounded-full text-[10px] ${isPositive
+                                    ? "bg-emerald-100 text-emerald-800"
+                                    : "bg-amber-100 text-amber-800"
+                                    }`}
                                 >
                                   {isPositive ? "+" : ""}
                                   {formatCurrency(cf.crossSubsidyKes)}
@@ -5098,8 +5188,8 @@ function PortalContent() {
                       <CheckCircle2 className="w-5 h-5 text-emerald-600 flex-shrink-0" />
                       <span className="text-xs font-bold">{locationToast}</span>
                     </div>
-                    <button 
-                      onClick={() => setLocationToast(null)} 
+                    <button
+                      onClick={() => setLocationToast(null)}
                       className="p-1 rounded-lg hover:bg-emerald-100 text-emerald-700"
                     >
                       <X className="w-4 h-4" />
@@ -5132,33 +5222,30 @@ function PortalContent() {
                 <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
                   <button
                     onClick={() => setChaptersSubTab("map")}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-                      chaptersSubTab === "map"
-                        ? "bg-navy-900 text-white shadow-sm"
-                        : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
-                    }`}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${chaptersSubTab === "map"
+                      ? "bg-navy-900 text-white shadow-sm"
+                      : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                      }`}
                   >
                     <Map className="w-4 h-4 text-amber-400" />
                     <span>Live Coastal Map & Location Editor</span>
                   </button>
                   <button
                     onClick={() => setChaptersSubTab("list")}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-                      chaptersSubTab === "list"
-                        ? "bg-navy-900 text-white shadow-sm"
-                        : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
-                    }`}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${chaptersSubTab === "list"
+                      ? "bg-navy-900 text-white shadow-sm"
+                      : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                      }`}
                   >
                     <Building2 className="w-4 h-4" />
                     <span>Member Chapters Directory ({chaptersList.length})</span>
                   </button>
                   <button
                     onClick={() => setChaptersSubTab("onboarding")}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-                      chaptersSubTab === "onboarding"
-                        ? "bg-navy-900 text-white shadow-sm"
-                        : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
-                    }`}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${chaptersSubTab === "onboarding"
+                      ? "bg-navy-900 text-white shadow-sm"
+                      : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                      }`}
                   >
                     <FileText className="w-4 h-4" />
                     <span>Council Onboarding Queue ({adminApplications.filter(a => a.status !== "APPROVED").length} Pending)</span>
@@ -5467,11 +5554,23 @@ function PortalContent() {
                                         const file = e.target.files?.[0];
                                         if (file) {
                                           const reader = new FileReader();
-                                          reader.onloadend = () => {
+                                          reader.onloadend = async () => {
+                                            const newLogo = reader.result as string;
                                             setChaptersList(prev => prev.map(c =>
-                                              c.id === ch.id ? { ...c, logoUrl: reader.result as string } : c
+                                              c.id === ch.id ? { ...c, logoUrl: newLogo } : c
                                             ));
-                                            setLocationToast(`Logo for ${ch.institutionName} updated!`);
+                                            setLocationToast(`Saving logo for ${ch.institutionName} to database...`);
+                                            try {
+                                              await fetch(`/api/chapters/${ch.id}`, {
+                                                method: "PATCH",
+                                                headers: { "Content-Type": "application/json" },
+                                                body: JSON.stringify({ logoUrl: newLogo }),
+                                              });
+                                              setLocationToast(`Logo for ${ch.institutionName} saved to database!`);
+                                            } catch (err) {
+                                              console.warn("Logo save error:", err);
+                                              setLocationToast(`Logo for ${ch.institutionName} updated locally`);
+                                            }
                                             setTimeout(() => setLocationToast(null), 4000);
                                           };
                                           reader.readAsDataURL(file);
@@ -5556,11 +5655,10 @@ function PortalContent() {
                             </span>
                             <span className="text-xs text-slate-400">• {app.location}</span>
                             <span
-                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                                app.status === "APPROVED"
-                                  ? "bg-emerald-100 text-emerald-800"
-                                  : "bg-amber-100 text-amber-800"
-                              }`}
+                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${app.status === "APPROVED"
+                                ? "bg-emerald-100 text-emerald-800"
+                                : "bg-amber-100 text-amber-800"
+                                }`}
                             >
                               {app.status}
                             </span>
@@ -5856,7 +5954,7 @@ function PortalContent() {
                     <p className="text-xs text-slate-500 mt-1">Manage rally lifecycle, venues, dates, cost items, and programme details.</p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <button 
+                    <button
                       onClick={() => setShowCreateRallyModal(true)}
                       className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-navy-950 font-bold text-xs shadow-sm flex items-center gap-2 transition-all"
                     >
@@ -6019,7 +6117,19 @@ function PortalContent() {
                           const res = await fetch("/api/rallies", {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify(CURRENT_RALLY),
+                            body: JSON.stringify({
+                              title: "CUCASO Coastal Unity Rally 2026",
+                              theme: "Rooted in Faith, United in Mission",
+                              venueName: "Technical University of Mombasa (TUM)",
+                              venueLocation: "Tudor, Mombasa, Kenya",
+                              capacity: 3500,
+                              startDate: "2026-11-15",
+                              endDate: "2026-11-17",
+                              registrationDeadline: "2026-11-01",
+                              feeLockDate: "2026-11-01",
+                              paymentDeadline: "2026-11-10",
+                              state: "REGISTRATION_OPEN",
+                            }),
                           });
                           const j = await res.json();
                           if (j.success && j.data) {
@@ -6060,7 +6170,7 @@ function PortalContent() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {RALLY_COST_ITEMS.map((item) => (
+                        {costItemsList.map((item: CostItem) => (
                           <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
                             <td className="py-3.5 px-4 font-semibold text-slate-900">{item.name}</td>
                             <td className="py-3.5 px-4">
@@ -6348,7 +6458,7 @@ function PortalContent() {
                 {/* Financial KPIs */}
                 {(invoicesLoading || paymentsLoading) ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {[1,2,3,4].map(n => (
+                    {[1, 2, 3, 4].map(n => (
                       <div key={n} className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm animate-pulse space-y-3">
                         <div className="h-3 w-28 bg-slate-200 rounded-lg" />
                         <div className="h-8 w-36 bg-slate-100 rounded-xl" />
@@ -6356,22 +6466,22 @@ function PortalContent() {
                     ))}
                   </div>
                 ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {[
-                    { label: "Total Invoiced", value: formatCurrency(invoicesList.reduce((s: number, i: Invoice) => s + i.amountDue, 0)), color: "text-navy-950", icon: FileText },
-                    { label: "Total Received", value: formatCurrency(paymentsList.filter((p: Payment) => p.status === "MATCHED").reduce((s: number, p: Payment) => s + p.amount, 0)), color: "text-emerald-700", icon: CheckCircle2 },
-                    { label: "Outstanding Balance", value: formatCurrency(invoicesList.reduce((s: number, i: Invoice) => s + i.balance, 0)), color: "text-amber-700", icon: AlertTriangle },
-                    { label: "Unmatched Transactions", value: `${paymentsList.filter((p: Payment) => p.status === "UNMATCHED").length}`, color: "text-rose-700", icon: ShieldAlert },
-                  ].map((kpi) => (
-                    <div key={kpi.label} className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm">
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500">{kpi.label}</span>
-                        <kpi.icon className="w-5 h-5 text-slate-300" />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {[
+                      { label: "Total Invoiced", value: formatCurrency(invoicesList.reduce((s: number, i: Invoice) => s + i.amountDue, 0)), color: "text-navy-950", icon: FileText },
+                      { label: "Total Received", value: formatCurrency(paymentsList.filter((p: Payment) => p.status === "MATCHED").reduce((s: number, p: Payment) => s + p.amount, 0)), color: "text-emerald-700", icon: CheckCircle2 },
+                      { label: "Outstanding Balance", value: formatCurrency(invoicesList.reduce((s: number, i: Invoice) => s + i.balance, 0)), color: "text-amber-700", icon: AlertTriangle },
+                      { label: "Unmatched Transactions", value: `${paymentsList.filter((p: Payment) => p.status === "UNMATCHED").length}`, color: "text-rose-700", icon: ShieldAlert },
+                    ].map((kpi) => (
+                      <div key={kpi.label} className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500">{kpi.label}</span>
+                          <kpi.icon className="w-5 h-5 text-slate-300" />
+                        </div>
+                        <span className={`font-heading font-black text-2xl ${kpi.color}`}>{kpi.value}</span>
                       </div>
-                      <span className={`font-heading font-black text-2xl ${kpi.color}`}>{kpi.value}</span>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
                 )}
 
                 {/* Payment Ledger Table */}
@@ -6445,7 +6555,7 @@ function PortalContent() {
                         {paymentsList
                           .filter(pay => {
                             const query = paymentSearchQuery.toLowerCase();
-                            const matchesQ = !query || 
+                            const matchesQ = !query ||
                               (pay.mpesaReceiptNumber && pay.mpesaReceiptNumber.toLowerCase().includes(query)) ||
                               (pay.payerName && pay.payerName.toLowerCase().includes(query)) ||
                               (pay.reference && pay.reference.toLowerCase().includes(query));
@@ -6468,11 +6578,10 @@ function PortalContent() {
                               <td className="py-3.5 px-4 text-right font-bold text-navy-950">{formatCurrency(pay.amount)}</td>
                               <td className="py-3.5 px-4 font-mono text-[10px] text-slate-500">{pay.timestamp}</td>
                               <td className="py-3.5 px-4 text-center">
-                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                                  pay.status === "MATCHED" ? "bg-emerald-100 text-emerald-800" :
+                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${pay.status === "MATCHED" ? "bg-emerald-100 text-emerald-800" :
                                   pay.status === "UNMATCHED" ? "bg-rose-100 text-rose-800" :
-                                  "bg-amber-100 text-amber-800"
-                                }`}>
+                                    "bg-amber-100 text-amber-800"
+                                  }`}>
                                   {pay.status}
                                 </span>
                               </td>
@@ -6515,7 +6624,7 @@ function PortalContent() {
                                     className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors disabled:opacity-40"
                                     title="Delete"
                                   >
-                                    {deletingPaymentId === pay.id ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>}
+                                    {deletingPaymentId === pay.id ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg> : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>}
                                   </button>
                                 </div>
                               </td>
@@ -6564,7 +6673,7 @@ function PortalContent() {
                         {invoicesList
                           .filter(inv => {
                             const q = invoiceSearchQuery.toLowerCase();
-                            return !q || 
+                            return !q ||
                               inv.invoiceNumber.toLowerCase().includes(q) ||
                               inv.institutionName.toLowerCase().includes(q) ||
                               inv.paymentReference.toLowerCase().includes(q);
@@ -6581,11 +6690,10 @@ function PortalContent() {
                               <td className="py-3.5 px-4 text-right font-bold text-amber-700">{formatCurrency(inv.balance)}</td>
                               <td className="py-3.5 px-4 font-mono text-[10px] text-slate-500">{inv.dueDate}</td>
                               <td className="py-3.5 px-4 text-center">
-                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                                  inv.status === "PAID" ? "bg-emerald-100 text-emerald-800" :
+                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${inv.status === "PAID" ? "bg-emerald-100 text-emerald-800" :
                                   inv.status === "PARTIAL" ? "bg-amber-100 text-amber-800" :
-                                  "bg-rose-100 text-rose-800"
-                                }`}>
+                                    "bg-rose-100 text-rose-800"
+                                  }`}>
                                   {inv.status}
                                 </span>
                               </td>
@@ -6636,7 +6744,7 @@ function PortalContent() {
                                     className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors disabled:opacity-40"
                                     title="Delete invoice"
                                   >
-                                    {deletingInvoiceId === inv.id ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>}
+                                    {deletingInvoiceId === inv.id ? <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg> : <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>}
                                   </button>
                                 </div>
                               </td>
@@ -6676,14 +6784,14 @@ function PortalContent() {
                         <p className="text-xs text-slate-500 leading-relaxed">{report.desc}</p>
                       </div>
                       <div className="mt-6 pt-4 border-t border-slate-100 flex items-center gap-2">
-                        <button 
+                        <button
                           onClick={() => handleExportPDF(report.title)}
                           className="flex-1 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors flex items-center justify-center gap-1.5"
                         >
                           <Download className="w-3.5 h-3.5" />
                           <span>Export PDF</span>
                         </button>
-                        <button 
+                        <button
                           onClick={() => {
                             if (report.tag === "Finance") {
                               exportToCSV(
@@ -6743,7 +6851,7 @@ function PortalContent() {
                               exportToCSV(
                                 "council_governance_audit",
                                 ["Log ID", "Action", "Target", "Actor", "Role", "Timestamp", "Details"],
-                                AUDIT_LOGS.map(l => [l.id, l.action, l.target, l.actor, l.role, l.timestamp, l.details])
+                                auditLogs.map((l: AuditLogEntry) => [l.id, l.action, l.target, l.actor, l.role, l.timestamp, l.details])
                               );
                             }
                           }}
@@ -6793,14 +6901,14 @@ function PortalContent() {
                     <p className="text-xs text-slate-500 mt-1">Manage Executive Council Officers, Chapter Patrons, Student Reps, and Photo uploads.</p>
                   </div>
                   <div className="flex items-center gap-2.5">
-                    <button 
+                    <button
                       onClick={() => handleExportPDF("Leadership Directory")}
                       className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-700 font-bold text-xs shadow-sm hover:bg-slate-50 flex items-center gap-2"
                     >
                       <Download className="w-4 h-4 text-slate-500" />
                       <span>Export Directory PDF</span>
                     </button>
-                    <button 
+                    <button
                       onClick={() => {
                         const newId = `lead-${Date.now()}`;
                         setEditingLeader({
@@ -6831,22 +6939,20 @@ function PortalContent() {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setAdminLeadershipSubTab("council")}
-                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-                        adminLeadershipSubTab === "council"
-                          ? "bg-navy-950 text-white shadow-sm"
-                          : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
-                      }`}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${adminLeadershipSubTab === "council"
+                        ? "bg-navy-950 text-white shadow-sm"
+                        : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                        }`}
                     >
                       <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
                       <span>Executive Council ({councilLeaders.length})</span>
                     </button>
                     <button
                       onClick={() => setAdminLeadershipSubTab("chapters")}
-                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-                        adminLeadershipSubTab === "chapters"
-                          ? "bg-navy-950 text-white shadow-sm"
-                          : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
-                      }`}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${adminLeadershipSubTab === "chapters"
+                        ? "bg-navy-950 text-white shadow-sm"
+                        : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                        }`}
                     >
                       <Building2 className="w-3.5 h-3.5 text-teal-600" />
                       <span>Chapter Leadership & Patrons ({chaptersList.length})</span>
@@ -6858,33 +6964,30 @@ function PortalContent() {
                       <button
                         type="button"
                         onClick={() => setLeadershipCategoryFilter("ALL")}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
-                          leadershipCategoryFilter === "ALL"
-                            ? "bg-white text-navy-950 shadow-sm"
-                            : "text-slate-500 hover:text-navy-900"
-                        }`}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${leadershipCategoryFilter === "ALL"
+                          ? "bg-white text-navy-950 shadow-sm"
+                          : "text-slate-500 hover:text-navy-900"
+                          }`}
                       >
                         All ({councilLeaders.length})
                       </button>
                       <button
                         type="button"
                         onClick={() => setLeadershipCategoryFilter("CENTRAL_COUNCIL")}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
-                          leadershipCategoryFilter === "CENTRAL_COUNCIL"
-                            ? "bg-white text-navy-950 shadow-sm"
-                            : "text-slate-500 hover:text-navy-900"
-                        }`}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${leadershipCategoryFilter === "CENTRAL_COUNCIL"
+                          ? "bg-white text-navy-950 shadow-sm"
+                          : "text-slate-500 hover:text-navy-900"
+                          }`}
                       >
                         Central Council ({councilLeaders.filter(l => (l.category || "CENTRAL_COUNCIL") === "CENTRAL_COUNCIL").length})
                       </button>
                       <button
                         type="button"
                         onClick={() => setLeadershipCategoryFilter("OTHER")}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
-                          leadershipCategoryFilter === "OTHER"
-                            ? "bg-white text-navy-950 shadow-sm"
-                            : "text-slate-500 hover:text-navy-900"
-                        }`}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${leadershipCategoryFilter === "OTHER"
+                          ? "bg-white text-navy-950 shadow-sm"
+                          : "text-slate-500 hover:text-navy-900"
+                          }`}
                       >
                         Other ({councilLeaders.filter(l => l.category === "OTHER").length})
                       </button>
@@ -6902,86 +7005,85 @@ function PortalContent() {
                         return (leader.category || "CENTRAL_COUNCIL") === "CENTRAL_COUNCIL";
                       })
                       .map((leader) => (
-                      <div key={leader.id} className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 flex flex-col justify-between hover:shadow-md transition-shadow group">
-                        <div className="space-y-4">
-                          <div className="flex items-start gap-4">
-                            <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-navy-900 to-amber-700 text-white font-heading font-black text-xl flex items-center justify-center overflow-hidden border-2 border-slate-100 shadow-sm flex-shrink-0">
-                              {leader.imageUrl || leader.image ? (
-                                <img src={normalizeGoogleImageUrl(leader.imageUrl || leader.image || "")} alt={leader.name} className="w-full h-full object-cover" />
-                              ) : (
-                                leader.name.split(" ").map(w => w[0]).join("").slice(0, 2)
-                              )}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                                <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 text-[10px] font-extrabold uppercase tracking-wider block w-fit">
-                                  {leader.title}
-                                </span>
-                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                                  (leader.category || "CENTRAL_COUNCIL") === "CENTRAL_COUNCIL"
+                        <div key={leader.id} className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 flex flex-col justify-between hover:shadow-md transition-shadow group">
+                          <div className="space-y-4">
+                            <div className="flex items-start gap-4">
+                              <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-navy-900 to-amber-700 text-white font-heading font-black text-xl flex items-center justify-center overflow-hidden border-2 border-slate-100 shadow-sm flex-shrink-0">
+                                {leader.imageUrl || leader.image ? (
+                                  <img src={normalizeGoogleImageUrl(leader.imageUrl || leader.image || "")} alt={leader.name} className="w-full h-full object-cover" />
+                                ) : (
+                                  leader.name.split(" ").map(w => w[0]).join("").slice(0, 2)
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                                  <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 text-[10px] font-extrabold uppercase tracking-wider block w-fit">
+                                    {leader.title}
+                                  </span>
+                                  <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${(leader.category || "CENTRAL_COUNCIL") === "CENTRAL_COUNCIL"
                                     ? "bg-navy-100 text-navy-900"
                                     : "bg-teal-100 text-teal-900"
-                                }`}>
-                                  {(leader.category || "CENTRAL_COUNCIL") === "CENTRAL_COUNCIL" ? "Central Council" : "Other"}
-                                </span>
+                                    }`}>
+                                    {(leader.category || "CENTRAL_COUNCIL") === "CENTRAL_COUNCIL" ? "Central Council" : "Other"}
+                                  </span>
+                                </div>
+                                <h3 className="font-heading font-black text-base text-navy-950 truncate">{leader.name}</h3>
+                                <p className="text-xs text-slate-400 truncate">{leader.institution || "CUCASO Central Council"}</p>
                               </div>
-                              <h3 className="font-heading font-black text-base text-navy-950 truncate">{leader.name}</h3>
-                              <p className="text-xs text-slate-400 truncate">{leader.institution || "CUCASO Central Council"}</p>
+                            </div>
+
+                            {leader.bio && (
+                              <p className="text-xs text-slate-600 line-clamp-3 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                {leader.bio}
+                              </p>
+                            )}
+
+                            <div className="space-y-1 text-xs text-slate-500 pt-1">
+                              {leader.phone && (
+                                <div className="flex items-center justify-between">
+                                  <span className="font-semibold text-slate-400 text-[11px]">Phone:</span>
+                                  <span className="font-bold text-slate-800">{leader.phone}</span>
+                                </div>
+                              )}
+                              {leader.email && (
+                                <div className="flex items-center justify-between">
+                                  <span className="font-semibold text-slate-400 text-[11px]">Email:</span>
+                                  <span className="font-bold text-slate-800">{leader.email}</span>
+                                </div>
+                              )}
                             </div>
                           </div>
 
-                          {leader.bio && (
-                            <p className="text-xs text-slate-600 line-clamp-3 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">
-                              {leader.bio}
-                            </p>
-                          )}
-
-                          <div className="space-y-1 text-xs text-slate-500 pt-1">
-                            {leader.phone && (
-                              <div className="flex items-center justify-between">
-                                <span className="font-semibold text-slate-400 text-[11px]">Phone:</span>
-                                <span className="font-bold text-slate-800">{leader.phone}</span>
-                              </div>
-                            )}
-                            {leader.email && (
-                              <div className="flex items-center justify-between">
-                                <span className="font-semibold text-slate-400 text-[11px]">Email:</span>
-                                <span className="font-bold text-slate-800">{leader.email}</span>
-                              </div>
-                            )}
+                          <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full">
+                              Active Officer
+                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => {
+                                  setEditingLeader({
+                                    ...leader,
+                                    category: leader.category || "CENTRAL_COUNCIL",
+                                  });
+                                  setShowCouncilLeaderModal(true);
+                                }}
+                                className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-navy-900 hover:text-white text-slate-700 font-bold text-xs transition-colors flex items-center gap-1.5"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                                <span>Edit Profile</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteCouncilLeader(leader.id, leader.name)}
+                                title="Delete Leader"
+                                className="p-1.5 rounded-xl bg-slate-100 hover:bg-rose-600 hover:text-white text-rose-600 font-bold text-xs transition-colors flex items-center justify-center"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
                         </div>
-
-                        <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between">
-                          <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full">
-                            Active Officer
-                          </span>
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              onClick={() => {
-                                setEditingLeader({
-                                  ...leader,
-                                  category: leader.category || "CENTRAL_COUNCIL",
-                                });
-                                setShowCouncilLeaderModal(true);
-                              }}
-                              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-navy-900 hover:text-white text-slate-700 font-bold text-xs transition-colors flex items-center gap-1.5"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                              <span>Edit Profile</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteCouncilLeader(leader.id, leader.name)}
-                              title="Delete Leader"
-                              className="p-1.5 rounded-xl bg-slate-100 hover:bg-rose-600 hover:text-white text-rose-600 font-bold text-xs transition-colors flex items-center justify-center"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                      ))}
                   </div>
                 )}
 
@@ -7121,7 +7223,7 @@ function PortalContent() {
                     <h1 className="font-heading font-black text-2xl text-navy-950">Media & Event Gallery</h1>
                     <p className="text-xs text-slate-500 mt-1">Upload, curate, and archive event photos, convention media, and chapter activities.</p>
                   </div>
-                  <button 
+                  <button
                     onClick={() => setShowUploadGalleryModal(true)}
                     className="px-4 py-2.5 rounded-xl bg-navy-900 hover:bg-navy-800 text-white font-bold text-xs shadow-sm flex items-center gap-2 transition-transform active:scale-95"
                   >
@@ -7136,11 +7238,10 @@ function PortalContent() {
                     <button
                       key={cat}
                       onClick={() => setGalleryCategoryFilter(cat)}
-                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                        galleryCategoryFilter === cat
-                          ? "bg-navy-950 text-white shadow-sm"
-                          : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
-                      }`}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${galleryCategoryFilter === cat
+                        ? "bg-navy-950 text-white shadow-sm"
+                        : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                        }`}
                     >
                       {cat === "ALL" ? "All Photos" : cat}
                     </button>
@@ -7152,19 +7253,19 @@ function PortalContent() {
                   {galleryPhotos
                     .filter((p) => galleryCategoryFilter === "ALL" || p.category.toLowerCase() === galleryCategoryFilter.toLowerCase())
                     .map((photo) => (
-                      <div 
-                        key={photo.id} 
+                      <div
+                        key={photo.id}
                         className="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-3 hover:shadow-xl hover:border-slate-300 transition-all duration-300 group flex flex-col justify-between"
                       >
                         {/* Prominent Foreground Photo Container */}
                         <div className="relative aspect-[4/3] w-full rounded-2xl overflow-hidden bg-slate-900 border border-slate-200/60 shadow-inner">
-                          <img 
-                            src={normalizeGoogleImageUrl(photo.url)} 
-                            alt={photo.title} 
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-pointer" 
+                          <img
+                            src={normalizeGoogleImageUrl(photo.url)}
+                            alt={photo.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-pointer"
                             onClick={() => setPreviewGalleryPhoto(photo)}
                           />
-                          
+
                           {/* Top Floating Badges & Actions */}
                           <div className="absolute top-3 inset-x-3 flex items-center justify-between pointer-events-none">
                             <div className="flex items-center gap-1.5 pointer-events-auto">
@@ -7210,7 +7311,7 @@ function PortalContent() {
                           </div>
 
                           {/* Bottom Foreground Gradient Overlay with Photo Caption */}
-                          <div 
+                          <div
                             onClick={() => setPreviewGalleryPhoto(photo)}
                             className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-navy-950/95 via-navy-950/70 to-transparent p-4 pt-10 text-white cursor-pointer"
                           >
@@ -7282,11 +7383,10 @@ function PortalContent() {
                     <button
                       key={cat}
                       onClick={() => setNewsFilter(cat)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                        newsFilter === cat
-                          ? "bg-navy-950 text-white shadow-sm"
-                          : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
-                      }`}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${newsFilter === cat
+                        ? "bg-navy-950 text-white shadow-sm"
+                        : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                        }`}
                     >
                       {cat === "ALL" ? "All Posts" : cat.replace("_", " ")}
                     </button>
@@ -7336,12 +7436,11 @@ function PortalContent() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-start justify-between gap-3">
                               <div>
-                                <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider mb-1 ${
-                                  post.category?.toUpperCase() === "ANNOUNCEMENT" ? "bg-amber-100 text-amber-800" :
+                                <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider mb-1 ${post.category?.toUpperCase() === "ANNOUNCEMENT" ? "bg-amber-100 text-amber-800" :
                                   post.category?.toUpperCase() === "SPIRITUAL" ? "bg-teal-100 text-teal-800" :
-                                  post.category?.toUpperCase() === "FINANCE" ? "bg-emerald-100 text-emerald-800" :
-                                  "bg-slate-100 text-slate-700"
-                                }`}>{post.category}</span>
+                                    post.category?.toUpperCase() === "FINANCE" ? "bg-emerald-100 text-emerald-800" :
+                                      "bg-slate-100 text-slate-700"
+                                  }`}>{post.category}</span>
                                 <h3 className="font-heading font-black text-base text-navy-950 leading-snug group-hover:text-teal-700 transition-colors">{post.title}</h3>
                                 <p className="text-xs text-slate-500 mt-1 line-clamp-2">{post.summary || post.content}</p>
                               </div>
@@ -7419,11 +7518,10 @@ function PortalContent() {
                     <button
                       key={cat}
                       onClick={() => setResourceFilter(cat)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                        resourceFilter === cat
-                          ? "bg-navy-950 text-white shadow-sm"
-                          : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
-                      }`}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${resourceFilter === cat
+                        ? "bg-navy-950 text-white shadow-sm"
+                        : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                        }`}
                     >
                       {cat === "ALL" ? "All Documents" : cat.replace("_", " ")}
                     </button>
@@ -7495,15 +7593,13 @@ function PortalContent() {
                               </div>
                             </div>
                             <div className="flex items-center gap-3 mt-2 flex-wrap">
-                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
-                                doc.category?.toUpperCase() === "POLICY" ? "bg-navy-100 text-navy-800" :
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${doc.category?.toUpperCase() === "POLICY" ? "bg-navy-100 text-navy-800" :
                                 doc.category?.toUpperCase() === "FINANCE" ? "bg-emerald-100 text-emerald-800" :
-                                doc.category?.toUpperCase() === "RALLY" ? "bg-amber-100 text-amber-800" :
-                                "bg-slate-100 text-slate-700"
-                              }`}>{doc.category}</span>
-                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
-                                doc.accessLevel === "PUBLIC" ? "bg-teal-100 text-teal-800" : "bg-amber-100 text-amber-700"
-                              }`}>{doc.accessLevel}</span>
+                                  doc.category?.toUpperCase() === "RALLY" ? "bg-amber-100 text-amber-800" :
+                                    "bg-slate-100 text-slate-700"
+                                }`}>{doc.category}</span>
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${doc.accessLevel === "PUBLIC" ? "bg-teal-100 text-teal-800" : "bg-amber-100 text-amber-700"
+                                }`}>{doc.accessLevel}</span>
                               {doc.fileSize && <span className="text-[11px] text-slate-400">{doc.fileSize}</span>}
                               {(doc.createdAt || (doc as any).uploadedAt) && <span className="text-[11px] text-slate-400 flex items-center gap-1"><Calendar className="w-3 h-3" />{doc.createdAt || (doc as any).uploadedAt}</span>}
                             </div>
@@ -7604,11 +7700,10 @@ function PortalContent() {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setInboxSubTab("feedback")}
-                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-                        inboxSubTab === "feedback"
-                          ? "bg-navy-950 text-white shadow-sm"
-                          : "text-slate-600 hover:bg-slate-100"
-                      }`}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${inboxSubTab === "feedback"
+                        ? "bg-navy-950 text-white shadow-sm"
+                        : "text-slate-600 hover:bg-slate-100"
+                        }`}
                     >
                       <Mail className="w-3.5 h-3.5" />
                       <span>Contact Feedback</span>
@@ -7619,11 +7714,10 @@ function PortalContent() {
 
                     <button
                       onClick={() => setInboxSubTab("prayer")}
-                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-                        inboxSubTab === "prayer"
-                          ? "bg-navy-950 text-white shadow-sm"
-                          : "text-slate-600 hover:bg-slate-100"
-                      }`}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${inboxSubTab === "prayer"
+                        ? "bg-navy-950 text-white shadow-sm"
+                        : "text-slate-600 hover:bg-slate-100"
+                        }`}
                     >
                       <Heart className="w-3.5 h-3.5 text-rose-500" />
                       <span>Prayer Requests</span>
@@ -7703,17 +7797,15 @@ function PortalContent() {
                         .map((msg) => (
                           <div
                             key={msg.id}
-                            className={`p-5 rounded-2xl border transition-all ${
-                              msg.isRead
-                                ? "bg-white border-slate-200"
-                                : "bg-blue-50/40 border-blue-200 shadow-sm"
-                            }`}
+                            className={`p-5 rounded-2xl border transition-all ${msg.isRead
+                              ? "bg-white border-slate-200"
+                              : "bg-blue-50/40 border-blue-200 shadow-sm"
+                              }`}
                           >
                             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                               <div className="flex items-start gap-3">
-                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs flex-shrink-0 ${
-                                  msg.isRead ? "bg-slate-100 text-slate-600" : "bg-blue-600 text-white shadow-sm"
-                                }`}>
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs flex-shrink-0 ${msg.isRead ? "bg-slate-100 text-slate-600" : "bg-blue-600 text-white shadow-sm"
+                                  }`}>
                                   {msg.name ? msg.name.charAt(0).toUpperCase() : "U"}
                                 </div>
                                 <div>
@@ -7769,11 +7861,10 @@ function PortalContent() {
                                 )}
                                 <button
                                   onClick={() => handleToggleMessageRead(msg.id, msg.isRead)}
-                                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
-                                    msg.isRead
-                                      ? "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                                      : "bg-blue-600 text-white hover:bg-blue-700"
-                                  }`}
+                                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${msg.isRead
+                                    ? "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                    : "bg-blue-600 text-white hover:bg-blue-700"
+                                    }`}
                                 >
                                   {msg.isRead ? "Mark Unread" : "Mark as Read"}
                                 </button>
@@ -7840,17 +7931,15 @@ function PortalContent() {
                         .map((prayer) => (
                           <div
                             key={prayer.id}
-                            className={`p-5 rounded-2xl border transition-all ${
-                              prayer.isRead
-                                ? "bg-white border-slate-200"
-                                : "bg-rose-50/40 border-rose-200 shadow-sm"
-                            }`}
+                            className={`p-5 rounded-2xl border transition-all ${prayer.isRead
+                              ? "bg-white border-slate-200"
+                              : "bg-rose-50/40 border-rose-200 shadow-sm"
+                              }`}
                           >
                             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                               <div className="flex items-start gap-3">
-                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs flex-shrink-0 ${
-                                  prayer.isRead ? "bg-slate-100 text-slate-600" : "bg-rose-500 text-white shadow-sm"
-                                }`}>
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs flex-shrink-0 ${prayer.isRead ? "bg-slate-100 text-slate-600" : "bg-rose-500 text-white shadow-sm"
+                                  }`}>
                                   <Heart className="w-4 h-4" />
                                 </div>
                                 <div>
@@ -7898,22 +7987,20 @@ function PortalContent() {
                               <div className="flex items-center gap-2 self-end sm:self-auto flex-shrink-0">
                                 <button
                                   onClick={() => handleTogglePrayerApproved(prayer.id, prayer.isModeratedApproved)}
-                                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
-                                    prayer.isModeratedApproved
-                                      ? "bg-amber-100 text-amber-900 hover:bg-amber-200"
-                                      : "bg-emerald-600 text-white hover:bg-emerald-700"
-                                  }`}
+                                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${prayer.isModeratedApproved
+                                    ? "bg-amber-100 text-amber-900 hover:bg-amber-200"
+                                    : "bg-emerald-600 text-white hover:bg-emerald-700"
+                                    }`}
                                   title="Toggle public approval"
                                 >
                                   {prayer.isModeratedApproved ? "Unapprove" : "Approve for Wall"}
                                 </button>
                                 <button
                                   onClick={() => handleTogglePrayerRead(prayer.id, prayer.isRead)}
-                                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
-                                    prayer.isRead
-                                      ? "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                                      : "bg-rose-600 text-white hover:bg-rose-700"
-                                  }`}
+                                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${prayer.isRead
+                                    ? "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                    : "bg-rose-600 text-white hover:bg-rose-700"
+                                    }`}
                                 >
                                   {prayer.isRead ? "Mark Unread" : "Mark as Prayed"}
                                 </button>
@@ -7949,7 +8036,7 @@ function PortalContent() {
                     <h1 className="font-heading font-black text-2xl text-navy-950">Users & Roles (RBAC)</h1>
                     <p className="text-xs text-slate-500 mt-1">Manage system access, role assignments, and two-factor authentication for all portal users.</p>
                   </div>
-                  <button 
+                  <button
                     onClick={() => setShowInviteUserModal(true)}
                     className="px-4 py-2.5 rounded-xl bg-navy-900 hover:bg-navy-800 text-white font-bold text-xs shadow-sm flex items-center gap-2 transition-transform active:scale-95"
                   >
@@ -7971,8 +8058,8 @@ function PortalContent() {
                     const count = usersList.filter(u => u.role === item.roleKey).length;
                     const isSelected = selectedRoleFilter === item.roleKey;
                     return (
-                      <div 
-                        key={item.roleKey} 
+                      <div
+                        key={item.roleKey}
                         className={`p-6 rounded-2xl border-2 ${item.color} shadow-sm transition-all hover:shadow-md ${isSelected ? "ring-2 ring-navy-900 ring-offset-2" : ""}`}
                       >
                         <div className="flex items-center justify-between mb-3">
@@ -7986,7 +8073,7 @@ function PortalContent() {
                         </div>
                         <item.icon className="w-8 h-8 text-slate-400 mb-3" />
                         <p className="text-xs text-slate-600 leading-relaxed">{item.desc}</p>
-                        <button 
+                        <button
                           onClick={() => setSelectedRoleFilter(isSelected ? null : item.roleKey)}
                           className={`mt-4 text-xs font-bold flex items-center gap-1 transition-colors ${isSelected ? "text-amber-700 underline" : "text-teal-700 hover:underline"}`}
                         >
@@ -8008,7 +8095,7 @@ function PortalContent() {
                     <div className="flex items-center gap-2">
                       <div className="relative">
                         <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                        <input 
+                        <input
                           type="text"
                           placeholder="Search users..."
                           value={userSearchQuery}
@@ -8017,7 +8104,7 @@ function PortalContent() {
                         />
                       </div>
                       {selectedRoleFilter && (
-                        <button 
+                        <button
                           onClick={() => setSelectedRoleFilter(null)}
                           className="px-2.5 py-1.5 rounded-xl bg-amber-100 text-amber-900 text-[11px] font-bold hover:bg-amber-200"
                         >
@@ -8067,7 +8154,7 @@ function PortalContent() {
                                 </div>
                               </td>
                               <td className="py-3 px-3">
-                                <select 
+                                <select
                                   value={u.role}
                                   onChange={(e) => handleUpdateUserRole(u.id, e.target.value as any)}
                                   className="bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-navy-900"
@@ -8095,21 +8182,21 @@ function PortalContent() {
                               </td>
                               <td className="py-3 px-3 text-right">
                                 <div className="flex items-center justify-end gap-1.5">
-                                  <button 
+                                  <button
                                     onClick={() => handleSwitchUserPortal(u)}
                                     className="px-2.5 py-1 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold text-[11px] transition-colors"
                                     title="Impersonate / Switch Portal View"
                                   >
                                     Switch Portal
                                   </button>
-                                  <button 
+                                  <button
                                     onClick={() => handleToggleUserStatus(u.id, u.status)}
                                     className="p-1 rounded-lg hover:bg-slate-200 text-slate-600"
                                     title={u.status === "ACTIVE" ? "Suspend user" : "Activate user"}
                                   >
                                     <Ban className="w-3.5 h-3.5" />
                                   </button>
-                                  <button 
+                                  <button
                                     onClick={() => handleDeleteUser(u.id, u.name)}
                                     className="p-1 rounded-lg hover:bg-rose-100 text-rose-600"
                                     title="Delete user"
@@ -8135,8 +8222,8 @@ function PortalContent() {
                       { user: "Mercy Chebet", role: "Chapter Representative (Pwani)", roleKey: "CHAPTER_REP", chapterId: "ch-pwani", device: "Chrome • Android", ip: "41.80.x.x (Kilifi)", session: "18 mins ago", online: false },
                       { user: "CUCASO Treasurer", role: "Council Treasurer", roleKey: "CENTRAL_TREASURER", device: "Firefox • macOS", ip: "41.90.x.x (Mombasa)", session: "1 hour ago", online: false },
                     ].map((session) => (
-                      <div 
-                        key={session.user} 
+                      <div
+                        key={session.user}
                         onClick={() => {
                           if (session.roleKey === "CHAPTER_REP") {
                             setActivePortal("CHAPTER");
@@ -8282,7 +8369,7 @@ function PortalContent() {
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   {[
-                    { label: "Total Events", value: String(AUDIT_LOGS.length + 48), color: "text-navy-950" },
+                    { label: "Total Events", value: String(auditLogs.length + 48), color: "text-navy-950" },
                     { label: "Today's Actions", value: "7", color: "text-teal-700" },
                     { label: "Critical Events", value: "0", color: "text-emerald-700" },
                     { label: "Actors", value: "4", color: "text-amber-700" },
@@ -8296,7 +8383,7 @@ function PortalContent() {
 
                 <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden p-6">
                   <div className="space-y-3">
-                    {AUDIT_LOGS.map((log: AuditLogEntry) => (
+                    {auditLogs.map((log: AuditLogEntry) => (
                       <div key={log.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-start justify-between gap-4 text-xs">
                         <div className="space-y-1">
                           <div className="flex items-center gap-2 flex-wrap">
@@ -8353,7 +8440,7 @@ function PortalContent() {
                   <p className="text-xs text-slate-400">Update your account representative details</p>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => setShowEditProfileModal(false)}
                 className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100"
               >
@@ -8377,10 +8464,10 @@ function PortalContent() {
                   <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-[11px] font-bold text-slate-700 hover:bg-slate-100 cursor-pointer shadow-sm">
                     <Camera className="w-3.5 h-3.5 text-teal-600" />
                     <span>Choose Photo</span>
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      className="hidden" 
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
                       onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if (file) {
@@ -8395,7 +8482,7 @@ function PortalContent() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">Full Name</label>
-                <input 
+                <input
                   type="text"
                   required
                   value={profileForm.name}
@@ -8408,7 +8495,7 @@ function PortalContent() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">Phone Number</label>
-                  <input 
+                  <input
                     type="text"
                     required
                     value={profileForm.phone}
@@ -8419,7 +8506,7 @@ function PortalContent() {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">Email Address</label>
-                  <input 
+                  <input
                     type="email"
                     value={profileForm.email}
                     onChange={(e) => setProfileForm(prev => ({ ...prev, email: e.target.value }))}
@@ -8466,7 +8553,7 @@ function PortalContent() {
                   <p className="text-xs text-slate-400">Ensure your account uses a strong password</p>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => setShowChangePasswordModal(false)}
                 className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100"
               >
@@ -8477,7 +8564,7 @@ function PortalContent() {
             <form onSubmit={handleChangePassword} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">Current Password</label>
-                <input 
+                <input
                   type="password"
                   required
                   value={passwordForm.current}
@@ -8489,7 +8576,7 @@ function PortalContent() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">New Password</label>
-                <input 
+                <input
                   type="password"
                   required
                   value={passwordForm.newPassword}
@@ -8501,7 +8588,7 @@ function PortalContent() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">Confirm New Password</label>
-                <input 
+                <input
                   type="password"
                   required
                   value={passwordForm.confirmPassword}
@@ -8548,7 +8635,7 @@ function PortalContent() {
                   <p className="text-xs text-slate-400">{currentChapter.institutionName} ({currentChapter.code})</p>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => setShowLeadershipModal(false)}
                 className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100"
               >
@@ -8563,10 +8650,10 @@ function PortalContent() {
                   <span className="text-xs font-bold text-navy-950 uppercase tracking-wider">1. Chapter Patron</span>
                   <span className="text-[11px] text-teal-700 font-semibold">Faculty / Staff Advisor</span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-600 mb-1">Patron Full Name</label>
-                    <input 
+                    <input
                       type="text"
                       value={leadershipForm.patronName}
                       onChange={(e) => setLeadershipForm(prev => ({ ...prev, patronName: e.target.value }))}
@@ -8576,12 +8663,22 @@ function PortalContent() {
                   </div>
                   <div>
                     <label className="block text-[11px] font-bold text-slate-600 mb-1">Patron Phone Number</label>
-                    <input 
+                    <input
                       type="text"
                       value={leadershipForm.patronPhone}
                       onChange={(e) => setLeadershipForm(prev => ({ ...prev, patronPhone: e.target.value }))}
                       className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-teal-600"
                       placeholder="+254 711 000 000"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">Patron Email</label>
+                    <input
+                      type="email"
+                      value={leadershipForm.patronEmail}
+                      onChange={(e) => setLeadershipForm(prev => ({ ...prev, patronEmail: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-teal-600"
+                      placeholder="patron@university.ac.ke"
                     />
                   </div>
                 </div>
@@ -8599,10 +8696,10 @@ function PortalContent() {
                   <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-[11px] font-bold text-slate-700 hover:bg-slate-100 cursor-pointer shadow-sm">
                     <Camera className="w-3.5 h-3.5 text-teal-600" />
                     <span>{leadershipForm.patronPhoto ? "Change Photo" : "Upload Photo"}</span>
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      className="hidden" 
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
                       onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if (file) {
@@ -8624,7 +8721,7 @@ function PortalContent() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-600 mb-1">Representative Name</label>
-                    <input 
+                    <input
                       type="text"
                       value={leadershipForm.repName}
                       onChange={(e) => setLeadershipForm(prev => ({ ...prev, repName: e.target.value }))}
@@ -8634,7 +8731,7 @@ function PortalContent() {
                   </div>
                   <div>
                     <label className="block text-[11px] font-bold text-slate-600 mb-1">Representative Phone</label>
-                    <input 
+                    <input
                       type="text"
                       value={leadershipForm.repPhone}
                       onChange={(e) => setLeadershipForm(prev => ({ ...prev, repPhone: e.target.value }))}
@@ -8657,10 +8754,10 @@ function PortalContent() {
                   <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-[11px] font-bold text-slate-700 hover:bg-slate-100 cursor-pointer shadow-sm">
                     <Camera className="w-3.5 h-3.5 text-teal-600" />
                     <span>{leadershipForm.repPhoto ? "Change Photo" : "Upload Photo"}</span>
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      className="hidden" 
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
                       onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if (file) {
@@ -8682,7 +8779,7 @@ function PortalContent() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-600 mb-1">Treasurer Name</label>
-                    <input 
+                    <input
                       type="text"
                       value={leadershipForm.treasurerName}
                       onChange={(e) => setLeadershipForm(prev => ({ ...prev, treasurerName: e.target.value }))}
@@ -8692,7 +8789,7 @@ function PortalContent() {
                   </div>
                   <div>
                     <label className="block text-[11px] font-bold text-slate-600 mb-1">Treasurer Phone</label>
-                    <input 
+                    <input
                       type="text"
                       value={leadershipForm.treasurerPhone}
                       onChange={(e) => setLeadershipForm(prev => ({ ...prev, treasurerPhone: e.target.value }))}
@@ -8715,10 +8812,10 @@ function PortalContent() {
                   <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-[11px] font-bold text-slate-700 hover:bg-slate-100 cursor-pointer shadow-sm">
                     <Camera className="w-3.5 h-3.5 text-teal-600" />
                     <span>{leadershipForm.treasurerPhoto ? "Change Photo" : "Upload Photo"}</span>
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      className="hidden" 
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
                       onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if (file) {
@@ -8740,7 +8837,7 @@ function PortalContent() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-600 mb-1">Secretary Name</label>
-                    <input 
+                    <input
                       type="text"
                       value={leadershipForm.secretaryName}
                       onChange={(e) => setLeadershipForm(prev => ({ ...prev, secretaryName: e.target.value }))}
@@ -8750,7 +8847,7 @@ function PortalContent() {
                   </div>
                   <div>
                     <label className="block text-[11px] font-bold text-slate-600 mb-1">Secretary Phone</label>
-                    <input 
+                    <input
                       type="text"
                       value={leadershipForm.secretaryPhone}
                       onChange={(e) => setLeadershipForm(prev => ({ ...prev, secretaryPhone: e.target.value }))}
@@ -8773,10 +8870,10 @@ function PortalContent() {
                   <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-[11px] font-bold text-slate-700 hover:bg-slate-100 cursor-pointer shadow-sm">
                     <Camera className="w-3.5 h-3.5 text-teal-600" />
                     <span>{leadershipForm.secretaryPhoto ? "Change Photo" : "Upload Photo"}</span>
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      className="hidden" 
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
                       onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if (file) {
@@ -8831,7 +8928,7 @@ function PortalContent() {
                   </p>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => { setShowCouncilLeaderModal(false); setEditingLeader(null); }}
                 className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100"
               >
@@ -8855,10 +8952,10 @@ function PortalContent() {
                   <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-[11px] font-bold text-slate-700 hover:bg-slate-100 cursor-pointer shadow-sm">
                     <Camera className="w-3.5 h-3.5 text-amber-600" />
                     <span>{editingLeader.imageUrl || editingLeader.image ? "Change Photo File" : "Upload Photo File"}</span>
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      className="hidden" 
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
                       onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if (file) {
@@ -8873,7 +8970,7 @@ function PortalContent() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Portrait Image Link (Google Photos / Web URL)</label>
-                <input 
+                <input
                   type="text"
                   value={editingLeader.imageUrl || editingLeader.image || ""}
                   onChange={(e) => {
@@ -8892,11 +8989,10 @@ function PortalContent() {
                   <button
                     type="button"
                     onClick={() => setEditingLeader(prev => prev ? { ...prev, category: "CENTRAL_COUNCIL" } : null)}
-                    className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-2 ${
-                      (editingLeader.category || "CENTRAL_COUNCIL") === "CENTRAL_COUNCIL"
-                        ? "bg-navy-950 text-white border-navy-950 shadow-sm"
-                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                    }`}
+                    className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-2 ${(editingLeader.category || "CENTRAL_COUNCIL") === "CENTRAL_COUNCIL"
+                      ? "bg-navy-950 text-white border-navy-950 shadow-sm"
+                      : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                      }`}
                   >
                     <ShieldCheck className="w-4 h-4 text-amber-400" />
                     <span>Central Council</span>
@@ -8904,11 +9000,10 @@ function PortalContent() {
                   <button
                     type="button"
                     onClick={() => setEditingLeader(prev => prev ? { ...prev, category: "OTHER" } : null)}
-                    className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-2 ${
-                      editingLeader.category === "OTHER"
-                        ? "bg-navy-950 text-white border-navy-950 shadow-sm"
-                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                    }`}
+                    className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-2 ${editingLeader.category === "OTHER"
+                      ? "bg-navy-950 text-white border-navy-950 shadow-sm"
+                      : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                      }`}
                   >
                     <Users className="w-4 h-4 text-teal-400" />
                     <span>Other (Regional / Advisory)</span>
@@ -8918,7 +9013,7 @@ function PortalContent() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">Official Title / Office</label>
-                <input 
+                <input
                   type="text"
                   required
                   value={editingLeader.title}
@@ -8930,7 +9025,7 @@ function PortalContent() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">Leader Full Name</label>
-                <input 
+                <input
                   type="text"
                   required
                   value={editingLeader.name}
@@ -8943,7 +9038,7 @@ function PortalContent() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">Phone Number</label>
-                  <input 
+                  <input
                     type="text"
                     value={editingLeader.phone || ""}
                     onChange={(e) => setEditingLeader(prev => prev ? { ...prev, phone: e.target.value } : null)}
@@ -8953,7 +9048,7 @@ function PortalContent() {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">Email Address</label>
-                  <input 
+                  <input
                     type="email"
                     value={editingLeader.email || ""}
                     onChange={(e) => setEditingLeader(prev => prev ? { ...prev, email: e.target.value } : null)}
@@ -8965,7 +9060,7 @@ function PortalContent() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">Institution / Chapter Affiliation</label>
-                <input 
+                <input
                   type="text"
                   value={editingLeader.institution || ""}
                   onChange={(e) => setEditingLeader(prev => prev ? { ...prev, institution: e.target.value } : null)}
@@ -8976,7 +9071,7 @@ function PortalContent() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">Brief Biography</label>
-                <textarea 
+                <textarea
                   rows={3}
                   value={editingLeader.bio || ""}
                   onChange={(e) => setEditingLeader(prev => prev ? { ...prev, bio: e.target.value } : null)}
@@ -9036,7 +9131,7 @@ function PortalContent() {
                   <p className="text-xs text-slate-400">Assign roles and portal permissions</p>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => setShowInviteUserModal(false)}
                 className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100"
               >
@@ -9047,7 +9142,7 @@ function PortalContent() {
             <form onSubmit={handleInviteUser} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">User Full Name</label>
-                <input 
+                <input
                   type="text"
                   required
                   value={inviteUserForm.name}
@@ -9059,7 +9154,7 @@ function PortalContent() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">Email Address</label>
-                <input 
+                <input
                   type="email"
                   required
                   value={inviteUserForm.email}
@@ -9071,7 +9166,7 @@ function PortalContent() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">System Role</label>
-                <select 
+                <select
                   value={inviteUserForm.role}
                   onChange={(e) => setInviteUserForm(prev => ({ ...prev, role: e.target.value as any }))}
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-navy-900 focus:bg-white"
@@ -9088,7 +9183,7 @@ function PortalContent() {
               {inviteUserForm.role === "CHAPTER_REP" && (
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">Assigned Chapter</label>
-                  <select 
+                  <select
                     value={inviteUserForm.chapterId}
                     onChange={(e) => setInviteUserForm(prev => ({ ...prev, chapterId: e.target.value }))}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-navy-900 focus:bg-white"
@@ -9138,7 +9233,7 @@ function PortalContent() {
                   <p className="text-xs text-slate-400">Initialize a new CUCASO annual convention</p>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => setShowCreateRallyModal(false)}
                 className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100"
               >
@@ -9150,7 +9245,7 @@ function PortalContent() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">Rally Code</label>
-                  <input 
+                  <input
                     type="text"
                     required
                     value={newRallyForm.code}
@@ -9160,7 +9255,7 @@ function PortalContent() {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">Target Capacity</label>
-                  <input 
+                  <input
                     type="number"
                     required
                     value={newRallyForm.capacity}
@@ -9172,7 +9267,7 @@ function PortalContent() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">Rally Title</label>
-                <input 
+                <input
                   type="text"
                   required
                   value={newRallyForm.title}
@@ -9183,7 +9278,7 @@ function PortalContent() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">Theme</label>
-                <input 
+                <input
                   type="text"
                   required
                   value={newRallyForm.theme}
@@ -9195,7 +9290,7 @@ function PortalContent() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">Venue Name</label>
-                  <input 
+                  <input
                     type="text"
                     required
                     value={newRallyForm.venueName}
@@ -9205,7 +9300,7 @@ function PortalContent() {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">Venue Location</label>
-                  <input 
+                  <input
                     type="text"
                     required
                     value={newRallyForm.venueLocation}
@@ -9218,7 +9313,7 @@ function PortalContent() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">Start Date</label>
-                  <input 
+                  <input
                     type="date"
                     required
                     value={newRallyForm.startDate}
@@ -9228,7 +9323,7 @@ function PortalContent() {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">End Date</label>
-                  <input 
+                  <input
                     type="date"
                     required
                     value={newRallyForm.endDate}
@@ -9293,11 +9388,10 @@ function PortalContent() {
                     key={tab}
                     type="button"
                     onClick={() => setEditRallyTab(tab)}
-                    className={`px-3.5 py-2.5 text-xs font-bold rounded-t-xl border-b-2 transition-all ${
-                      editRallyTab === tab
-                        ? "border-amber-500 text-amber-700 bg-amber-50/50"
-                        : "border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50"
-                    }`}
+                    className={`px-3.5 py-2.5 text-xs font-bold rounded-t-xl border-b-2 transition-all ${editRallyTab === tab
+                      ? "border-amber-500 text-amber-700 bg-amber-50/50"
+                      : "border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+                      }`}
                   >
                     {labels[tab]}
                   </button>
@@ -9498,7 +9592,7 @@ function PortalContent() {
                               className="w-full h-full object-cover"
                               onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                             />
-                            <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-xs" style={{zIndex: -1}}>
+                            <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-xs" style={{ zIndex: -1 }}>
                               <Camera className="w-5 h-5 mr-1" /> Preview
                             </div>
                             <button
@@ -9953,7 +10047,7 @@ function PortalContent() {
                   <p className="text-xs text-slate-400">Add event photographs using Google Drive/Photos links or local files</p>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => setShowUploadGalleryModal(false)}
                 className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100"
               >
@@ -9966,11 +10060,10 @@ function PortalContent() {
               <button
                 type="button"
                 onClick={() => setGalleryUploadMethod("google")}
-                className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                  galleryUploadMethod === "google"
-                    ? "bg-white text-navy-950 shadow-sm"
-                    : "text-slate-500 hover:text-slate-900"
-                }`}
+                className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${galleryUploadMethod === "google"
+                  ? "bg-white text-navy-950 shadow-sm"
+                  : "text-slate-500 hover:text-slate-900"
+                  }`}
               >
                 <Globe className="w-3.5 h-3.5 text-teal-600 flex-shrink-0" />
                 <span className="truncate">Single Photo</span>
@@ -9978,11 +10071,10 @@ function PortalContent() {
               <button
                 type="button"
                 onClick={() => setGalleryUploadMethod("album")}
-                className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                  galleryUploadMethod === "album"
-                    ? "bg-white text-navy-950 shadow-sm"
-                    : "text-slate-500 hover:text-slate-900"
-                }`}
+                className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${galleryUploadMethod === "album"
+                  ? "bg-white text-navy-950 shadow-sm"
+                  : "text-slate-500 hover:text-slate-900"
+                  }`}
               >
                 <FolderOpen className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
                 <span className="truncate">Shared Album</span>
@@ -9990,11 +10082,10 @@ function PortalContent() {
               <button
                 type="button"
                 onClick={() => setGalleryUploadMethod("batch")}
-                className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                  galleryUploadMethod === "batch"
-                    ? "bg-white text-navy-950 shadow-sm"
-                    : "text-slate-500 hover:text-slate-900"
-                }`}
+                className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${galleryUploadMethod === "batch"
+                  ? "bg-white text-navy-950 shadow-sm"
+                  : "text-slate-500 hover:text-slate-900"
+                  }`}
               >
                 <Layers className="w-3.5 h-3.5 text-indigo-600 flex-shrink-0" />
                 <span className="truncate">Batch Links</span>
@@ -10002,11 +10093,10 @@ function PortalContent() {
               <button
                 type="button"
                 onClick={() => setGalleryUploadMethod("file")}
-                className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                  galleryUploadMethod === "file"
-                    ? "bg-white text-navy-950 shadow-sm"
-                    : "text-slate-500 hover:text-slate-900"
-                }`}
+                className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${galleryUploadMethod === "file"
+                  ? "bg-white text-navy-950 shadow-sm"
+                  : "text-slate-500 hover:text-slate-900"
+                  }`}
               >
                 <Upload className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
                 <span className="truncate">Local File</span>
@@ -10067,7 +10157,7 @@ function PortalContent() {
                         description: isAlbum ? `Uploaded by ${uploaderName} | Album: ${u}` : `Uploaded by ${uploaderName}`,
                         chapterId: targetChapterId,
                       }),
-                    }).catch(() => {});
+                    }).catch(() => { });
                   }
                   setGalleryPhotos(prev => [...createdBatch, ...prev]);
                   setNewGalleryForm({ title: "", event: "Rally 2026", category: "Rally", url: "", albumUrl: "", coverUrl: "", batchUrls: "" });
@@ -10193,7 +10283,7 @@ function PortalContent() {
                     Google Drive or Google Photos Shareable URL
                   </label>
                   <div className="relative">
-                    <input 
+                    <input
                       type="url"
                       required={galleryUploadMethod === "google"}
                       value={newGalleryForm.url}
@@ -10249,7 +10339,7 @@ function PortalContent() {
                     <label className="block text-xs font-bold text-slate-800 mb-1">
                       Album or Folder Shareable URL *
                     </label>
-                    <input 
+                    <input
                       type="url"
                       required={galleryUploadMethod === "album"}
                       value={newGalleryForm.albumUrl}
@@ -10263,7 +10353,7 @@ function PortalContent() {
                     <label className="block text-xs font-bold text-slate-800 mb-1">
                       Optional Cover Photo URL
                     </label>
-                    <input 
+                    <input
                       type="url"
                       value={newGalleryForm.coverUrl}
                       onChange={(e) => setNewGalleryForm(prev => ({ ...prev, coverUrl: e.target.value }))}
@@ -10291,7 +10381,7 @@ function PortalContent() {
                     <label className="block text-xs font-bold text-slate-800 mb-1">
                       Photo URLs (One per line) *
                     </label>
-                    <textarea 
+                    <textarea
                       rows={4}
                       required={galleryUploadMethod === "batch"}
                       value={newGalleryForm.batchUrls}
@@ -10358,9 +10448,9 @@ function PortalContent() {
                     </span>
                   </div>
                   <div className="relative aspect-video rounded-xl overflow-hidden bg-slate-900 border border-slate-200 shadow-inner">
-                    <img 
-                      src={normalizeGoogleImageUrl(newGalleryForm.url)} 
-                      alt="Foreground Preview" 
+                    <img
+                      src={normalizeGoogleImageUrl(newGalleryForm.url)}
+                      alt="Foreground Preview"
                       className="w-full h-full object-cover"
                       onError={(e) => {
                         (e.target as HTMLElement).classList.add("opacity-40");
@@ -10376,7 +10466,7 @@ function PortalContent() {
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">Photo Title / Caption</label>
-                <input 
+                <input
                   type="text"
                   required
                   value={newGalleryForm.title}
@@ -10389,7 +10479,7 @@ function PortalContent() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">Event Name</label>
-                  <input 
+                  <input
                     type="text"
                     value={newGalleryForm.event}
                     onChange={(e) => setNewGalleryForm(prev => ({ ...prev, event: e.target.value }))}
@@ -10399,7 +10489,7 @@ function PortalContent() {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">Category</label>
-                  <select 
+                  <select
                     value={newGalleryForm.category}
                     onChange={(e) => setNewGalleryForm(prev => ({ ...prev, category: e.target.value }))}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-navy-900 focus:bg-white"

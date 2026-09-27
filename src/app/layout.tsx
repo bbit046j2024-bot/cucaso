@@ -26,6 +26,17 @@ export const metadata: Metadata = {
     "Adventist Student Organization",
     "Coastal Universities Adventist",
   ],
+  icons: {
+    icon: [
+      { url: "/favicon.png", type: "image/png" },
+      { url: "/cucaso-logo.ico" },
+      { url: "/cucaso%20logo.ico" },
+      { url: "/favicon.ico" },
+      { url: "/logo.ico" },
+    ],
+    shortcut: "/cucaso-logo.ico",
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 import { MobileBottomNav } from "@/components/mobile-bottom-nav";

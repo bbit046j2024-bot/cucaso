@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 
 export default function ChaptersPage() {
-  const [chapters, setChapters] = useState<typeof MEMBER_CHAPTERS>(MEMBER_CHAPTERS);
+  const [chapters, setChapters] = useState<typeof MEMBER_CHAPTERS>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("ALL");
   const [selectedChapter, setSelectedChapter] = useState<typeof MEMBER_CHAPTERS[0] | null>(null);
@@ -32,7 +32,7 @@ export default function ChaptersPage() {
     fetch("/api/chapters")
       .then((res) => res.json())
       .then((json) => {
-        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+        if (json.success && Array.isArray(json.data)) {
           setChapters(json.data);
         }
       })
@@ -166,8 +166,21 @@ export default function ChaptersPage() {
 
                       {/* Header */}
                       <div className="flex items-center gap-3.5 mb-4">
-                        <div className="w-12 h-12 rounded-2xl bg-navy-950 text-white font-heading font-black text-sm flex items-center justify-center flex-shrink-0 shadow-md">
-                          {ch.code.split("-")[0]}
+                        <div className="w-12 h-12 rounded-2xl bg-navy-950 text-white font-heading font-black text-sm flex items-center justify-center flex-shrink-0 shadow-md overflow-hidden">
+                          {ch.logoUrl ? (
+                            <img
+                              src={ch.logoUrl}
+                              alt={`${ch.code} logo`}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                const t = e.target as HTMLImageElement;
+                                t.style.display = "none";
+                                t.parentElement!.textContent = ch.code.split("-")[0];
+                              }}
+                            />
+                          ) : (
+                            ch.code.split("-")[0]
+                          )}
                         </div>
                         <div>
                           <h3 className="font-heading font-bold text-base text-navy-950 leading-tight">

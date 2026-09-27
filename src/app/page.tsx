@@ -7,10 +7,6 @@ import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { RallyCountdown } from "@/components/rally-countdown";
 import { EmbeddedCoastalMap } from "@/components/embedded-coastal-map";
-import {
-  MEMBER_CHAPTERS as FALLBACK_CHAPTERS,
-  CURRENT_RALLY as FALLBACK_RALLY
-} from "@/lib/data";
 import { normalizeGoogleImageUrl } from "@/lib/utils";
 import { Chapter } from "@/types";
 import {
@@ -38,22 +34,22 @@ import {
 } from "lucide-react";
 
 export default function HomePage() {
-  const [chapters, setChapters] = useState<Chapter[]>(FALLBACK_CHAPTERS);
-  const [currentRally, setCurrentRally] = useState<any>(FALLBACK_RALLY);
+  const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [currentRally, setCurrentRally] = useState<any>(null);
   const [galleryPreview, setGalleryPreview] = useState<any[]>([]);
   const [topLeaders, setTopLeaders] = useState<any[]>([]);
 
-  // Fetch live chapter data
+  // Fetch live chapter data from database
   useEffect(() => {
     fetch("/api/chapters")
       .then((res) => res.json())
       .then((json) => {
-        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+        if (json.success && Array.isArray(json.data)) {
           setChapters(json.data);
         }
       })
       .catch((err) => {
-        console.warn("Using local chapter dataset fallback:", err);
+        console.warn("Could not load chapters from database:", err);
       });
   }, []);
 
@@ -123,7 +119,7 @@ export default function HomePage() {
           <div className="absolute inset-0 z-0">
             <Image
               src="/logo.jpeg"
-              alt="CUCASO background"
+              alt="CUCASO Background"
               fill
               className="object-cover object-center"
               priority
@@ -323,20 +319,20 @@ export default function HomePage() {
                     </span>
                     <span
                       className={`px-3 py-1 rounded-full border text-xs font-bold flex items-center gap-1.5 backdrop-blur-sm ${currentRally.state === "REGISTRATION_OPEN"
-                          ? "bg-emerald-500/20 border-emerald-400/30 text-emerald-300"
-                          : currentRally.state === "FEES_LOCKED"
-                            ? "bg-amber-500/20 border-amber-400/30 text-amber-300"
-                            : currentRally.state === "IN_PROGRESS"
-                              ? "bg-purple-500/20 border-purple-400/30 text-purple-300"
-                              : currentRally.state === "COMPLETED"
-                                ? "bg-blue-500/20 border-blue-400/30 text-blue-300"
-                                : "bg-slate-500/20 border-slate-400/30 text-slate-300"
+                        ? "bg-emerald-500/20 border-emerald-400/30 text-emerald-300"
+                        : currentRally.state === "FEES_LOCKED"
+                          ? "bg-amber-500/20 border-amber-400/30 text-amber-300"
+                          : currentRally.state === "IN_PROGRESS"
+                            ? "bg-purple-500/20 border-purple-400/30 text-purple-300"
+                            : currentRally.state === "COMPLETED"
+                              ? "bg-blue-500/20 border-blue-400/30 text-blue-300"
+                              : "bg-slate-500/20 border-slate-400/30 text-slate-300"
                         }`}
                     >
                       <span
                         className={`w-2 h-2 rounded-full ${currentRally.state === "REGISTRATION_OPEN"
-                            ? "bg-emerald-400 animate-pulse"
-                            : "bg-slate-400"
+                          ? "bg-emerald-400 animate-pulse"
+                          : "bg-slate-400"
                           }`}
                       />
                       {(currentRally.state || "REGISTRATION OPEN").replace(/_/g, " ")}

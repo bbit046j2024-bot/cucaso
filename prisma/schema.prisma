@@ -162,7 +162,7 @@ model Institution {
   sector    InstitutionSector
   location  String
   county    String?
-  logoUrl   String?
+  logoUrl   String?           @db.Text
   chapters  Chapter[]
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
@@ -193,16 +193,22 @@ model Chapter {
   patronName         String?
   patronPhone        String?
   patronEmail        String?
+  patronPhoto        String?                    @db.Text
   repName            String?
   repPhone           String?
+  repPhoto           String?                    @db.Text
   treasurerName      String?
   treasurerPhone     String?
+  treasurerPhoto     String?                    @db.Text
+  secretaryName      String?
+  secretaryPhone     String?
+  secretaryPhoto     String?                    @db.Text
   approximateMembers Int                        @default(0)
   lat                Float?
   lng                Float?
   mapTop             Float?
   mapLeft            Float?
-  logoUrl            String?
+  logoUrl            String?                    @db.Text
   users              User[]
   tierHistory        ChapterTier[]
   participations     RallyChapterParticipation[]

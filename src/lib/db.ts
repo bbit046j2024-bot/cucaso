@@ -38,15 +38,21 @@ function mapChapter(ch: any): Chapter {
     patronName: ch.patronName ?? undefined,
     patronPhone: ch.patronPhone ?? undefined,
     patronEmail: ch.patronEmail ?? undefined,
+    patronPhoto: ch.patronPhoto ?? undefined,
     repName: ch.repName ?? undefined,
     repPhone: ch.repPhone ?? undefined,
+    repPhoto: ch.repPhoto ?? undefined,
     treasurerName: ch.treasurerName ?? undefined,
     treasurerPhone: ch.treasurerPhone ?? undefined,
+    treasurerPhoto: ch.treasurerPhoto ?? undefined,
+    secretaryName: ch.secretaryName ?? undefined,
+    secretaryPhone: ch.secretaryPhone ?? undefined,
+    secretaryPhoto: ch.secretaryPhoto ?? undefined,
     approximateMembers: ch.approximateMembers ?? 0,
     attendeesCount: attendeeCount,
     coordinates: ch.lat != null && ch.lng != null ? { lat: ch.lat, lng: ch.lng } : undefined,
     mapPosition: ch.mapTop != null && ch.mapLeft != null ? { top: ch.mapTop, left: ch.mapLeft } : undefined,
-    logoUrl: ch.logoUrl ?? undefined,
+    logoUrl: (ch.logoUrl || ch.institution?.logoUrl) ?? undefined,
     createdAt: ch.createdAt instanceof Date ? ch.createdAt.toISOString().split("T")[0] : String(ch.createdAt || ""),
   };
 }
@@ -207,10 +213,16 @@ export async function createChapter(chapterData: Partial<Chapter>): Promise<Chap
       patronName: chapterData.patronName ?? null,
       patronPhone: chapterData.patronPhone ?? null,
       patronEmail: chapterData.patronEmail ?? null,
+      patronPhoto: chapterData.patronPhoto ?? null,
       repName: chapterData.repName ?? null,
       repPhone: chapterData.repPhone ?? null,
+      repPhoto: chapterData.repPhoto ?? null,
       treasurerName: chapterData.treasurerName ?? null,
       treasurerPhone: chapterData.treasurerPhone ?? null,
+      treasurerPhoto: chapterData.treasurerPhoto ?? null,
+      secretaryName: chapterData.secretaryName ?? null,
+      secretaryPhone: chapterData.secretaryPhone ?? null,
+      secretaryPhoto: chapterData.secretaryPhoto ?? null,
       approximateMembers: chapterData.approximateMembers ?? 150,
       lat: chapterData.coordinates?.lat ?? -4.0435,
       lng: chapterData.coordinates?.lng ?? 39.6682,
@@ -251,7 +263,47 @@ export async function updateChapter(id: string, updates: Partial<Chapter>): Prom
   const existing = await getChapterById(id);
   if (!existing) return null;
 
-  if (updates.institutionName || updates.location || updates.type || updates.sector) {
+  // Helper to persist base64 image strings to public/uploads/
+  const persistBase64Image = async (dataUrl: string, prefix: string): Promise<string> => {
+    if (!dataUrl || !dataUrl.startsWith("data:image/")) return dataUrl;
+    try {
+      const fs = await import("fs/promises");
+      const path = await import("path");
+      const matches = dataUrl.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+      if (matches) {
+        const rawExt = matches[1].toLowerCase().replace("svg+xml", "svg");
+        const ext = ["jpeg", "jpg", "png", "webp", "gif", "svg"].includes(rawExt) ? rawExt : "png";
+        const buffer = Buffer.from(matches[2], "base64");
+        const targetDir = path.join(process.cwd(), "public", "uploads", prefix);
+        await fs.mkdir(targetDir, { recursive: true });
+        const fileName = `${id.replace(/[^a-zA-Z0-9_-]/g, "")}-${prefix}-${Date.now()}.${ext}`;
+        await fs.writeFile(path.join(targetDir, fileName), buffer);
+        return `/uploads/${prefix}/${fileName}`;
+      }
+    } catch (saveErr) {
+      console.warn(`Could not write ${prefix} to disk, falling back to database column:`, saveErr);
+    }
+    return dataUrl;
+  };
+
+  // If logo or leadership photos are base64 Data URLs, persist to disk
+  if (updates.logoUrl && updates.logoUrl.startsWith("data:image/")) {
+    updates.logoUrl = await persistBase64Image(updates.logoUrl, "logos");
+  }
+  if (updates.patronPhoto && updates.patronPhoto.startsWith("data:image/")) {
+    updates.patronPhoto = await persistBase64Image(updates.patronPhoto, "leaders");
+  }
+  if (updates.repPhoto && updates.repPhoto.startsWith("data:image/")) {
+    updates.repPhoto = await persistBase64Image(updates.repPhoto, "leaders");
+  }
+  if (updates.treasurerPhoto && updates.treasurerPhoto.startsWith("data:image/")) {
+    updates.treasurerPhoto = await persistBase64Image(updates.treasurerPhoto, "leaders");
+  }
+  if (updates.secretaryPhoto && updates.secretaryPhoto.startsWith("data:image/")) {
+    updates.secretaryPhoto = await persistBase64Image(updates.secretaryPhoto, "leaders");
+  }
+
+  if (updates.institutionName || updates.location || updates.type || updates.sector || updates.logoUrl !== undefined) {
     const chRow = await prisma.chapter.findUnique({ where: { id } });
     if (chRow?.institutionId) {
       await prisma.institution.update({
@@ -261,6 +313,7 @@ export async function updateChapter(id: string, updates: Partial<Chapter>): Prom
           ...(updates.location ? { location: updates.location } : {}),
           ...(updates.type ? { type: updates.type as any } : {}),
           ...(updates.sector ? { sector: updates.sector as any } : {}),
+          ...(updates.logoUrl !== undefined ? { logoUrl: updates.logoUrl } : {}),
         },
       });
     }
@@ -274,10 +327,16 @@ export async function updateChapter(id: string, updates: Partial<Chapter>): Prom
       ...(updates.patronName !== undefined ? { patronName: updates.patronName } : {}),
       ...(updates.patronPhone !== undefined ? { patronPhone: updates.patronPhone } : {}),
       ...(updates.patronEmail !== undefined ? { patronEmail: updates.patronEmail } : {}),
+      ...(updates.patronPhoto !== undefined ? { patronPhoto: updates.patronPhoto } : {}),
       ...(updates.repName !== undefined ? { repName: updates.repName } : {}),
       ...(updates.repPhone !== undefined ? { repPhone: updates.repPhone } : {}),
+      ...(updates.repPhoto !== undefined ? { repPhoto: updates.repPhoto } : {}),
       ...(updates.treasurerName !== undefined ? { treasurerName: updates.treasurerName } : {}),
       ...(updates.treasurerPhone !== undefined ? { treasurerPhone: updates.treasurerPhone } : {}),
+      ...(updates.treasurerPhoto !== undefined ? { treasurerPhoto: updates.treasurerPhoto } : {}),
+      ...(updates.secretaryName !== undefined ? { secretaryName: updates.secretaryName } : {}),
+      ...(updates.secretaryPhone !== undefined ? { secretaryPhone: updates.secretaryPhone } : {}),
+      ...(updates.secretaryPhoto !== undefined ? { secretaryPhoto: updates.secretaryPhoto } : {}),
       ...(updates.approximateMembers !== undefined ? { approximateMembers: updates.approximateMembers } : {}),
       ...(updates.coordinates ? { lat: updates.coordinates.lat, lng: updates.coordinates.lng } : {}),
       ...(updates.mapPosition ? { mapTop: updates.mapPosition.top, mapLeft: updates.mapPosition.left } : {}),
