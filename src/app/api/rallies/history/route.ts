@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
-import { 
-  getRallyHistory, 
-  saveRallyHistory, 
-  deleteRallyHistoryItem, 
-  addRallyHistoryItem 
+import {
+  getRallyHistory,
+  saveRallyHistory,
+  deleteRallyHistoryItem,
+  addRallyHistoryItem
 } from "@/lib/db";
+import { guardApi } from "@/lib/auth";
+import { STAFF_WRITE_ROLES } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +32,8 @@ export async function GET() {
  * Adds a new rally to history, or replaces/saves the history array
  */
 export async function POST(request: Request) {
+  const { error } = await guardApi(STAFF_WRITE_ROLES);
+  if (error) return error;
   try {
     const body = await request.json();
     if (Array.isArray(body)) {
@@ -52,6 +56,8 @@ export async function POST(request: Request) {
  * Deletes a rally history record by id or title, or clears history
  */
 export async function DELETE(request: Request) {
+  const { error } = await guardApi(STAFF_WRITE_ROLES);
+  if (error) return error;
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");

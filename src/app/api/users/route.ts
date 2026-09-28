@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { getUsers, createUser, updateUser, deleteUser } from "@/lib/db";
+import { guardApi } from "@/lib/auth";
+import { STAFF_ROLES } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
+  const { error } = await guardApi(STAFF_ROLES);
+  if (error) return error;
   try {
     const { searchParams } = new URL(request.url);
     const role = searchParams.get("role") || undefined;
@@ -18,6 +22,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const { error } = await guardApi(["SUPER_ADMIN"]);
+  if (error) return error;
   try {
     const body = await request.json();
     if (!body.name || !body.email || !body.role) {
@@ -37,6 +43,8 @@ export async function POST(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  const { error } = await guardApi(["SUPER_ADMIN"]);
+  if (error) return error;
   try {
     const body = await request.json();
     if (!body.id) {
@@ -62,6 +70,8 @@ export async function PUT(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const { error } = await guardApi(["SUPER_ADMIN"]);
+  if (error) return error;
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");

@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { getApplications, createApplication, updateApplication } from "@/lib/db";
+import { guardApi } from "@/lib/auth";
+import { STAFF_ROLES } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const { error } = await guardApi(STAFF_ROLES);
+  if (error) return error;
   try {
     const applications = await getApplications();
     return NextResponse.json({ success: true, data: applications });
@@ -15,6 +19,7 @@ export async function GET() {
   }
 }
 
+// Public: chapter accreditation applications are submitted without an account
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -29,6 +34,8 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  const { error } = await guardApi(["SUPER_ADMIN", "COUNCIL_MEMBER"]);
+  if (error) return error;
   try {
     const { id, ...updates } = await request.json();
     if (!id) {

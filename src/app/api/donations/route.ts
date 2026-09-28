@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { guardApi } from "@/lib/auth";
+import { STAFF_ROLES } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
+  const { error } = await guardApi(STAFF_ROLES);
+  if (error) return error;
   try {
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get("limit") || "50", 10);

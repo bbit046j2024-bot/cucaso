@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { guardApi } from "@/lib/auth";
+import { STAFF_ROLES, STAFF_WRITE_ROLES, CHAPTER_ROLES } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
+
+const PORTAL_ROLES = [...STAFF_ROLES, ...CHAPTER_ROLES];
 
 // In-memory notifications store for instant responsiveness
 let IN_MEMORY_NOTIFICATIONS = [
@@ -44,6 +48,8 @@ let IN_MEMORY_NOTIFICATIONS = [
 ];
 
 export async function GET(request: Request) {
+  const { error } = await guardApi(PORTAL_ROLES);
+  if (error) return error;
   try {
     const { searchParams } = new URL(request.url);
     const unreadOnly = searchParams.get("unread") === "true";
@@ -94,6 +100,8 @@ export async function GET(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  const { error } = await guardApi(PORTAL_ROLES);
+  if (error) return error;
   try {
     const body = await request.json();
     const { notificationId, markAllAsRead } = body;
@@ -131,6 +139,9 @@ export async function PATCH(request: Request) {
 }
 
 export async function POST(request: Request) {
+  // Broadcast composer — staff only
+  const { error } = await guardApi(STAFF_WRITE_ROLES);
+  if (error) return error;
   try {
     const body = await request.json();
     const { title, body: textBody, type = "INFO", channel = "IN_APP" } = body;
@@ -157,6 +168,9 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  // Clearing/deleting affects the shared notification store — staff only
+  const { error } = await guardApi(STAFF_WRITE_ROLES);
+  if (error) return error;
   try {
     const { searchParams } = new URL(request.url);
     const idFromQuery = searchParams.get("id");

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getIronSession } from "iron-session";
 import type { SessionData } from "@/lib/auth";
+import { STAFF_ROLES, CHAPTER_ROLES } from "@/lib/roles";
 
 const SESSION_OPTIONS = {
   cookieName: "cucaso_session",
@@ -14,73 +15,61 @@ const SESSION_OPTIONS = {
   },
 };
 
-/** Roles allowed into the full admin panel */
-const ADMIN_ROLES = [
-  "SUPER_ADMIN",
-  "COUNCIL_MEMBER",
-  "CENTRAL_TREASURER",
-  "SECRETARY",
-  "COMMUNICATIONS_DIRECTOR",
-  "OBSERVER",
-];
-
-/** Roles allowed into the chapter portal */
-const CHAPTER_ROLES = ["CHAPTER_REP", "CHAPTER_TREASURER"];
-
 export async function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl;
+  const { pathname, search } = req.nextUrl;
 
-  // ── /portal/admin/** ─────────────────────────────────────────────────────
-  if (pathname.startsWith("/portal/admin")) {
-    const res = NextResponse.next();
-    let session: any;
-    try {
-      session = await getIronSession<SessionData>(req, res, SESSION_OPTIONS);
-    } catch {
-      return NextResponse.redirect(new URL("/login?redirect=/portal/admin", req.url));
-    }
-
-    if (!session?.isAuthenticated) {
-      return NextResponse.redirect(new URL("/login?redirect=/portal/admin", req.url));
-    }
-
-    if (!ADMIN_ROLES.includes(session.role)) {
-      // Chapter reps trying to access admin get redirected to chapter portal
-      if (CHAPTER_ROLES.includes(session.role)) {
-        return NextResponse.redirect(new URL("/portal/chapter", req.url));
-      }
-      return NextResponse.redirect(new URL("/login?error=unauthorized", req.url));
-    }
-
-    return res;
+  const res = NextResponse.next();
+  let session: SessionData | null = null;
+  try {
+    session = await getIronSession<SessionData>(req, res, SESSION_OPTIONS);
+  } catch {
+    session = null;
   }
 
-  // ── /portal/chapter/** ───────────────────────────────────────────────────
-  if (pathname.startsWith("/portal/chapter")) {
-    const res = NextResponse.next();
-    let session: any;
-    try {
-      session = await getIronSession<SessionData>(req, res, SESSION_OPTIONS);
-    } catch {
-      return NextResponse.redirect(new URL("/login?redirect=/portal/chapter", req.url));
-    }
+  const redirectToLogin = () => {
+    const url = new URL("/login", req.url);
+    url.searchParams.set("redirect", pathname + search);
+    return NextResponse.redirect(url);
+  };
 
-    if (!session?.isAuthenticated) {
-      return NextResponse.redirect(new URL("/login?redirect=/portal/chapter", req.url));
-    }
-
-    // Both admin roles and chapter roles can view the chapter portal
-    const allAllowed = [...ADMIN_ROLES, ...CHAPTER_ROLES];
-    if (!allAllowed.includes(session.role)) {
-      return NextResponse.redirect(new URL("/login?error=unauthorized", req.url));
-    }
-
-    return res;
+  // Everything under /portal requires a fully-authenticated session
+  // (isAuthenticated is false until any required TOTP step is completed)
+  if (!session?.isAuthenticated || !session.userId) {
+    return redirectToLogin();
   }
 
-  return NextResponse.next();
+  const role = session.role as string;
+  const isStaff = (STAFF_ROLES as readonly string[]).includes(role);
+  const isChapter = (CHAPTER_ROLES as readonly string[]).includes(role);
+
+  if (!isStaff && !isChapter) {
+    return redirectToLogin();
+  }
+
+  if (isChapter) {
+    const wantsAdmin =
+      pathname.startsWith("/portal/admin") ||
+      req.nextUrl.searchParams.get("mode") === "ADMIN";
+
+    // Chapter users always land in (and stay in) their own chapter workspace
+    const missingMode =
+      pathname === "/portal" && !req.nextUrl.searchParams.get("mode");
+    const missingChapter =
+      pathname === "/portal" &&
+      !req.nextUrl.searchParams.get("chapter") &&
+      !!session.chapterId;
+
+    if (wantsAdmin || missingMode || missingChapter) {
+      const url = new URL("/portal", req.url);
+      url.searchParams.set("mode", "CHAPTER");
+      if (session.chapterId) url.searchParams.set("chapter", session.chapterId);
+      return NextResponse.redirect(url);
+    }
+  }
+
+  return res;
 }
 
 export const config = {
-  matcher: ["/portal/admin/:path*", "/portal/chapter/:path*"],
+  matcher: ["/portal/:path*"],
 };

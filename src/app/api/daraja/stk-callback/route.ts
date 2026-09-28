@@ -10,12 +10,19 @@ export async function POST(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const token = searchParams.get("token");
-    const expectedSecret = process.env.DARAJA_CALLBACK_SECRET || "cucaso_dev_daraja_callback_secret_token_2026";
+    const expectedSecret =
+      process.env.DARAJA_CALLBACK_SECRET ||
+      (process.env.NODE_ENV !== "production"
+        ? "cucaso_dev_daraja_callback_secret_token_2026"
+        : undefined);
 
-    // Validate callback secret token to prevent unauthorized spoofing
-    if (token && token !== expectedSecret) {
-      console.warn("[Daraja Webhook] Invalid secret token received:", token);
-      return NextResponse.json({ ResultCode: 1, ResultDesc: "Invalid secret token" }, { status: 401 });
+    // Always require the shared secret — a missing token must not skip validation
+    if (!expectedSecret || token !== expectedSecret) {
+      console.warn("[Daraja Webhook] Missing or invalid secret token");
+      return NextResponse.json(
+        { ResultCode: 1, ResultDesc: "Unauthorized" },
+        { status: 401 }
+      );
     }
 
     const payload = await request.json();

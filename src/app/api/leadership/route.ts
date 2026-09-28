@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getLeadership, createLeadership, updateLeadership, deleteLeadership } from "@/lib/db";
+import { guardApi } from "@/lib/auth";
+import { STAFF_WRITE_ROLES } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +22,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const { error } = await guardApi(STAFF_WRITE_ROLES);
+  if (error) return error;
   try {
     const body = await request.json();
     if (!body.name || !body.title) {
@@ -40,6 +44,8 @@ export async function POST(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  const { error } = await guardApi(STAFF_WRITE_ROLES);
+  if (error) return error;
   try {
     const body = await request.json();
     const { id, ...updates } = body;
@@ -61,6 +67,8 @@ export async function PUT(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const { error } = await guardApi(STAFF_WRITE_ROLES);
+  if (error) return error;
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");

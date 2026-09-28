@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { guardApi } from "@/lib/auth";
+import { STAFF_ROLES, STAFF_WRITE_ROLES } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -8,6 +10,8 @@ export const dynamic = "force-dynamic";
  * Admin: fetch all contact/feedback messages (newest first).
  */
 export async function GET() {
+  const { error } = await guardApi(STAFF_ROLES);
+  if (error) return error;
   try {
     const messages = await prisma.contactMessage.findMany({
       orderBy: { createdAt: "desc" },
@@ -64,6 +68,8 @@ export async function POST(request: Request) {
  * Admin: mark a message as read.
  */
 export async function PATCH(request: Request) {
+  const { error } = await guardApi(STAFF_WRITE_ROLES);
+  if (error) return error;
   try {
     const body = await request.json();
     const { id, isRead } = body;
@@ -89,6 +95,8 @@ export async function PATCH(request: Request) {
  * Admin: delete a contact message by ID.
  */
 export async function DELETE(request: Request) {
+  const { error } = await guardApi(STAFF_WRITE_ROLES);
+  if (error) return error;
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");

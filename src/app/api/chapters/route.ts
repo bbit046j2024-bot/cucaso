@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { getAllChapters, createChapter } from "@/lib/db";
+import { guardApi } from "@/lib/auth";
+import { STAFF_WRITE_ROLES } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
+// Public: the chapters directory is part of the public site
 export async function GET() {
   try {
     const chapters = await getAllChapters();
@@ -17,6 +20,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const { error } = await guardApi(STAFF_WRITE_ROLES);
+  if (error) return error;
   try {
     const body = await request.json();
     const newChapter = await createChapter(body);

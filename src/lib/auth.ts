@@ -259,3 +259,44 @@ export async function requireChapterAccess(chapterId: string): Promise<SessionDa
   }
   return session;
 }
+
+// ─── API Route Guards ────────────────────────────────────────────────────────
+
+export function apiUnauthorized(message = "Authentication required") {
+  return NextResponse.json({ success: false, error: message }, { status: 401 });
+}
+
+export function apiForbidden(
+  message = "You do not have permission to perform this action"
+) {
+  return NextResponse.json({ success: false, error: message }, { status: 403 });
+}
+
+type GuardResult =
+  | { session: SessionData; error: null }
+  | { session: null; error: NextResponse };
+
+/**
+ * Guard for API route handlers.
+ * Verifies a fully-authenticated session (2FA completed) and, when
+ * allowedRoles is given, that the session role is included.
+ * Usage: `const { session, error } = await guardApi(STAFF_ROLES); if (error) return error;`
+ */
+export async function guardApi(
+  allowedRoles?: readonly string[]
+): Promise<GuardResult> {
+  const session = await getSession();
+  if (!session.isAuthenticated || !session.userId) {
+    return { session: null, error: apiUnauthorized() };
+  }
+  if (session.requiresTwoFactor && ADMIN_ROLES.includes(session.role)) {
+    return {
+      session: null,
+      error: apiUnauthorized("Two-factor authentication required"),
+    };
+  }
+  if (allowedRoles && !allowedRoles.includes(session.role)) {
+    return { session: null, error: apiForbidden() };
+  }
+  return { session: session as SessionData, error: null };
+}

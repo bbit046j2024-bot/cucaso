@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getNewsPosts, createNewsPost, updateNewsPost, deleteNewsPost } from "@/lib/db";
+import { guardApi } from "@/lib/auth";
+import { STAFF_WRITE_ROLES } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +24,8 @@ export async function GET() {
  * Creates a new news article or announcement.
  */
 export async function POST(request: Request) {
+  const { error } = await guardApi(STAFF_WRITE_ROLES);
+  if (error) return error;
   try {
     const body = await request.json();
     const created = await createNewsPost(body);
@@ -37,6 +41,8 @@ export async function POST(request: Request) {
  * Updates an existing news article.
  */
 export async function PUT(request: Request) {
+  const { error } = await guardApi(STAFF_WRITE_ROLES);
+  if (error) return error;
   try {
     const body = await request.json();
     const { id, ...updates } = body;
@@ -56,6 +62,8 @@ export async function PUT(request: Request) {
  * Deletes a news article by ID.
  */
 export async function DELETE(request: Request) {
+  const { error } = await guardApi(STAFF_WRITE_ROLES);
+  if (error) return error;
   try {
     const { searchParams } = new URL(request.url);
     let id = searchParams.get("id");

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getGalleryItems, createGalleryItem, deleteGalleryItem } from "@/lib/db";
 import { GALLERY_ITEMS as DEFAULT_ITEMS } from "@/lib/data";
+import { guardApi } from "@/lib/auth";
+import { STAFF_WRITE_ROLES, CHAPTER_ROLES } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +27,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  // Staff and chapter users may both submit gallery items
+  const { error } = await guardApi([...STAFF_WRITE_ROLES, ...CHAPTER_ROLES]);
+  if (error) return error;
   try {
     const body = await request.json();
     if (!body.title || !body.imageUrl) {
@@ -44,6 +49,8 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const { error } = await guardApi(STAFF_WRITE_ROLES);
+  if (error) return error;
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");

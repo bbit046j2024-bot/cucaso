@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { updateCostItem, deleteCostItem } from "@/lib/db";
+import { guardApi } from "@/lib/auth";
+import { TREASURY_ROLES } from "@/lib/roles";
 
 /**
  * PUT /api/cost-items/[id]
@@ -10,6 +12,8 @@ export async function PUT(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  const { error } = await guardApi(TREASURY_ROLES);
+  if (error) return error;
   try {
     const body = await request.json();
     const updated = await updateCostItem(params.id, {
@@ -53,6 +57,8 @@ export async function DELETE(
   _request: Request,
   { params }: { params: { id: string } }
 ) {
+  const { error } = await guardApi(TREASURY_ROLES);
+  if (error) return error;
   try {
     const ok = await deleteCostItem(params.id);
     if (!ok) {

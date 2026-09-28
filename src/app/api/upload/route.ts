@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import cloudinary from "@/lib/cloudinary";
+import { guardApi } from "@/lib/auth";
+import { STAFF_WRITE_ROLES, CHAPTER_ROLES } from "@/lib/roles";
 
 export async function POST(request: Request) {
+  // Uploads write to org storage — authenticated portal users only
+  const { error } = await guardApi([...STAFF_WRITE_ROLES, ...CHAPTER_ROLES]);
+  if (error) return error;
   try {
     const data = await request.formData();
     const file: File | null = data.get("file") as unknown as File;

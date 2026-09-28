@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { guardApi } from "@/lib/auth";
+import { STAFF_ROLES, STAFF_WRITE_ROLES } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -8,6 +10,8 @@ export const dynamic = "force-dynamic";
  * Admin: fetch all prayer requests (newest first).
  */
 export async function GET() {
+  const { error } = await guardApi(STAFF_ROLES);
+  if (error) return error;
   try {
     const requests = await prisma.prayerRequest.findMany({
       orderBy: { createdAt: "desc" },
@@ -56,6 +60,8 @@ export async function POST(request: Request) {
  * Admin: mark a prayer request as read / approved.
  */
 export async function PATCH(request: Request) {
+  const { error } = await guardApi(STAFF_WRITE_ROLES);
+  if (error) return error;
   try {
     const body = await request.json();
     const { id, isRead, isModeratedApproved } = body;
@@ -81,6 +87,8 @@ export async function PATCH(request: Request) {
  * Admin: delete a prayer request by ID.
  */
 export async function DELETE(request: Request) {
+  const { error } = await guardApi(STAFF_WRITE_ROLES);
+  if (error) return error;
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import { getSession, apiUnauthorized, apiForbidden } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hashPassword, verifyPassword } from "@/lib/auth";
 
@@ -8,6 +8,10 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   try {
     const session = await getSession();
+    if (!session.isAuthenticated || !session.userId) {
+      return apiUnauthorized();
+    }
+
     const body = await request.json();
     const { targetUserId, currentPassword, newPassword, confirmPassword } = body;
 
@@ -25,22 +29,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // Determine target user
-    let userIdToUpdate = targetUserId || session.userId;
-
-    if (!userIdToUpdate) {
-      // If unauthenticated or no session, check if it's admin reset or superadmin
-      const adminUser = await prisma.user.findFirst({
-        where: { role: { in: ["SUPER_ADMIN", "COUNCIL_MEMBER"] } },
-      });
-      if (!adminUser) {
-        return NextResponse.json(
-          { success: false, error: "No administrator account found." },
-          { status: 404 }
-        );
-      }
-      userIdToUpdate = adminUser.id;
-    }
+    // Determine target user — defaults to the signed-in user
+    const userIdToUpdate = targetUserId || session.userId;
 
     // Fetch target user from DB
     const user = await prisma.user.findUnique({
@@ -54,25 +44,27 @@ export async function POST(request: Request) {
       );
     }
 
-    const isAdmin = session.role === "SUPER_ADMIN" || session.role === "COUNCIL_MEMBER";
     const isSelf = session.userId === user.id;
 
-    // Regular users changing their own password must provide current password
-    if (!isAdmin || isSelf) {
-      if (!currentPassword && user.passwordHash) {
+    // Only a super administrator may reset another user's password
+    if (!isSelf && session.role !== "SUPER_ADMIN") {
+      return apiForbidden("Only a super administrator can reset another user's password.");
+    }
+
+    // Users changing their own password must prove the current one
+    if (isSelf && user.passwordHash) {
+      if (!currentPassword) {
         return NextResponse.json(
           { success: false, error: "Current password is required." },
           { status: 400 }
         );
       }
-      if (currentPassword && user.passwordHash) {
-        const isValid = await verifyPassword(user.passwordHash, currentPassword);
-        if (!isValid) {
-          return NextResponse.json(
-            { success: false, error: "Current password is incorrect." },
-            { status: 401 }
-          );
-        }
+      const isValid = await verifyPassword(currentPassword, user.passwordHash);
+      if (!isValid) {
+        return NextResponse.json(
+          { success: false, error: "Current password is incorrect." },
+          { status: 401 }
+        );
       }
     }
 

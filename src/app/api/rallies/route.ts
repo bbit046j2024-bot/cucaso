@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getCurrentRally, updateCurrentRally, createRally, deleteRally } from "@/lib/db";
 import { CURRENT_RALLY as FALLBACK_RALLY } from "@/lib/data";
+import { guardApi } from "@/lib/auth";
+import { STAFF_WRITE_ROLES } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +28,8 @@ export async function GET() {
  * programme, venueAccess, feesAndCapitation.
  */
 export async function PUT(request: Request) {
+  const { error } = await guardApi(STAFF_WRITE_ROLES);
+  if (error) return error;
   try {
     const body = await request.json();
     const updated = await updateCurrentRally(body);
@@ -44,6 +48,8 @@ export async function PUT(request: Request) {
  * Creates a new rally in the database pipeline.
  */
 export async function POST(request: Request) {
+  const { error } = await guardApi(STAFF_WRITE_ROLES);
+  if (error) return error;
   try {
     const body = await request.json();
     const created = await createRally(body);
@@ -62,6 +68,8 @@ export async function POST(request: Request) {
  * Deletes a rally by ID (or deletes the active rally if no ID is specified).
  */
 export async function DELETE(request: Request) {
+  const { error } = await guardApi(STAFF_WRITE_ROLES);
+  if (error) return error;
   try {
     const { searchParams } = new URL(request.url);
     let id = searchParams.get("id");

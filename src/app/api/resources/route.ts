@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDocumentResources, createDocumentResource, deleteDocumentResource } from "@/lib/db";
+import { guardApi } from "@/lib/auth";
+import { STAFF_WRITE_ROLES, CHAPTER_ROLES } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +24,9 @@ export async function GET() {
  * Creates / registers a new site document or uploaded resource.
  */
 export async function POST(request: Request) {
+  // Staff and chapter users may both register documents
+  const { error } = await guardApi([...STAFF_WRITE_ROLES, ...CHAPTER_ROLES]);
+  if (error) return error;
   try {
     const body = await request.json();
     const created = await createDocumentResource(body);
@@ -37,6 +42,8 @@ export async function POST(request: Request) {
  * Deletes a document or resource by ID.
  */
 export async function DELETE(request: Request) {
+  const { error } = await guardApi(STAFF_WRITE_ROLES);
+  if (error) return error;
   try {
     const { searchParams } = new URL(request.url);
     let id = searchParams.get("id");

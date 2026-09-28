@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCostItems, createCostItem, resetCostItems } from "@/lib/db";
+import { guardApi } from "@/lib/auth";
+import { STAFF_ROLES, TREASURY_ROLES } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +11,8 @@ export const dynamic = "force-dynamic";
  * Optional query: ?rallyId=xxx
  */
 export async function GET(request: Request) {
+  const { error } = await guardApi(STAFF_ROLES);
+  if (error) return error;
   try {
     const { searchParams } = new URL(request.url);
     const rallyId = searchParams.get("rallyId") || undefined;
@@ -29,6 +33,8 @@ export async function GET(request: Request) {
  * Body: { category, name, type, amount, quantity?, notes?, rallyId? } OR { action: "reset", rallyId? }
  */
 export async function POST(request: Request) {
+  const { error } = await guardApi(TREASURY_ROLES);
+  if (error) return error;
   try {
     const body = await request.json();
 

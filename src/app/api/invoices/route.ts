@@ -1,12 +1,20 @@
 import { NextResponse } from "next/server";
 import { getInvoices, upsertChapterInvoice, deleteInvoice, updateInvoice, clearRallyInvoices } from "@/lib/db";
+import { guardApi } from "@/lib/auth";
+import { STAFF_ROLES, CHAPTER_ROLES, TREASURY_ROLES, isChapterRole } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
+  const { session, error } = await guardApi([...STAFF_ROLES, ...CHAPTER_ROLES]);
+  if (error) return error;
   try {
     const { searchParams } = new URL(request.url);
-    const chapterId = searchParams.get("chapterId");
+    let chapterId = searchParams.get("chapterId");
+    // Chapter-level users can only ever see their own invoices
+    if (isChapterRole(session.role)) {
+      chapterId = session.chapterId ?? "__none__";
+    }
     let invoices = await getInvoices();
     if (chapterId) {
       invoices = invoices.filter((i) => i.chapterId === chapterId);
@@ -21,6 +29,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const { error } = await guardApi(TREASURY_ROLES);
+  if (error) return error;
   try {
     const body = await request.json();
 
@@ -41,6 +51,8 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  const { error } = await guardApi(TREASURY_ROLES);
+  if (error) return error;
   try {
     const body = await request.json();
     const { invoiceId, ...fields } = body;
@@ -61,6 +73,8 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const { error } = await guardApi(TREASURY_ROLES);
+  if (error) return error;
   try {
     const { searchParams } = new URL(request.url);
     const invoiceId = searchParams.get("invoiceId");
