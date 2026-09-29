@@ -16,7 +16,7 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: "CUCASO — Coastal Universities and Colleges Adventist Schools Organization",
+  title: "CUCASO",
   description:
     "Official digital platform for Seventh-day Adventist universities, colleges, and schools across the Mombasa coast. Chapter registration, capability funding, and rally administration.",
   keywords: [
@@ -40,6 +40,7 @@ export const metadata: Metadata = {
 };
 
 import { MobileBottomNav } from "@/components/mobile-bottom-nav";
+import { AdventistBrandSidebar } from "@/components/adventist-brand-sidebar";
 
 export default function RootLayout({
   children,
@@ -50,6 +51,7 @@ export default function RootLayout({
     <html lang="en" className={`${inter.variable} ${poppins.variable} font-sans scroll-smooth`}>
       <body className="min-h-screen flex flex-col bg-slate-50 text-slate-900 antialiased font-body">
         {children}
+        <AdventistBrandSidebar />
         <MobileBottomNav />
       </body>
     </html>

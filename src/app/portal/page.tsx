@@ -93,10 +93,10 @@ import {
 function PortalContent() {
   const searchParams = useSearchParams();
 
-  // Mode: CHAPTER_PORTAL vs ADMIN_PORTAL
+  // Mode: derived exclusively from the authenticated user's role (not user-switchable)
   const [activePortal, setActivePortal] = useState<"CHAPTER" | "ADMIN">("CHAPTER");
 
-  // Chapter Portal selected chapter (Default: TUM Chapter)
+  // Chapter Portal selected chapter — auto-set from session, never user-switchable
   const [selectedChapterId, setSelectedChapterId] = useState<string>("ch-tum");
   const [chapterActiveTab, setChapterActiveTab] = useState<
     "dashboard" | "my-chapter" | "attendees" | "payments" | "rally-info" | "gallery" | "documents" | "news" | "notifications" | "profile"
@@ -106,20 +106,6 @@ function PortalContent() {
   const [adminActiveTab, setAdminActiveTab] = useState<
     "overview" | "chapters" | "rallies" | "attendees" | "payments" | "funding" | "reports" | "leadership" | "gallery" | "news" | "resources" | "inbox" | "users" | "settings" | "audit" | "notifications"
   >("overview");
-
-  useEffect(() => {
-    const mode = searchParams.get("mode");
-    if (mode === "ADMIN") {
-      setActivePortal("ADMIN");
-    } else if (mode === "CHAPTER") {
-      setActivePortal("CHAPTER");
-    }
-
-    const chapter = searchParams.get("chapter");
-    if (chapter) {
-      setSelectedChapterId(chapter);
-    }
-  }, [searchParams]);
 
   // Mobile sidebar open
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -197,7 +183,7 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
       .then(j => { if (j.success && Array.isArray(j.data)) setPaymentsList(j.data); })
       .catch(() => { })
       .finally(() => setPaymentsLoading(false));
-  }, [selectedChapterId, activePortal]);
+  }, [selectedChapterId]);
 
   // Attendees — fetched from API, filtered by chapter
   const [attendeesList, setAttendeesList] = useState<Attendee[]>([]);
@@ -298,33 +284,8 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
 
   // Notifications Bell & Dropdown State
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
-  const [portalNotifications, setPortalNotifications] = useState<any[]>([
-    {
-      id: "notif-1",
-      title: "Donation Received via M-Pesa STK",
-      body: "KES 5,000 received for Student Welfare & Subsidies. Ref: QKD8291410.",
-      time: "10 mins ago",
-      type: "SUCCESS",
-      read: false,
-    },
-    {
-      id: "notif-2",
-      title: "Chapter Registration Approved",
-      body: "TUM SDA Chapter was approved by Central Council with Tier 1 status.",
-      time: "2 hours ago",
-      type: "INFO",
-      read: false,
-    },
-    {
-      id: "notif-3",
-      title: "Fee Lock Milestone",
-      body: "Coast Rally fee snapshot is scheduled for lock on 1 November. 8 chapters pending.",
-      time: "1 day ago",
-      type: "WARNING",
-      read: true,
-    },
-  ]);
-  const [unreadNotifCount, setUnreadNotifCount] = useState(2);
+  const [portalNotifications, setPortalNotifications] = useState<any[]>([]);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
 
   // Settings & Password State
   const [passwordForm, setPasswordForm] = useState({
@@ -337,7 +298,7 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
   const [passwordFeedback, setPasswordFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Change Email State (self-service + super-admin override)
-  const [sessionUser, setSessionUser] = useState<{ id: string; email: string; role: string; totpEnabled?: boolean } | null>(null);
+  const [sessionUser, setSessionUser] = useState<{ id: string; email: string; role: string; chapterId?: string | null; totpEnabled?: boolean } | null>(null);
   const [emailTargetUserId, setEmailTargetUserId] = useState<string>("");
   const [emailForm, setEmailForm] = useState({ newEmail: "", currentPassword: "" });
   const [emailLoading, setEmailLoading] = useState(false);
@@ -1091,9 +1052,23 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
 
   // Fetch admin & users data from API
   useEffect(() => {
+    fetchNotifications();
+
     fetch("/api/auth/me")
       .then(r => r.json())
-      .then(j => { if (j.isLoggedIn && j.user) setSessionUser({ id: j.user.id, email: j.user.email, role: j.user.role, totpEnabled: j.user.totpEnabled ?? false }); })
+      .then(j => {
+        if (j.isLoggedIn && j.user) {
+          const u = j.user;
+          setSessionUser({ id: u.id, email: u.email, role: u.role, chapterId: u.chapterId ?? null, totpEnabled: u.totpEnabled ?? false });
+          // Derive portal from role — each user only ever sees their own dashboard
+          const isAdmin = ["SUPER_ADMIN", "ADMIN", "CENTRAL_TREASURER", "SECRETARY", "COMMUNICATIONS_DIRECTOR", "OBSERVER"].includes(u.role);
+          setActivePortal(isAdmin ? "ADMIN" : "CHAPTER");
+          // For chapter users, lock the selected chapter to their own
+          if (!isAdmin && u.chapterId) {
+            setSelectedChapterId(u.chapterId);
+          }
+        }
+      })
       .catch(() => { });
 
     fetch("/api/users")
@@ -1143,8 +1118,11 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
       .catch(() => { });
   }, []);
 
+  // Load admin-level data once sessionUser resolves as an admin
   useEffect(() => {
-    if (activePortal !== "ADMIN") return;
+    if (!sessionUser) return;
+    const isAdmin = ["SUPER_ADMIN", "ADMIN", "CENTRAL_TREASURER", "SECRETARY", "COMMUNICATIONS_DIRECTOR", "OBSERVER"].includes(sessionUser.role);
+    if (!isAdmin) return;
     fetch("/api/applications")
       .then(r => r.json())
       .then(j => { if (j.success && Array.isArray(j.data)) setAdminApplications(j.data); })
@@ -1161,7 +1139,7 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
       .then(r => r.json())
       .then(j => { if (j.success && Array.isArray(j.data)) setUsersList(j.data); })
       .catch(() => { });
-  }, [activePortal]);
+  }, [sessionUser?.id]);
 
   // Admin capability calculations
   const engineChaptersInput = useMemo(() => {
@@ -1818,35 +1796,23 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
     }
   };
 
-  // Switch Portal / Impersonate specific user or role
+  // Navigate to relevant admin tab for a user (admin-only view)
   const handleSwitchUserPortal = (user: UserAccount) => {
-    if (user.role === "CHAPTER_REP" || user.chapterId) {
-      setActivePortal("CHAPTER");
-      if (user.chapterId) {
-        setSelectedChapterId(user.chapterId);
-      }
-      setChapterActiveTab("dashboard");
-      setLocationToast(`Switched to Chapter Portal as ${user.name} (${user.chapterName || "Chapter Representative"})`);
-    } else if (user.role === "CENTRAL_TREASURER") {
-      setActivePortal("ADMIN");
+    if (user.role === "CENTRAL_TREASURER") {
       setAdminActiveTab("funding");
-      setLocationToast(`Switched to Admin Portal as ${user.name} (Treasury & Cost Engine)`);
+      setLocationToast(`Viewing ${user.name}'s area: Treasury & Cost Engine`);
     } else if (user.role === "SECRETARY") {
-      setActivePortal("ADMIN");
       setAdminActiveTab("chapters");
-      setLocationToast(`Switched to Admin Portal as ${user.name} (Organization Secretary)`);
+      setLocationToast(`Viewing ${user.name}'s area: Organization Secretary`);
     } else if (user.role === "COMMUNICATIONS_DIRECTOR") {
-      setActivePortal("ADMIN");
       setAdminActiveTab("rallies");
-      setLocationToast(`Switched to Admin Portal as ${user.name} (Communications Director)`);
+      setLocationToast(`Viewing ${user.name}'s area: Communications Director`);
     } else if (user.role === "OBSERVER") {
-      setActivePortal("ADMIN");
       setAdminActiveTab("reports");
-      setLocationToast(`Switched to Admin Portal as ${user.name} (Read-Only Observer)`);
+      setLocationToast(`Viewing ${user.name}'s area: Read-Only Observer`);
     } else {
-      setActivePortal("ADMIN");
       setAdminActiveTab("overview");
-      setLocationToast(`Switched to Admin Console as ${user.name} (${user.roleTitle || "Super Administrator"})`);
+      setLocationToast(`Viewing ${user.name}'s area: ${user.roleTitle || "Administrator"}`);
     }
     setTimeout(() => setLocationToast(null), 4000);
   };
@@ -2405,48 +2371,16 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                   </button>
                 </div>
               </div>
-              {/* Chapter / Admin toggle */}
-              <div className="flex items-center rounded-xl bg-navy-900 p-1 gap-1">
-                <button
-                  onClick={() => setActivePortal("CHAPTER")}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-bold transition-all ${activePortal === "CHAPTER"
-                    ? "bg-teal-500 text-navy-950 shadow-sm"
-                    : "text-slate-400 hover:text-slate-200"
-                    }`}
-                >
-                  <Building2 className="w-3 h-3" />
-                  <span>Chapter</span>
-                </button>
-                <button
-                  onClick={() => setActivePortal("ADMIN")}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-bold transition-all ${activePortal === "ADMIN"
-                    ? "bg-amber-400 text-navy-950 shadow-sm"
-                    : "text-slate-400 hover:text-slate-200"
-                    }`}
-                >
-                  <ShieldCheck className="w-3 h-3" />
-                  <span>Admin</span>
-                </button>
+              {/* Portal mode badge — role-derived, read-only */}
+              <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-bold ${
+                activePortal === "ADMIN"
+                  ? "bg-amber-400/20 text-amber-300 border border-amber-500/30"
+                  : "bg-teal-500/10 text-teal-400 border border-teal-500/20"
+              }`}>
+                {activePortal === "ADMIN" ? <ShieldCheck className="w-3.5 h-3.5" /> : <Building2 className="w-3.5 h-3.5" />}
+                <span>{activePortal === "ADMIN" ? "Admin Console" : "Chapter Portal"}</span>
               </div>
             </div>
-
-            {/* Chapter quick-select (chapter portal only) */}
-            {activePortal === "CHAPTER" && (
-              <div className="px-4 py-3 bg-navy-900/50 border-b border-navy-800/60">
-                <label className="block text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1.5">Active Chapter</label>
-                <select
-                  value={selectedChapterId}
-                  onChange={(e) => setSelectedChapterId(e.target.value)}
-                  className="w-full bg-navy-900 border border-navy-700 text-white text-xs font-semibold rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer"
-                >
-                  {chaptersList.map((ch) => (
-                    <option key={ch.id} value={ch.id}>
-                      {ch.code} — {ch.institutionName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
 
             {/* CHAPTER PORTAL NAV */}
             {activePortal === "CHAPTER" ? (
@@ -8917,44 +8851,30 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                 <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
                   <h3 className="font-heading font-bold text-base text-navy-950 mb-4">Active Portal Sessions</h3>
                   <div className="space-y-3 text-xs">
-                    {[
-                      { user: "Council Admin", role: "Super Administrator", roleKey: "SUPER_ADMIN", device: "Chrome • Windows", ip: "41.90.x.x (Mombasa)", session: "Active now", online: true },
-                      { user: "David Kiboi", role: "Chapter Representative (TUM)", roleKey: "CHAPTER_REP", chapterId: "ch-tum", device: "Safari • iPhone 14", ip: "197.136.x.x (Nairobi)", session: "2 mins ago", online: true },
-                      { user: "Mercy Chebet", role: "Chapter Representative (Pwani)", roleKey: "CHAPTER_REP", chapterId: "ch-pwani", device: "Chrome • Android", ip: "41.80.x.x (Kilifi)", session: "18 mins ago", online: false },
-                      { user: "CUCASO Treasurer", role: "Council Treasurer", roleKey: "CENTRAL_TREASURER", device: "Firefox • macOS", ip: "41.90.x.x (Mombasa)", session: "1 hour ago", online: false },
-                    ].map((session) => (
+                    {usersList.length === 0 ? (
+                      <p className="text-slate-400 text-center py-4">No users found.</p>
+                    ) : usersList.slice(0, 5).map((u) => (
                       <div
-                        key={session.user}
-                        onClick={() => {
-                          if (session.roleKey === "CHAPTER_REP") {
-                            setActivePortal("CHAPTER");
-                            if (session.chapterId) setSelectedChapterId(session.chapterId);
-                            setChapterActiveTab("dashboard");
-                            setLocationToast(`Switched session to ${session.user}`);
-                          } else {
-                            setActivePortal("ADMIN");
-                            setAdminActiveTab("overview");
-                            setLocationToast(`Switched session to ${session.user}`);
-                          }
-                          setTimeout(() => setLocationToast(null), 3000);
-                        }}
-                        className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-200 cursor-pointer hover:bg-slate-100/80 transition-colors"
+                        key={u.id}
+                        className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 border border-slate-200"
                       >
                         <div className="flex items-center gap-3">
                           <div className="relative">
                             <div className="w-9 h-9 rounded-full bg-navy-900 text-white font-bold text-xs flex items-center justify-center">
-                              {session.user.split(" ").map(w => w[0]).join("").slice(0, 2)}
+                              {(u.name || u.email).split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase()}
                             </div>
-                            {session.online && <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-white" />}
+                            {u.status === "ACTIVE" && <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-white" />}
                           </div>
                           <div>
-                            <span className="font-bold text-slate-900 block">{session.user}</span>
-                            <span className="text-slate-400 text-[10px]">{session.role} • {session.device}</span>
+                            <span className="font-bold text-slate-900 block">{u.name || "—"}</span>
+                            <span className="text-slate-400 text-[10px]">{u.roleTitle || u.role} • {u.email}</span>
                           </div>
                         </div>
                         <div className="text-right">
-                          <span className={`block font-semibold text-[11px] ${session.online ? "text-emerald-700" : "text-slate-400"}`}>{session.session}</span>
-                          <span className="text-[10px] text-slate-400">{session.ip}</span>
+                          <span className={`block font-semibold text-[11px] ${u.status === "ACTIVE" ? "text-emerald-700" : "text-slate-400"}`}>
+                            {u.status === "ACTIVE" ? "Active" : u.status || "Inactive"}
+                          </span>
+                          {u.chapterName && <span className="text-[10px] text-slate-400">{u.chapterName}</span>}
                         </div>
                       </div>
                     ))}
