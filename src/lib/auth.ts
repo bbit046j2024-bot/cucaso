@@ -64,35 +64,50 @@ export async function getSessionFromRequest(
 
 /**
  * Hash a password using argon2id.
- * Falls back to a simple bcrypt-like approach if argon2 native is unavailable.
+ * Uses @node-rs/argon2 (prebuilt N-API Rust bindings for Vercel/Linux/macOS/Windows)
+ * with graceful fallback to native argon2.
  */
 export async function hashPassword(password: string): Promise<string> {
   try {
-    const argon2 = await import("argon2");
-    return argon2.hash(password, {
-      type: argon2.argon2id,
+    const { hash } = await import("@node-rs/argon2");
+    return await hash(password, {
       memoryCost: 65536, // 64 MB
       timeCost: 3,
       parallelism: 4,
     });
   } catch {
-    // Fallback for environments where argon2 native is not compiled
-    // This should not happen in production — flag in logs
-    console.error("[AUTH] argon2 native unavailable — check build environment");
-    throw new Error("Password hashing service unavailable");
+    try {
+      const argon2 = await import("argon2");
+      return await argon2.hash(password, {
+        type: argon2.argon2id,
+        memoryCost: 65536,
+        timeCost: 3,
+        parallelism: 4,
+      });
+    } catch (err) {
+      console.error("[AUTH] Password hashing unavailable:", err);
+      throw new Error("Password hashing service unavailable");
+    }
   }
 }
 
 export async function verifyPassword(
   password: string,
-  hash: string
+  storedHash: string
 ): Promise<boolean> {
   try {
-    const argon2 = await import("argon2");
-    return await argon2.verify(hash, password);
-  } catch (err) {
-    console.error("[AUTH] argon2 verify failed:", err);
-    return false;
+    // Primary: @node-rs/argon2 (native prebuilt, Vercel-optimized)
+    const { verify } = await import("@node-rs/argon2");
+    return await verify(storedHash, password);
+  } catch (nodeRsErr) {
+    try {
+      // Fallback: standard argon2
+      const argon2 = await import("argon2");
+      return await argon2.verify(storedHash, password);
+    } catch (err) {
+      console.error("[AUTH] Password verify failed in both engines:", { nodeRsErr, err });
+      return false;
+    }
   }
 }
 

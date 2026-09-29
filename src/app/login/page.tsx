@@ -50,14 +50,6 @@ function LoginForm() {
   const handleRoleChange = (newRole: "CHAPTER" | "ADMIN") => {
     setRole(newRole);
     setError(null);
-    // Demo convenience: prefill the seeded demo accounts
-    if (newRole === "ADMIN") {
-      setEmail("admin@cucaso.org");
-      setPassword("CUCASo!Admin2026");
-    } else {
-      setEmail("jmwangi@tum.ac.ke");
-      setPassword("CUCASo!2026Pass");
-    }
   };
 
   const destinationFor = (user: LoggedInUser): string => {
@@ -195,6 +187,8 @@ function LoginForm() {
                     <input
                       type="email"
                       required
+                      placeholder="e.g. name@cucaso.org"
+                      autoComplete="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-600 focus:outline-none bg-slate-50/50"
@@ -211,6 +205,8 @@ function LoginForm() {
                     <input
                       type={showPassword ? "text" : "password"}
                       required
+                      placeholder="••••••••••••"
+                      autoComplete="current-password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       className="w-full pl-10 pr-10 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-teal-600 focus:outline-none bg-slate-50/50"

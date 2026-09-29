@@ -7,9 +7,8 @@ const nextConfig = {
    * This fixes "Invalid email or password" on production (argon2 silently
    * returning false because the bundled binary is wrong for the runtime OS).
    */
-  serverExternalPackages: ["argon2"],
   experimental: {
-    serverComponentsExternalPackages: ["argon2"],
+    serverComponentsExternalPackages: ["@node-rs/argon2", "argon2"],
   },
 
   images: {
