@@ -28,9 +28,9 @@ export default function ApplicationPage() {
     institutionName: "",
     institutionType: "UNIVERSITY",
     sector: "PUBLIC",
-    location: "Mombasa Central",
+    location: "",
     chapterName: "",
-    approxMembers: "120",
+    approxMembers: "",
     patronName: "",
     patronPhone: "",
     patronEmail: "",
@@ -39,7 +39,7 @@ export default function ApplicationPage() {
     chairpersonEmail: "",
     treasurerName: "",
     treasurerPhone: "",
-    endorsementFile: "official_endorsement_letter.pdf",
+    endorsementFile: "",
     declarationAgreed: false,
   });
 
@@ -121,15 +121,15 @@ export default function ApplicationPage() {
             <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 max-w-md mx-auto text-left text-xs space-y-2 mb-8">
               <div className="flex justify-between">
                 <span className="text-slate-500">Institution:</span>
-                <span className="font-semibold text-slate-900">{formData.institutionName || "Technical University of Mombasa"}</span>
+                <span className="font-semibold text-slate-900">{formData.institutionName || "—"}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Chapter Name:</span>
-                <span className="font-semibold text-slate-900">{formData.chapterName || "TUM SDA Chapter"}</span>
+                <span className="font-semibold text-slate-900">{formData.chapterName || "—"}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Patron:</span>
-                <span className="font-semibold text-slate-900">{formData.patronName || "Pr. Eric Musembi"}</span>
+                <span className="font-semibold text-slate-900">{formData.patronName || "—"}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Review Status:</span>
@@ -139,15 +139,8 @@ export default function ApplicationPage() {
 
             <div className="flex flex-wrap items-center justify-center gap-4">
               <Link
-                href="/portal/council"
-                className="px-6 py-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-md transition-all flex items-center gap-2"
-              >
-                <ShieldCheck className="w-4 h-4" />
-                <span>Simulate Council Approval (Admin)</span>
-              </Link>
-              <Link
                 href="/"
-                className="px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs transition-all"
+                className="px-6 py-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-md transition-all"
               >
                 Return to Homepage
               </Link>
@@ -416,27 +409,47 @@ export default function ApplicationPage() {
                     4. Endorsement Document & Submission
                   </h3>
 
-                  <div className="p-5 border-2 border-dashed border-slate-300 rounded-2xl bg-slate-50 text-center hover:bg-white hover:border-teal-500 transition-colors">
-                    <Upload className="w-8 h-8 text-teal-600 mx-auto mb-2" />
+                  <div className="relative p-6 border-2 border-dashed border-slate-300 rounded-2xl bg-slate-50 text-center hover:bg-white hover:border-teal-500 transition-colors group cursor-pointer">
+                    <input
+                      type="file"
+                      id="endorsement-upload"
+                      accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setFormData({ ...formData, endorsementFile: file.name });
+                        }
+                      }}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                    />
+                    <Upload className="w-8 h-8 text-teal-600 mx-auto mb-2 group-hover:scale-110 transition-transform" />
                     <h4 className="font-heading font-bold text-sm text-slate-900">
-                      Upload Institutional Endorsement Document
+                      {formData.endorsementFile ? "Change Endorsement Document" : "Upload Institutional Endorsement Document"}
                     </h4>
                     <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
                       Signed letter from Vice Chancellor, Principal, or Dean of Students affirming the SDA chapter. (PDF / JPEG up to 10MB)
                     </p>
-                    <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-700">
-                      <FileText className="w-4 h-4 text-amber-500" />
-                      <span>{formData.endorsementFile}</span>
-                    </div>
+                    {formData.endorsementFile ? (
+                      <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800">
+                        <FileText className="w-4 h-4 text-emerald-600" />
+                        <span>{formData.endorsementFile}</span>
+                      </div>
+                    ) : (
+                      <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-xs text-slate-500">
+                        <span>No file selected (Click or drag file here)</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Summary Check */}
                   <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1.5">
                     <span className="font-bold text-slate-900 block mb-1">Application Summary:</span>
-                    <p><strong>Institution:</strong> {formData.institutionName || "Technical University of Mombasa"} ({formData.sector})</p>
-                    <p><strong>Chapter:</strong> {formData.chapterName || "TUM SDA Chapter"}</p>
-                    <p><strong>Patron:</strong> {formData.patronName || "Pr. Eric Musembi"} ({formData.patronPhone || "+254 712 345 678"})</p>
-                    <p><strong>Officers:</strong> {formData.chairpersonName || "John Mwangi"} (Chair), {formData.treasurerName || "David Kiboi"} (Treas)</p>
+                    <p><strong>Institution:</strong> {formData.institutionName || "—"} ({formData.sector})</p>
+                    <p><strong>Chapter:</strong> {formData.chapterName || "—"}</p>
+                    <p><strong>Location:</strong> {formData.location || "—"}</p>
+                    <p><strong>Patron:</strong> {formData.patronName || "—"} ({formData.patronPhone || "—"})</p>
+                    <p><strong>Officers:</strong> {formData.chairpersonName || "—"} (Chair), {formData.treasurerName || "—"} (Treas)</p>
+                    <p><strong>Endorsement:</strong> {formData.endorsementFile || "Not uploaded"}</p>
                   </div>
 
                   <div className="flex items-start gap-2 pt-2">

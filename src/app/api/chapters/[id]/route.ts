@@ -79,8 +79,8 @@ export async function DELETE(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  // Deleting a chapter cascades through its entire history — super admin only
-  const { error } = await guardApi(["SUPER_ADMIN"]);
+  // Deleting a chapter cascades through its entire history — super admin or council member
+  const { error } = await guardApi(["SUPER_ADMIN", "COUNCIL_MEMBER"]);
   if (error) return error;
   try {
     const deleted = await deleteChapter(params.id);

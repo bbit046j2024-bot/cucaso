@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getApplications, createApplication, updateApplication } from "@/lib/db";
+import { getApplications, createApplication, updateApplication, deleteApplication } from "@/lib/db";
 import { guardApi } from "@/lib/auth";
 import { STAFF_ROLES } from "@/lib/roles";
 
@@ -50,3 +50,30 @@ export async function PATCH(request: Request) {
     );
   }
 }
+
+export async function DELETE(request: Request) {
+  const { error } = await guardApi(["SUPER_ADMIN", "COUNCIL_MEMBER"]);
+  if (error) return error;
+  try {
+    const { searchParams } = new URL(request.url);
+    let id = searchParams.get("id");
+    if (!id) {
+      const body = await request.json().catch(() => ({}));
+      id = body.id;
+    }
+    if (!id) {
+      return NextResponse.json({ success: false, error: "Missing application id" }, { status: 400 });
+    }
+    const success = await deleteApplication(id);
+    if (!success) {
+      return NextResponse.json({ success: false, error: "Application not found or could not be deleted" }, { status: 404 });
+    }
+    return NextResponse.json({ success: true, message: "Application deleted successfully" });
+  } catch (error) {
+    return NextResponse.json(
+      { success: false, error: "Failed to delete application" },
+      { status: 500 }
+    );
+  }
+}
+

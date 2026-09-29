@@ -125,8 +125,9 @@ export const SmsTemplates = {
     return `CUCASO Treasury: KES ${amountKes.toLocaleString()} received for ${chapterName}. Inv: ${invoiceNumber}. Ref: ${mpesaReceipt}. ${balanceStr}. Thank you!`;
   },
 
-  chapterApplicationApproved(contactName: string, institutionName: string): string {
-    return `Congratulations ${contactName}! The CUCASO Central Council has approved the chapter application for ${institutionName}. Welcome to the CUCASO family! Visit cucaso.org/login to access your portal.`;
+  chapterApplicationApproved(contactName: string, institutionName: string, tempPassword?: string): string {
+    const pwdStr = tempPassword ? ` Initial Password: ${tempPassword}.` : "";
+    return `Congratulations ${contactName}! The CUCASO Central Council has approved the chapter application for ${institutionName}.${pwdStr} Login at cucaso.org/login. Welcome to the CUCASO family!`;
   },
 
   prayerRequestConfirmation(name: string): string {

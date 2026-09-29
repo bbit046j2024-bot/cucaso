@@ -1495,6 +1495,24 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
     }
   };
 
+  // Handler: Delete Chapter Application from Council Queue
+  const handleDeleteApplication = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to delete the application for "${name}"?`)) return;
+    try {
+      const res = await fetch(`/api/applications?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        setAdminApplications((prev) => prev.filter((a) => a.id !== id));
+        setLocationToast(`Application for "${name}" deleted from queue.`);
+        setTimeout(() => setLocationToast(null), 4000);
+      } else {
+        alert(data.error || "Failed to delete application");
+      }
+    } catch (err) {
+      console.error("Delete application failed:", err);
+    }
+  };
+
   // Financial Records Refresher (Database Live Sync)
   const refreshInvoicesAndPayments = async () => {
     setInvoicesLoading(true);
@@ -6347,6 +6365,15 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                               </button>
                             </div>
                           )}
+
+                          <button
+                            onClick={() => handleDeleteApplication(app.id, app.institutionName)}
+                            className="p-2.5 rounded-xl bg-rose-50 text-rose-700 hover:bg-rose-100 hover:text-rose-800 transition-colors border border-rose-200 flex items-center gap-1.5 text-xs font-bold shadow-sm"
+                            title="Delete Application"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            <span>Delete</span>
+                          </button>
                         </div>
                       </div>
                     ))}

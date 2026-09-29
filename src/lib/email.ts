@@ -59,6 +59,48 @@ export async function sendEmail(options: EmailOptions): Promise<EmailResponse> {
 
     if (!res.ok) {
       console.error("Resend API error:", data);
+
+      // Resend trial mode only allows sending to the account owner's email
+      if (
+        (res.status === 422 || res.status === 403) &&
+        fromEmail.includes("resend.dev") &&
+        !recipients.includes("bbit046j2024@students.tum.ac.ke")
+      ) {
+        console.warn("[RESEND SANDBOX NOTICE] Forwarding copy to registered developer account bbit046j2024@students.tum.ac.ke");
+        try {
+          const fallbackRes = await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              from: fromEmail,
+              to: ["bbit046j2024@students.tum.ac.ke"],
+              subject: `[Dev Delivery for ${recipients.join(", ")}] ${options.subject}`,
+              html: `
+                <div style="background: #fef3c7; border: 1px solid #f59e0b; padding: 12px 16px; border-radius: 8px; margin-bottom: 20px; font-size: 13px; color: #92400e; font-family: sans-serif;">
+                  <strong>⚠️ Resend Sandbox Notice:</strong> Intended recipient: <code>${recipients.join(", ")}</code>.<br/>
+                  Because the sender is <code>${fromEmail}</code> (Resend free sandbox), Resend delivers test emails to your registered developer account (<code>bbit046j2024@students.tum.ac.ke</code>). Once a custom domain is verified at <a href="https://resend.com/domains">resend.com/domains</a>, it will deliver directly to the applicant.
+                </div>
+                ${options.html}
+              `,
+              text: options.text,
+            }),
+          });
+          const fbData = await fallbackRes.json();
+          if (fallbackRes.ok) {
+            return {
+              success: true,
+              messageId: fbData.id,
+              simulated: false,
+            };
+          }
+        } catch (fbErr) {
+          console.error("Fallback forward failed:", fbErr);
+        }
+      }
+
       return {
         success: false,
         error: data.message || "Failed to send email via Resend",
@@ -193,6 +235,8 @@ export const EmailTemplates = {
     contactName: string;
     institutionName: string;
     chapterCode: string;
+    loginEmail?: string;
+    tempPassword?: string;
   }): { subject: string; html: string } {
     const subject = `Welcome to CUCASO! Chapter Application Approved for ${params.institutionName}`;
 
@@ -212,6 +256,18 @@ export const EmailTemplates = {
           <span style="color: #64748b;">Status</span>
           <span class="badge">ACTIVE MEMBER</span>
         </div>
+        ${params.loginEmail ? `
+        <div class="receipt-row">
+          <span style="color: #64748b;">Login Portal Email</span>
+          <span style="font-weight: 700; color: #0a2540;">${params.loginEmail}</span>
+        </div>
+        ` : ""}
+        ${params.tempPassword ? `
+        <div class="receipt-row">
+          <span style="color: #64748b;">Initial Temporary Password</span>
+          <span style="font-family: monospace; font-weight: 800; color: #0284c7; background: #e0f2fe; padding: 2px 8px; border-radius: 4px;">${params.tempPassword}</span>
+        </div>
+        ` : ""}
       </div>
 
       <p>You can now log in to the Chapter Portal to register delegates for upcoming coastal rallies, access ministerial resources, and submit reports.</p>
@@ -219,6 +275,8 @@ export const EmailTemplates = {
       <div style="text-align: center; margin: 24px 0;">
         <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://cucaso.org"}/login" class="btn">Access Chapter Portal</a>
       </div>
+
+      <p style="font-size: 12px; color: #64748b;"><em>Note: For security reasons, please update your password after your initial login under Account Settings.</em></p>
       `
     );
 

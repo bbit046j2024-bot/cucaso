@@ -375,10 +375,23 @@ export async function deleteChapter(id: string): Promise<boolean> {
     await prisma.attendee.deleteMany({ where: { chapterId: id } });
     await prisma.invoice.deleteMany({ where: { chapterId: id } });
     await prisma.rallyChapterParticipation.deleteMany({ where: { chapterId: id } });
+    await prisma.user.updateMany({ where: { chapterId: id }, data: { chapterId: null } });
+    await prisma.application.updateMany({ where: { chapterId: id }, data: { chapterId: null } });
     await prisma.chapter.delete({ where: { id } });
     return true;
   } catch (err) {
     console.error("Delete chapter failed:", err);
+    return false;
+  }
+}
+
+export async function deleteApplication(id: string): Promise<boolean> {
+  try {
+    await prisma.councilVote.deleteMany({ where: { applicationId: id } });
+    await prisma.application.delete({ where: { id } });
+    return true;
+  } catch (err) {
+    console.error("Delete application failed:", err);
     return false;
   }
 }
@@ -1159,9 +1172,13 @@ export async function updateApplication(id: string, updates: Partial<ChapterAppl
   });
 
   if (updates.status === "APPROVED") {
-    const instExists = await prisma.institution.findFirst({ where: { name: existing.institutionName } });
-    if (!instExists) {
-      await createChapter({
+    // Check if chapter already exists for this application or name
+    let chapter = existing.chapterId
+      ? await prisma.chapter.findUnique({ where: { id: existing.chapterId } })
+      : await prisma.chapter.findFirst({ where: { name: existing.chapterName } });
+
+    if (!chapter) {
+      const createdChapter = await createChapter({
         institutionName: existing.institutionName,
         chapterName: existing.chapterName,
         type: existing.institutionType as any,
@@ -1178,6 +1195,69 @@ export async function updateApplication(id: string, updates: Partial<ChapterAppl
         coordinates: { lat: -4.0435, lng: 39.6682 },
         mapPosition: { top: 52, left: 44 },
       });
+      chapter = await prisma.chapter.findUnique({ where: { id: createdChapter.id } });
+      if (chapter) {
+        await prisma.application.update({
+          where: { id },
+          data: { chapterId: chapter.id },
+        });
+      }
+    }
+
+    // Provision User Account & Dispatch Email + SMS
+    const contactEmail = (existing.chairpersonEmail || existing.patronEmail || "").trim().toLowerCase();
+    const contactPhone = (existing.chairpersonPhone || existing.patronPhone || "").trim();
+    const contactName = existing.chairpersonName || existing.patronName || existing.institutionName;
+
+    if (contactEmail && chapter) {
+      try {
+        const tempPassword = "Cucaso" + Math.random().toString(36).substring(2, 6).toUpperCase() + "!" + Math.floor(100 + Math.random() * 900);
+        const { hashPassword } = await import("@/lib/auth");
+        const passwordHash = await hashPassword(tempPassword);
+
+        await prisma.user.upsert({
+          where: { email: contactEmail },
+          create: {
+            email: contactEmail,
+            name: contactName,
+            phone: contactPhone || null,
+            passwordHash,
+            role: "CHAPTER_REP",
+            chapterId: chapter.id,
+            isActive: true,
+          },
+          update: {
+            role: "CHAPTER_REP",
+            chapterId: chapter.id,
+            passwordHash,
+            isActive: true,
+          },
+        });
+
+        // Send Email with credentials
+        const { sendEmail, EmailTemplates } = await import("@/lib/email");
+        await sendEmail({
+          to: contactEmail,
+          ...EmailTemplates.chapterApproval({
+            contactName,
+            institutionName: existing.institutionName,
+            chapterCode: chapter.code,
+            loginEmail: contactEmail,
+            tempPassword,
+          }),
+        });
+
+        // Send SMS
+        if (contactPhone) {
+          const { sendSms, SmsTemplates } = await import("@/lib/sms");
+          await sendSms({
+            to: contactPhone,
+            message: SmsTemplates.chapterApplicationApproved(contactName, existing.institutionName, tempPassword),
+          });
+        }
+      } catch (provisionErr) {
+        console.error("[ONBOARDING] Automated user provisioning / notification error:", provisionErr);
+      }
     }
   }
 
