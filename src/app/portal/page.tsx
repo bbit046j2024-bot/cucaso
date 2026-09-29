@@ -336,6 +336,22 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordFeedback, setPasswordFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
+  // Change Email State (self-service + super-admin override)
+  const [sessionUser, setSessionUser] = useState<{ id: string; email: string; role: string; totpEnabled?: boolean } | null>(null);
+  const [emailTargetUserId, setEmailTargetUserId] = useState<string>("");
+  const [emailForm, setEmailForm] = useState({ newEmail: "", currentPassword: "" });
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailFeedback, setEmailFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // TOTP 2FA Enrollment State
+  const [totpStep, setTotpStep] = useState<"idle" | "setup" | "verify" | "enabled">("idle");
+  const [totpSetupData, setTotpSetupData] = useState<{ secret: string; uri: string } | null>(null);
+  const [totpTokenInput, setTotpTokenInput] = useState("");
+  const [totpLoading, setTotpLoading] = useState(false);
+  const [totpFeedback, setTotpFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [totpDisablePassword, setTotpDisablePassword] = useState("");
+  const [totpDisableLoading, setTotpDisableLoading] = useState(false);
+
   const [orgSettings, setOrgSettings] = useState({
     orgName: "Coastal Universities and Colleges Adventist Students Organization",
     acronym: "CUCASO",
@@ -801,6 +817,51 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
     }
   };
 
+  // Change Email CRUD (self-service + super-admin override)
+  const handleChangeEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEmailFeedback(null);
+
+    const newEmail = emailForm.newEmail.trim();
+    if (!newEmail) {
+      setEmailFeedback({ type: "error", text: "Enter a new email address." });
+      return;
+    }
+    const isSelf = !emailTargetUserId || emailTargetUserId === sessionUser?.id;
+    if (isSelf && !emailForm.currentPassword) {
+      setEmailFeedback({ type: "error", text: "Your current password is required to change your own email." });
+      return;
+    }
+
+    setEmailLoading(true);
+    try {
+      const res = await fetch("/api/auth/change-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          targetUserId: emailTargetUserId || undefined,
+          newEmail,
+          currentPassword: emailForm.currentPassword || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setEmailFeedback({ type: "success", text: `Email updated to ${newEmail}.` });
+        setLocationToast("Email address updated successfully!");
+        if (isSelf) setSessionUser(prev => (prev ? { ...prev, email: newEmail } : prev));
+        setUsersList(prev => prev.map(u => (u.id === (emailTargetUserId || sessionUser?.id) ? { ...u, email: newEmail } : u)));
+        setEmailForm({ newEmail: "", currentPassword: "" });
+        setTimeout(() => setLocationToast(null), 3000);
+      } else {
+        setEmailFeedback({ type: "error", text: data.error || "Failed to update email." });
+      }
+    } catch (err: any) {
+      setEmailFeedback({ type: "error", text: err.message || "Network error updating email." });
+    } finally {
+      setEmailLoading(false);
+    }
+  };
+
   // Admin System Settings CRUD
   const handleSaveOrgSettings = (e: React.FormEvent) => {
     e.preventDefault();
@@ -810,6 +871,91 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
       setLocationToast("Platform & Organization settings saved successfully!");
       setTimeout(() => setLocationToast(null), 3000);
     }, 600);
+  };
+
+  // ── TOTP 2FA Enrollment Handlers ──────────────────────────────────────────
+  const handleTotpSetup = async () => {
+    setTotpLoading(true);
+    setTotpFeedback(null);
+    try {
+      const res = await fetch("/api/auth/totp/setup", { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        setTotpSetupData(data.data);
+        setTotpStep("setup");
+      } else {
+        setTotpFeedback({ type: "error", text: data.error || "Failed to start TOTP setup." });
+      }
+    } catch (err: any) {
+      setTotpFeedback({ type: "error", text: err.message || "Network error." });
+    } finally {
+      setTotpLoading(false);
+    }
+  };
+
+  const handleTotpEnable = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!/^\d{6}$/.test(totpTokenInput.trim())) {
+      setTotpFeedback({ type: "error", text: "Enter the 6-digit code from your authenticator app." });
+      return;
+    }
+    setTotpLoading(true);
+    setTotpFeedback(null);
+    try {
+      const res = await fetch("/api/auth/totp/enable", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: totpTokenInput.trim() }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTotpStep("enabled");
+        setTotpFeedback({ type: "success", text: "Two-factor authentication is now active on your account." });
+        setSessionUser(prev => prev ? { ...prev, totpEnabled: true } : prev);
+        setTotpTokenInput("");
+        setTotpSetupData(null);
+        setLocationToast("Two-factor authentication enabled!");
+        setTimeout(() => setLocationToast(null), 3000);
+      } else {
+        setTotpFeedback({ type: "error", text: data.error || "Invalid code. Try again." });
+      }
+    } catch (err: any) {
+      setTotpFeedback({ type: "error", text: err.message || "Network error." });
+    } finally {
+      setTotpLoading(false);
+    }
+  };
+
+  const handleTotpDisable = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!totpDisablePassword) {
+      setTotpFeedback({ type: "error", text: "Enter your current password to disable 2FA." });
+      return;
+    }
+    setTotpDisableLoading(true);
+    setTotpFeedback(null);
+    try {
+      const res = await fetch("/api/auth/totp/disable", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword: totpDisablePassword }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTotpStep("idle");
+        setTotpFeedback({ type: "success", text: "Two-factor authentication has been disabled." });
+        setSessionUser(prev => prev ? { ...prev, totpEnabled: false } : prev);
+        setTotpDisablePassword("");
+        setLocationToast("Two-factor authentication disabled.");
+        setTimeout(() => setLocationToast(null), 3000);
+      } else {
+        setTotpFeedback({ type: "error", text: data.error || "Failed to disable 2FA." });
+      }
+    } catch (err: any) {
+      setTotpFeedback({ type: "error", text: err.message || "Network error." });
+    } finally {
+      setTotpDisableLoading(false);
+    }
   };
 
   const handleBroadcastNotification = async (e: React.FormEvent) => {
@@ -895,6 +1041,7 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
     phone: "",
     email: "",
     avatarUrl: "",
+    currentPassword: "",
   });
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [passwordToast, setPasswordToast] = useState<string | null>(null);
@@ -944,6 +1091,11 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
 
   // Fetch admin & users data from API
   useEffect(() => {
+    fetch("/api/auth/me")
+      .then(r => r.json())
+      .then(j => { if (j.isLoggedIn && j.user) setSessionUser({ id: j.user.id, email: j.user.email, role: j.user.role, totpEnabled: j.user.totpEnabled ?? false }); })
+      .catch(() => { });
+
     fetch("/api/users")
       .then(r => r.json())
       .then(j => { if (j.success && Array.isArray(j.data)) setUsersList(j.data); })
@@ -2104,7 +2256,33 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
   // Profile Edit Handler
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    const newEmail = profileForm.email.trim();
+    const emailChanged =
+      !!sessionUser && !!newEmail && newEmail.toLowerCase() !== sessionUser.email.toLowerCase();
+
+    if (emailChanged && !profileForm.currentPassword) {
+      setLocationToast("Enter your current password to change your email address.");
+      setTimeout(() => setLocationToast(null), 4000);
+      return;
+    }
+
     try {
+      if (emailChanged) {
+        const res = await fetch("/api/auth/change-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ newEmail, currentPassword: profileForm.currentPassword }),
+        });
+        const data = await res.json();
+        if (!data.success) {
+          setLocationToast(data.error || "Failed to update email address.");
+          setTimeout(() => setLocationToast(null), 4000);
+          return;
+        }
+        setSessionUser(prev => (prev ? { ...prev, email: newEmail } : prev));
+        setUsersList(prev => prev.map(u => (u.id === sessionUser?.id ? { ...u, email: newEmail } : u)));
+      }
+
       const updates: Partial<Chapter> = {
         repName: profileForm.name || currentChapter.repName,
         repPhone: profileForm.phone || currentChapter.repPhone,
@@ -2116,7 +2294,7 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
       });
       setChaptersList(prev => prev.map(c => c.id === currentChapter.id ? { ...c, ...updates } : c));
       setShowEditProfileModal(false);
-      setLocationToast("Profile details updated successfully!");
+      setLocationToast(emailChanged ? "Profile and email updated successfully!" : "Profile details updated successfully!");
       setTimeout(() => setLocationToast(null), 4000);
     } catch (err) {
       console.error("Profile save error:", err);
@@ -4589,8 +4767,9 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                           setProfileForm({
                             name: currentChapter.repName || "John Mwangi",
                             phone: currentChapter.repPhone || "+254 720 112 233",
-                            email: `${currentChapter.code.toLowerCase()}@cucaso.org`,
+                            email: sessionUser?.email || `${currentChapter.code.toLowerCase()}@cucaso.org`,
                             avatarUrl: "",
+                            currentPassword: "",
                           });
                           setShowEditProfileModal(true);
                         }}
@@ -9024,6 +9203,97 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                     </form>
                   </div>
 
+                  {/* CARD 2B: Change Email Address (self + super-admin override) */}
+                  <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-800 flex items-center justify-center font-bold">
+                          <Mail className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h3 className="font-heading font-bold text-sm text-navy-950">Change Email Address</h3>
+                          <p className="text-[11px] text-slate-400">Update your own login email, or reassign any account as super admin.</p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">
+                        {sessionUser?.role === "SUPER_ADMIN" ? "Admin Override" : "Self Service"}
+                      </span>
+                    </div>
+
+                    {emailFeedback && (
+                      <div
+                        className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+                          emailFeedback.type === "success"
+                            ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                            : "bg-rose-50 text-rose-800 border border-rose-200"
+                        }`}
+                      >
+                        {emailFeedback.type === "success" ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                        ) : (
+                          <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+                        )}
+                        <span>{emailFeedback.text}</span>
+                      </div>
+                    )}
+
+                    <form onSubmit={handleChangeEmail} className="space-y-3">
+                      {sessionUser?.role === "SUPER_ADMIN" && (
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1">Target Account</label>
+                          <select
+                            value={emailTargetUserId}
+                            onChange={(e) => setEmailTargetUserId(e.target.value)}
+                            className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-700"
+                          >
+                            <option value="">My own account ({sessionUser?.email})</option>
+                            {usersList.map((u) => (
+                              <option key={u.id} value={u.id}>
+                                {u.name} ({u.email}) — [{u.role}]
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 mb-1">New Email Address</label>
+                        <input
+                          type="email"
+                          required
+                          placeholder="name@example.com"
+                          value={emailForm.newEmail}
+                          onChange={(e) => setEmailForm({ ...emailForm, newEmail: e.target.value })}
+                          className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700"
+                        />
+                      </div>
+
+                      {(!emailTargetUserId || emailTargetUserId === sessionUser?.id) && (
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1">Current Password (to confirm it&apos;s you)</label>
+                          <input
+                            type="password"
+                            placeholder="Your current password"
+                            value={emailForm.currentPassword}
+                            onChange={(e) => setEmailForm({ ...emailForm, currentPassword: e.target.value })}
+                            className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-700"
+                          />
+                        </div>
+                      )}
+
+                      <div className="flex justify-end pt-2">
+                        <button
+                          type="submit"
+                          disabled={emailLoading}
+                          className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                        >
+                          <Mail className="w-3.5 h-3.5" />
+                          <span>{emailLoading ? "Updating..." : "Update Email"}</span>
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+
                   {/* CARD 3: Organization & Secretariat Settings (CRUD) */}
                   <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
                     <div className="flex items-center justify-between pb-3 border-b border-slate-100">
@@ -9171,6 +9441,151 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                         </button>
                       </div>
                     </form>
+                  </div>
+
+                  {/* CARD 5: Two-Factor Authentication (TOTP Enrollment) */}
+                  <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4 lg:col-span-2">
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-violet-100 text-violet-800 flex items-center justify-center font-bold">
+                          <ShieldCheck className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h3 className="font-heading font-bold text-sm text-navy-950">Two-Factor Authentication (TOTP)</h3>
+                          <p className="text-[11px] text-slate-400">Protect your admin account with a time-based one-time password (RFC 6238).</p>
+                        </div>
+                      </div>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        (sessionUser?.totpEnabled || totpStep === "enabled")
+                          ? "bg-emerald-100 text-emerald-800"
+                          : "bg-slate-100 text-slate-600"
+                      }`}>
+                        {(sessionUser?.totpEnabled || totpStep === "enabled") ? "2FA Enabled" : "2FA Disabled"}
+                      </span>
+                    </div>
+
+                    {totpFeedback && (
+                      <div className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+                        totpFeedback.type === "success"
+                          ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                          : "bg-rose-50 text-rose-800 border border-rose-200"
+                      }`}>
+                        {totpFeedback.type === "success"
+                          ? <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                          : <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0" />}
+                        <span>{totpFeedback.text}</span>
+                      </div>
+                    )}
+
+                    {/* ── Not yet enabled — show enroll button ── */}
+                    {!sessionUser?.totpEnabled && totpStep === "idle" && (
+                      <div className="space-y-3">
+                        <p className="text-xs text-slate-600">
+                          Your account does not have 2FA enabled. Click below to scan a QR code with Google Authenticator, Microsoft Authenticator, or any TOTP app.
+                        </p>
+                        <button
+                          onClick={handleTotpSetup}
+                          disabled={totpLoading}
+                          className="px-5 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs flex items-center gap-2 transition-colors disabled:opacity-50"
+                        >
+                          <QrCode className="w-3.5 h-3.5" />
+                          {totpLoading ? "Generating…" : "Set Up Two-Factor Authentication"}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* ── Setup step: show QR + secret ── */}
+                    {totpStep === "setup" && totpSetupData && (
+                      <div className="space-y-4">
+                        <p className="text-xs text-slate-600">
+                          Scan the QR code with your authenticator app, then enter the 6-digit code it shows to confirm enrollment.
+                        </p>
+                        {/* QR code rendered via Google Charts API — no extra package needed */}
+                        <div className="flex flex-col sm:flex-row gap-6 items-start">
+                          <div className="bg-white border-2 border-slate-200 rounded-2xl p-3 inline-block">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(totpSetupData.uri)}`}
+                              alt="TOTP QR Code — scan with your authenticator app"
+                              width={160}
+                              height={160}
+                              className="block"
+                            />
+                          </div>
+                          <div className="flex-1 space-y-3">
+                            <div>
+                              <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Manual Entry Secret</p>
+                              <code className="text-xs font-mono bg-slate-100 px-3 py-1.5 rounded-lg block break-all text-slate-800">
+                                {totpSetupData.secret}
+                              </code>
+                            </div>
+                            <form onSubmit={handleTotpEnable} className="space-y-3">
+                              <div>
+                                <label className="block text-[11px] font-bold text-slate-700 mb-1">6-Digit Code from App</label>
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  maxLength={6}
+                                  placeholder="e.g. 123456"
+                                  value={totpTokenInput}
+                                  onChange={(e) => setTotpTokenInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                                  className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500 font-mono tracking-widest"
+                                />
+                              </div>
+                              <div className="flex gap-2">
+                                <button
+                                  type="submit"
+                                  disabled={totpLoading || totpTokenInput.length !== 6}
+                                  className="px-5 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs flex items-center gap-2 transition-colors disabled:opacity-50"
+                                >
+                                  <ShieldCheck className="w-3.5 h-3.5" />
+                                  {totpLoading ? "Verifying…" : "Confirm & Enable 2FA"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => { setTotpStep("idle"); setTotpSetupData(null); setTotpTokenInput(""); setTotpFeedback(null); }}
+                                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </form>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ── 2FA already enabled — show disable option ── */}
+                    {(sessionUser?.totpEnabled || totpStep === "enabled") && totpStep !== "setup" && (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-50 border border-emerald-200">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                          <p className="text-xs font-semibold text-emerald-800">
+                            Two-factor authentication is active. Your account requires an authenticator code at every login.
+                          </p>
+                        </div>
+                        <form onSubmit={handleTotpDisable} className="space-y-3">
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-700 mb-1">Current Password (required to disable 2FA)</label>
+                            <input
+                              type="password"
+                              placeholder="Your current password"
+                              value={totpDisablePassword}
+                              onChange={(e) => setTotpDisablePassword(e.target.value)}
+                              className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                            />
+                          </div>
+                          <button
+                            type="submit"
+                            disabled={totpDisableLoading || !totpDisablePassword}
+                            className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center gap-2 transition-colors disabled:opacity-50"
+                          >
+                            <ShieldAlert className="w-3.5 h-3.5" />
+                            {totpDisableLoading ? "Disabling…" : "Disable Two-Factor Authentication"}
+                          </button>
+                        </form>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -9392,6 +9807,21 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                   />
                 </div>
               </div>
+
+              {sessionUser && profileForm.email.trim().toLowerCase() !== sessionUser.email.toLowerCase() && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Current Password <span className="text-rose-500">(required to change email)</span>
+                  </label>
+                  <input
+                    type="password"
+                    value={profileForm.currentPassword}
+                    onChange={(e) => setProfileForm(prev => ({ ...prev, currentPassword: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white"
+                    placeholder="••••••••"
+                  />
+                </div>
+              )}
 
               <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
                 <button

@@ -89,9 +89,9 @@ export async function verifyPassword(
 ): Promise<boolean> {
   try {
     const argon2 = await import("argon2");
-    return argon2.verify(hash, password);
-  } catch {
-    console.error("[AUTH] argon2 verify failed");
+    return await argon2.verify(hash, password);
+  } catch (err) {
+    console.error("[AUTH] argon2 verify failed:", err);
     return false;
   }
 }
