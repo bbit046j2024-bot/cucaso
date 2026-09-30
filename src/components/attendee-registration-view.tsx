@@ -31,6 +31,7 @@ import {
   Mail,
   QrCode,
   FileCheck,
+  Download,
 } from "lucide-react";
 
 interface AttendeeRegistrationViewProps {
@@ -54,10 +55,43 @@ function formatRallyDates(startIso?: string | null, endIso?: string | null): str
   return `${start.toLocaleDateString("en-KE", opts)} – ${end.toLocaleDateString("en-KE", opts)}`;
 }
 
+async function downloadPassAsPDF(elementId: string, filename: string) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  // Dynamically import to keep bundle lean
+  const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+    import("html2canvas"),
+    import("jspdf"),
+  ]);
+  const canvas = await html2canvas(el, {
+    scale: 3,                 // 3× = ~300 dpi — crisp on screen and print
+    useCORS: true,
+    backgroundColor: null,    // preserve transparent/gradient backgrounds
+    logging: false,
+  });
+  const imgData = canvas.toDataURL("image/png");
+  // A4 landscape fits the pass card well (297 × 210 mm)
+  const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  // Scale image to fit inside page with 10mm margin
+  const margin = 10;
+  const maxW = pageW - margin * 2;
+  const maxH = pageH - margin * 2;
+  const ratio = Math.min(maxW / canvas.width, maxH / canvas.height);
+  const imgW = canvas.width * ratio;
+  const imgH = canvas.height * ratio;
+  const x = (pageW - imgW) / 2;
+  const y = (pageH - imgH) / 2;
+  pdf.addImage(imgData, "PNG", x, y, imgW, imgH);
+  pdf.save(filename);
+}
+
 export function AttendeeRegistrationView({ chapterCode }: AttendeeRegistrationViewProps) {
   const [chapters, setChapters] = useState<Chapter[]>(MEMBER_CHAPTERS);
   const [selectedChapterId, setSelectedChapterId] = useState<string>("");
   const [checkingId, setCheckingId] = useState("");
+  const [downloadingPDF, setDownloadingPDF] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
   const [checkResult, setCheckResult] = useState<{
     performed: boolean;
@@ -306,7 +340,7 @@ export function AttendeeRegistrationView({ chapterCode }: AttendeeRegistrationVi
               </div>
 
               {/* Digital Pass Card */}
-              <div className="relative rounded-3xl overflow-hidden border-2 border-dashed border-teal-500 bg-gradient-to-br from-navy-950 via-slate-900 to-navy-900 text-white p-6 sm:p-8 shadow-xl">
+              <div id="rally-pass-card" className="relative rounded-3xl overflow-hidden border-2 border-dashed border-teal-500 bg-gradient-to-br from-navy-950 via-slate-900 to-navy-900 text-white p-6 sm:p-8 shadow-xl">
                 <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
                   <QrCode className="w-48 h-48 text-white" />
                 </div>
@@ -368,11 +402,34 @@ export function AttendeeRegistrationView({ chapterCode }: AttendeeRegistrationVi
               {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
                 <button
-                  onClick={() => window.print()}
-                  className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-navy-900 hover:bg-navy-800 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition"
+                  disabled={downloadingPDF}
+                  onClick={async () => {
+                    setDownloadingPDF(true);
+                    try {
+                      await downloadPassAsPDF(
+                        "rally-pass-card",
+                        `CUCASO-Pass-${registeredAttendee.fullName.replace(/\s+/g, "-")}.pdf`
+                      );
+                    } finally {
+                      setDownloadingPDF(false);
+                    }
+                  }}
+                  className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-navy-900 hover:bg-navy-800 disabled:opacity-60 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition"
                 >
-                  <Printer className="w-4 h-4 text-amber-400" />
-                  <span>Print or Save Pass (PDF)</span>
+                  {downloadingPDF ? (
+                    <>
+                      <svg className="w-4 h-4 animate-spin text-amber-400" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                      </svg>
+                      <span>Generating PDF…</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4 text-amber-400" />
+                      <span>Download Pass (PDF)</span>
+                    </>
+                  )}
                 </button>
                 <button
                   onClick={() => {

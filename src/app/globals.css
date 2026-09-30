@@ -57,41 +57,71 @@
   animation: border-beam var(--duration) infinite linear;
 }
 
-/* ─── Print / Save-PDF Styles ─── */
+/* ─── Print / Save-PDF Styles ──────────────────────────────────────────────
+   These rules apply ONLY when the user prints a document page (Terms,
+   Privacy Policy, Support) directly from the browser.
+   Pass cards and invoices use printHtml() which opens a separate popup
+   window — they are NOT affected by these rules.
+─────────────────────────────────────────────────────────────────────────── */
 @media print {
-  /* Hide everything by default */
-  body > * {
-    display: none !important;
-  }
-
-  /* Show only the print-pass root */
-  #print-pass-root {
-    display: block !important;
-    position: fixed;
-    inset: 0;
-    background: white;
-    padding: 0;
-    margin: 0;
-    z-index: 9999;
-  }
-
-  /* Force all descendants visible */
-  #print-pass-root * {
-    visibility: visible !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-    color-adjust: exact !important;
-  }
-
-  /* Remove browser chrome */
-  @page {
-    margin: 12mm 10mm;
-    size: A4 portrait;
-  }
-
-  /* Ensure backgrounds print */
+  /* Ensure backgrounds / colours survive printing */
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
+
+  /* Page setup */
+  @page {
+    margin: 16mm 18mm;
+    size: A4 portrait;
+  }
+
+  /* Hide UI chrome — navbar, footer, buttons, sidebars */
+  nav,
+  header,
+  footer,
+  aside,
+  [data-print-hide],
+  button,
+  .no-print {
+    display: none !important;
+  }
+
+  /* Let main content flow naturally */
+  body {
+    background: #fff !important;
+    color: #0f172a !important;
+    font-size: 12pt;
+  }
+
+  main {
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Force dark hero sections to print as light on document pages */
+  section[class*="bg-navy"],
+  section[class*="bg-slate-9"],
+  section[class*="bg-gradient"] {
+    background: #f8fafc !important;
+    color: #0f172a !important;
+  }
+
+  /* Avoid page-breaks inside paragraphs / list items */
+  p, li, h2, h3, h4 { page-break-inside: avoid; }
+  h1, h2, h3 { page-break-after: avoid; }
+
+  /* Show page URL at the bottom */
+  body::after {
+    content: "CUCASO — " attr(data-doc-title) " — " counter(page);
+    display: block;
+    text-align: center;
+    font-size: 9pt;
+    color: #94a3b8;
+    margin-top: 24pt;
+    border-top: 1px solid #e2e8f0;
+    padding-top: 8pt;
+  }
 }
+
