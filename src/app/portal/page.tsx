@@ -90,7 +90,8 @@ import {
   EyeOff,
   Send,
   Film,
-  Music2
+  Music2,
+  Loader2
 } from "lucide-react";
 import { AdminSermonsTab } from "@/components/admin/sermons-tab";
 
@@ -162,6 +163,85 @@ function PortalContent() {
   const [mapSelectedChapterId, setMapSelectedChapterId] = useState<string>("ch-tum");
   const [showAddChapterModal, setShowAddChapterModal] = useState(false);
   const [locationToast, setLocationToast] = useState<string | null>(null);
+
+  // Chapter Configuration Editor State (allows admin to edit institution type, capability tier, name, contacts)
+  const [editingConfigChapter, setEditingConfigChapter] = useState<Chapter | null>(null);
+  const [chapterConfigForm, setChapterConfigForm] = useState({
+    institutionName: "",
+    chapterName: "",
+    type: "UNIVERSITY" as Chapter["type"],
+    sector: "PUBLIC" as Chapter["sector"],
+    tierId: "TIER_1",
+    location: "",
+    status: "APPROVED" as Chapter["status"],
+    approximateMembers: 100,
+    patronName: "",
+    patronPhone: "",
+    patronEmail: "",
+    repName: "",
+    repPhone: "",
+  });
+  const [savingChapterConfig, setSavingChapterConfig] = useState(false);
+
+  const openEditChapterConfig = (ch: Chapter) => {
+    setEditingConfigChapter(ch);
+    setChapterConfigForm({
+      institutionName: ch.institutionName || "",
+      chapterName: ch.chapterName || "",
+      type: ch.type || "COLLEGE",
+      sector: ch.sector || "PUBLIC",
+      tierId: ch.tierId || "TIER_1",
+      location: ch.location || "",
+      status: ch.status || "APPROVED",
+      approximateMembers: ch.approximateMembers || 0,
+      patronName: ch.patronName || "",
+      patronPhone: ch.patronPhone || "",
+      patronEmail: ch.patronEmail || "",
+      repName: ch.repName || "",
+      repPhone: ch.repPhone || "",
+    });
+  };
+
+  const handleSaveChapterConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingConfigChapter) return;
+    setSavingChapterConfig(true);
+    try {
+      const res = await fetch(`/api/chapters/${editingConfigChapter.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          institutionName: chapterConfigForm.institutionName,
+          chapterName: chapterConfigForm.chapterName,
+          type: chapterConfigForm.type,
+          sector: chapterConfigForm.sector,
+          tierId: chapterConfigForm.tierId,
+          location: chapterConfigForm.location,
+          status: chapterConfigForm.status,
+          approximateMembers: Number(chapterConfigForm.approximateMembers) || 0,
+          patronName: chapterConfigForm.patronName,
+          patronPhone: chapterConfigForm.patronPhone,
+          patronEmail: chapterConfigForm.patronEmail,
+          repName: chapterConfigForm.repName,
+          repPhone: chapterConfigForm.repPhone,
+        }),
+      });
+      const json = await res.json();
+      if (json.success && json.data) {
+        setChaptersList((prev) =>
+          prev.map((c) => (c.id === editingConfigChapter.id ? { ...c, ...json.data } : c))
+        );
+        setLocationToast(`Chapter "${chapterConfigForm.institutionName}" configured successfully!`);
+        setEditingConfigChapter(null);
+      } else {
+        alert(json.error || "Failed to update chapter configuration");
+      }
+    } catch (err: any) {
+      alert(err.message || "Failed to update chapter configuration");
+    } finally {
+      setSavingChapterConfig(false);
+    }
+  };
 
   // Fetch live chapters from API
   useEffect(() => {
@@ -277,10 +357,10 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
     code: "",
     institutionName: "",
     chapterName: "",
-    type: "COLLEGE" as "UNIVERSITY" | "COLLEGE" | "SECONDARY" | "PRIMARY" | "OTHER",
+    type: "UNIVERSITY" as "UNIVERSITY" | "COLLEGE" | "SECONDARY" | "PRIMARY" | "OTHER",
     sector: "PUBLIC" as "PUBLIC" | "PRIVATE",
     location: "Mombasa Island",
-    tierId: "TIER_3",
+    tierId: "TIER_1",
     approximateMembers: 150,
     attendeesCount: 0,
     // Representative
@@ -2726,7 +2806,7 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                   <Building2 className="w-4 h-4" />
                   <span className="flex-1 text-left">Chapter Management</span>
                   <span className="px-1.5 py-0.5 rounded-full bg-amber-400 text-navy-950 text-[10px] font-bold">
-                    {adminApplications.filter(a => a.status === "UNDER_REVIEW").length}
+                    {chaptersList.length}
                   </span>
                 </button>
 
@@ -6430,9 +6510,14 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                                 <span className="text-[11px] text-slate-500">{ch.chapterName}</span>
                               </td>
                               <td className="py-3.5 px-4">
-                                <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-bold text-[10px]">
-                                  {ch.type} • {ch.sector}
-                                </span>
+                                <div className="flex flex-col gap-1 items-start">
+                                  <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-bold text-[10px]">
+                                    {ch.type} • {ch.sector}
+                                  </span>
+                                  <span className="px-2 py-0.5 rounded bg-teal-50 text-teal-800 border border-teal-200 font-bold text-[10px]">
+                                    {CAPABILITY_TIERS.find(t => t.id === ch.tierId)?.name || ch.tierId || "Tier 1"}
+                                  </span>
+                                </div>
                               </td>
                               <td className="py-3.5 px-4">
                                 <span className="font-semibold text-slate-900 block flex items-center gap-1">
@@ -6456,6 +6541,13 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                               </td>
                               <td className="py-3.5 px-4 text-center">
                                 <div className="flex items-center justify-center gap-1.5">
+                                  <button
+                                    onClick={() => openEditChapterConfig(ch)}
+                                    className="p-1.5 rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
+                                    title="Edit Chapter Details, Type & Capability Tier"
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5" />
+                                  </button>
                                   <button
                                     onClick={() => {
                                       setEditingChapter(ch);
@@ -6541,12 +6633,26 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                             </div>
                           ) : (
                             <div className="flex items-center gap-2">
+                              <select
+                                id={`tier-select-${app.id}`}
+                                defaultValue={app.type === "UNIVERSITY" ? "TIER_1" : app.type === "COLLEGE" ? "TIER_2" : "TIER_3"}
+                                className="px-2.5 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                              >
+                                <option value="TIER_1">Tier 1 (Major Univ)</option>
+                                <option value="TIER_2">Tier 2 (Mid Univ/Medical)</option>
+                                <option value="TIER_3">Tier 3 (Technical/Poly)</option>
+                                <option value="TIER_4">Tier 4 (Secondary)</option>
+                              </select>
                               <button
-                                onClick={() => handleApproveChapter(app.id, "TIER_3")}
+                                onClick={() => {
+                                  const selectEl = document.getElementById(`tier-select-${app.id}`) as HTMLSelectElement;
+                                  const chosenTier = selectEl ? selectEl.value : (app.type === "UNIVERSITY" ? "TIER_1" : "TIER_2");
+                                  handleApproveChapter(app.id, chosenTier);
+                                }}
                                 className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm"
                               >
                                 <Check className="w-3.5 h-3.5" />
-                                <span>Vote Approve (Tier 3)</span>
+                                <span>Vote Approve</span>
                               </button>
                               <button
                                 onClick={() => alert("Request for additional endorsement sent to chapter applicant.")}
@@ -6633,13 +6739,17 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                             <label className="block font-bold text-slate-700 mb-1">Institution Type</label>
                             <select
                               value={newChapterForm.type}
-                              onChange={(e) => setNewChapterForm({ ...newChapterForm, type: e.target.value as any })}
+                              onChange={(e) => {
+                                const newType = e.target.value as any;
+                                const suggestedTier = newType === "UNIVERSITY" ? "TIER_1" : newType === "COLLEGE" ? "TIER_2" : newType === "SECONDARY" ? "TIER_4" : "TIER_3";
+                                setNewChapterForm({ ...newChapterForm, type: newType, tierId: suggestedTier });
+                              }}
                               className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none"
                             >
-                              <option value="UNIVERSITY">University</option>
-                              <option value="COLLEGE">College / Polytechnic</option>
-                              <option value="SECONDARY">Secondary School</option>
-                              <option value="PRIMARY">Primary / Early</option>
+                              <option value="UNIVERSITY">University (Tier 1 default)</option>
+                              <option value="COLLEGE">Medical College / Polytechnic (Tier 2/3)</option>
+                              <option value="SECONDARY">Secondary School (Tier 4)</option>
+                              <option value="PRIMARY">Primary / Early (Tier 4)</option>
                             </select>
                           </div>
 
@@ -6930,6 +7040,241 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                             className="px-6 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold shadow-md"
                           >
                             Save Chapter & Pin to Map
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                )}
+
+                {/* MODAL: EDIT CHAPTER CONFIGURATION & TIER */}
+                {editingConfigChapter && (
+                  <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+                    <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-slate-100 my-8 animate-in fade-in zoom-in-95 duration-150">
+                      <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="px-2.5 py-0.5 rounded-full bg-teal-50 text-teal-800 font-mono font-bold text-xs">
+                              {editingConfigChapter.code}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 font-bold text-[10px]">
+                              {chapterConfigForm.type}
+                            </span>
+                          </div>
+                          <h2 className="text-xl font-heading font-black text-navy-950 mt-1">
+                            Configure Chapter &amp; Capability Tier
+                          </h2>
+                          <p className="text-xs text-slate-500">
+                            Update institutional classification, tier weighting, leadership, and accreditation.
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => setEditingConfigChapter(null)}
+                          className="p-2 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+
+                      <form onSubmit={handleSaveChapterConfig} className="mt-5 space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1">Institution Name *</label>
+                            <input
+                              type="text"
+                              required
+                              value={chapterConfigForm.institutionName}
+                              onChange={(e) => setChapterConfigForm({ ...chapterConfigForm, institutionName: e.target.value })}
+                              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1">Chapter Fellowship Name *</label>
+                            <input
+                              type="text"
+                              required
+                              value={chapterConfigForm.chapterName}
+                              onChange={(e) => setChapterConfigForm({ ...chapterConfigForm, chapterName: e.target.value })}
+                              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Classification & Tier Selection */}
+                        <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-2xl space-y-3">
+                          <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                            Classification &amp; Fee Weighting
+                          </h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-bold text-slate-700 mb-1">Institution Type</label>
+                              <select
+                                value={chapterConfigForm.type}
+                                onChange={(e) => {
+                                  const newType = e.target.value as Chapter["type"];
+                                  const suggestedTier =
+                                    newType === "UNIVERSITY" ? "TIER_1" :
+                                    newType === "COLLEGE" ? "TIER_2" :
+                                    newType === "SECONDARY" ? "TIER_4" : "TIER_3";
+                                  setChapterConfigForm({
+                                    ...chapterConfigForm,
+                                    type: newType,
+                                    tierId: suggestedTier,
+                                  });
+                                }}
+                                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                              >
+                                <option value="UNIVERSITY">University (Major Degree-granting)</option>
+                                <option value="COLLEGE">College / Medical College / Polytechnic</option>
+                                <option value="SECONDARY">Secondary School / High School</option>
+                                <option value="PRIMARY">Primary / Early</option>
+                                <option value="OTHER">Other Tertiary</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-bold text-teal-800 mb-1">
+                                Capability Tier *
+                              </label>
+                              <select
+                                value={chapterConfigForm.tierId}
+                                onChange={(e) => setChapterConfigForm({ ...chapterConfigForm, tierId: e.target.value })}
+                                className="w-full px-3 py-2 bg-white border border-teal-400 rounded-xl text-xs font-bold text-teal-950 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                              >
+                                <option value="TIER_1">Tier 1 — Major University (2.0x weight)</option>
+                                <option value="TIER_2">Tier 2 — Mid University &amp; Medical Colleges (1.5x weight)</option>
+                                <option value="TIER_3">Tier 3 — Technical Colleges &amp; Polytechnics (1.0x weight)</option>
+                                <option value="TIER_4">Tier 4 — Secondary Schools &amp; Early Chapters (0.5x weight)</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                            <div>
+                              <label className="block text-xs font-bold text-slate-700 mb-1">Sector</label>
+                              <select
+                                value={chapterConfigForm.sector}
+                                onChange={(e) => setChapterConfigForm({ ...chapterConfigForm, sector: e.target.value as any })}
+                                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-800"
+                              >
+                                <option value="PUBLIC">Public</option>
+                                <option value="PRIVATE">Private</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-bold text-slate-700 mb-1">Accreditation Status</label>
+                              <select
+                                value={chapterConfigForm.status}
+                                onChange={(e) => setChapterConfigForm({ ...chapterConfigForm, status: e.target.value as any })}
+                                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800"
+                              >
+                                <option value="APPROVED">Approved (Accredited)</option>
+                                <option value="PENDING">Pending Review</option>
+                                <option value="PROBATIONARY">Probationary</option>
+                                <option value="SUSPENDED">Suspended</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-bold text-slate-700 mb-1">Est. Members</label>
+                              <input
+                                type="number"
+                                value={chapterConfigForm.approximateMembers}
+                                onChange={(e) => setChapterConfigForm({ ...chapterConfigForm, approximateMembers: Number(e.target.value) })}
+                                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Location */}
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1">Campus Location String</label>
+                          <input
+                            type="text"
+                            value={chapterConfigForm.location}
+                            onChange={(e) => setChapterConfigForm({ ...chapterConfigForm, location: e.target.value })}
+                            placeholder="e.g. Kilifi Town, Kilifi County"
+                            className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900"
+                          />
+                        </div>
+
+                        {/* Leadership Contacts */}
+                        <div className="space-y-3 pt-1">
+                          <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                            Leadership Contacts
+                          </h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-bold text-slate-700 mb-1">Representative Name</label>
+                              <input
+                                type="text"
+                                value={chapterConfigForm.repName}
+                                onChange={(e) => setChapterConfigForm({ ...chapterConfigForm, repName: e.target.value })}
+                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-slate-700 mb-1">Representative Phone</label>
+                              <input
+                                type="tel"
+                                value={chapterConfigForm.repPhone}
+                                onChange={(e) => setChapterConfigForm({ ...chapterConfigForm, repPhone: e.target.value })}
+                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div>
+                              <label className="block text-xs font-bold text-slate-700 mb-1">Patron / Chaplain Name</label>
+                              <input
+                                type="text"
+                                value={chapterConfigForm.patronName}
+                                onChange={(e) => setChapterConfigForm({ ...chapterConfigForm, patronName: e.target.value })}
+                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-slate-700 mb-1">Patron Phone</label>
+                              <input
+                                type="tel"
+                                value={chapterConfigForm.patronPhone}
+                                onChange={(e) => setChapterConfigForm({ ...chapterConfigForm, patronPhone: e.target.value })}
+                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-slate-700 mb-1">Patron Email</label>
+                              <input
+                                type="email"
+                                value={chapterConfigForm.patronEmail}
+                                onChange={(e) => setChapterConfigForm({ ...chapterConfigForm, patronEmail: e.target.value })}
+                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Modal Action Buttons */}
+                        <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2.5">
+                          <button
+                            type="button"
+                            onClick={() => setEditingConfigChapter(null)}
+                            className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-xs hover:bg-slate-50"
+                            disabled={savingChapterConfig}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={savingChapterConfig}
+                            className="px-6 py-2.5 rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs shadow-md shadow-teal-700/20 flex items-center gap-2"
+                          >
+                            {savingChapterConfig && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                            <span>Save Configuration</span>
                           </button>
                         </div>
                       </form>

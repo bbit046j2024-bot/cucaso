@@ -206,8 +206,9 @@ export default function NewsPage() {
                   const catCfg = getCatConfig(item.category);
                   const dateStr = item.publishedAt || item.createdAt;
                   return (
-                    <article
+                    <Link
                       key={item.id}
+                      href={`/news/${item.slug}`}
                       className="bg-white rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col justify-between group"
                     >
                       {/* Featured image */}
@@ -263,7 +264,7 @@ export default function NewsPage() {
                           </span>
                         </span>
                       </div>
-                    </article>
+                    </Link>
                   );
                 })}
               </div>

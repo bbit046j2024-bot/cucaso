@@ -2542,172 +2542,113 @@ export async function deleteUser(id: string): Promise<boolean> {
 
 // ─── NEWS & CMS ─────────────────────────────────────────────────────────────
 
-let IN_MEMORY_NEWS: NewsPost[] = [
-  {
-    id: "news-1",
-    slug: "q1-2026-spiritual-rally-venue",
-    category: "ANNOUNCEMENT",
-    title: "Administration Council Finalizes Q1 2026 Coastal Spiritual Rally Venue",
-    summary: "Delegates from 12 member chapters will convene at Technical University of Mombasa (TUM) for an unforgettable weekend of faith, prayer, and choral ministry.",
-    content: "The Executive Council is delighted to announce that after careful venue inspection and prayerful consideration, Technical University of Mombasa has been selected as the official host venue for the upcoming rally.",
-    contentHtml: "<p>The Executive Council is delighted to announce that after careful venue inspection and prayerful consideration, Technical University of Mombasa has been selected as the official host venue for the upcoming rally.</p>",
-    publishedAt: "2026-09-18",
-    createdAt: "2026-09-18",
-    author: "Secretariat & Comms Office",
-    status: "PUBLISHED",
+function mapCmsPost(p: any): NewsPost {
+  return {
+    id: p.id,
+    slug: p.slug,
+    title: p.title,
+    summary: p.summary ?? undefined,
+    content: p.contentHtml,
+    contentHtml: p.contentHtml,
+    category: p.category,
+    featuredImageUrl: p.featuredImageUrl ?? undefined,
+    altText: p.altText ?? undefined,
+    status: p.status,
+    author: p.authorUserId || "Council Admin",
+    authorUserId: p.authorUserId ?? undefined,
+    publishedAt: p.publishedAt
+      ? (p.publishedAt instanceof Date ? p.publishedAt.toISOString().split("T")[0] : String(p.publishedAt).split("T")[0])
+      : undefined,
+    createdAt: p.createdAt
+      ? (p.createdAt instanceof Date ? p.createdAt.toISOString().split("T")[0] : String(p.createdAt).split("T")[0])
+      : undefined,
     readTime: "3 min read",
-  },
-  {
-    id: "news-2",
-    slug: "capability-weighted-capitation-framework",
-    category: "FINANCE",
-    title: "Central Treasury Publishes Capability-Weighted Capitation Framework",
-    summary: "In accordance with PRD Section 6, the capability cost engine has been ratified to ensure fair financial sharing between large universities and technical institutes.",
-    content: "The newly adopted tiered capitation framework guarantees that all chapters contribute proportionally to their institutional strength, eliminating unfair head-tax barriers.",
-    contentHtml: "<p>The newly adopted tiered capitation framework guarantees that all chapters contribute proportionally to their institutional strength, eliminating unfair head-tax barriers.</p>",
-    publishedAt: "2026-09-12",
-    createdAt: "2026-09-12",
-    author: "Central Treasurer",
-    status: "PUBLISHED",
-    readTime: "4 min read",
-  },
-  {
-    id: "news-3",
-    slug: "pastoral-letter-academic-pressures",
-    category: "SPIRITUAL",
-    title: "Pastoral Letter: Anchored in Faith Amidst Academic Pressures",
-    summary: "A heartfelt message from the CUCASO Chaplaincy to all tertiary students preparing for continuous assessment tests and end-of-semester examinations.",
-    content: "As exams approach across our coastal campuses, remember that your worth is found in Christ. Strive for academic excellence while keeping Sabbath holy.",
-    contentHtml: "<p>As exams approach across our coastal campuses, remember that your worth is found in Christ. Strive for academic excellence while keeping Sabbath holy.</p>",
-    publishedAt: "2026-09-05",
-    createdAt: "2026-09-05",
-    author: "Pastor Eric Musembi (Patron & Chaplain)",
-    status: "PUBLISHED",
-    readTime: "5 min read",
-  },
-  {
-    id: "news-4",
-    slug: "pwani-medical-camp-kilifi",
-    category: "STORY",
-    title: "Pwani University Chapter Holds Successful Medical Camp in Kilifi",
-    summary: "Over 350 residents received free blood pressure screenings, optical checks, and Christian literature through joint student volunteer efforts.",
-    content: "Student health volunteers from Pwani University spent Sunday morning providing medical checkups to the local community in Kilifi town.",
-    contentHtml: "<p>Student health volunteers from Pwani University spent Sunday morning providing medical checkups to the local community in Kilifi town.</p>",
-    publishedAt: "2026-08-28",
-    createdAt: "2026-08-28",
-    author: "Pwani SDA Comms Secretary",
-    status: "PUBLISHED",
-    readTime: "3 min read",
-  }
-];
+  };
+}
 
 export async function getNewsPosts(): Promise<NewsPost[]> {
   try {
     const posts = await prisma.cmsPost.findMany({
       orderBy: { createdAt: "desc" },
     });
-    if (posts.length > 0) {
-      return posts.map(p => ({
-        id: p.id,
-        slug: p.slug,
-        title: p.title,
-        summary: p.summary ?? undefined,
-        content: p.contentHtml,
-        contentHtml: p.contentHtml,
-        category: p.category,
-        featuredImageUrl: p.featuredImageUrl ?? undefined,
-        altText: p.altText ?? undefined,
-        status: p.status,
-        author: p.authorUserId || "Council Admin",
-        publishedAt: p.publishedAt ? p.publishedAt.toISOString().split("T")[0] : undefined,
-        createdAt: p.createdAt ? p.createdAt.toISOString().split("T")[0] : undefined,
-      }));
-    }
+    return posts.map(mapCmsPost);
   } catch (e) {
-    console.warn("Prisma cmsPost fetch error, using in-memory store:", e);
+    console.error("Prisma cmsPost fetch error:", e);
+    return [];
   }
-  return IN_MEMORY_NEWS;
 }
 
 export async function createNewsPost(data: Partial<NewsPost>): Promise<NewsPost> {
-  const slug = data.slug || (data.title || "post").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") + "-" + Date.now().toString(36);
-  const newPost: NewsPost = {
-    id: `post-${Date.now().toString(36)}`,
-    slug,
-    title: data.title || "Untitled Announcement",
-    summary: data.summary || "",
-    content: data.content || data.contentHtml || "",
-    contentHtml: data.contentHtml || data.content || "",
-    category: (data.category as any) || "NEWS",
-    featuredImageUrl: data.featuredImageUrl,
-    status: data.status || "PUBLISHED",
-    author: data.author || "Council Admin",
-    publishedAt: data.publishedAt || new Date().toISOString().split("T")[0],
-    createdAt: new Date().toISOString().split("T")[0],
-    readTime: data.readTime || "3 min read",
-  };
+  const slug =
+    data.slug ||
+    (data.title || "post")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "") +
+      "-" +
+      Date.now().toString(36);
 
-  try {
-    const validCategories = ["NEWS", "ANNOUNCEMENT", "STORY", "DEVOTIONAL", "TESTIMONY"];
-    const cat = validCategories.includes(newPost.category) ? (newPost.category as any) : "NEWS";
-    const created = await prisma.cmsPost.create({
-      data: {
-        slug: newPost.slug,
-        title: newPost.title,
-        summary: newPost.summary ?? null,
-        contentHtml: newPost.content || "",
-        category: cat,
-        featuredImageUrl: newPost.featuredImageUrl ?? null,
-        status: (newPost.status === "PUBLISHED" ? "PUBLISHED" : "DRAFT") as any,
-        authorUserId: newPost.author,
-        publishedAt: new Date(),
-      },
-    });
-    newPost.id = created.id;
-  } catch (e) {
-    console.warn("Prisma cmsPost create error, saved in-memory:", e);
-  }
+  const validCategories = ["NEWS", "ANNOUNCEMENT", "STORY", "DEVOTIONAL", "TESTIMONY", "FINANCE", "SPIRITUAL"];
+  const cat =
+    data.category && validCategories.includes(data.category.toUpperCase())
+      ? (data.category.toUpperCase() as any)
+      : "NEWS";
 
-  IN_MEMORY_NEWS = [newPost, ...IN_MEMORY_NEWS];
-  return newPost;
+  const created = await prisma.cmsPost.create({
+    data: {
+      slug,
+      title: data.title || "Untitled Announcement",
+      summary: data.summary ?? null,
+      contentHtml: data.contentHtml || data.content || "",
+      category: cat,
+      featuredImageUrl: data.featuredImageUrl ?? null,
+      altText: data.altText ?? null,
+      status: (data.status === "PUBLISHED" ? "PUBLISHED" : data.status === "ARCHIVED" ? "ARCHIVED" : "DRAFT") as any,
+      authorUserId: data.author || "Council Admin",
+      publishedAt: data.status === "PUBLISHED" ? new Date() : null,
+    },
+  });
+
+  return mapCmsPost(created);
 }
 
 export async function updateNewsPost(id: string, updates: Partial<NewsPost>): Promise<NewsPost | null> {
   try {
-    await prisma.cmsPost.update({
+    const validCategories = ["NEWS", "ANNOUNCEMENT", "STORY", "DEVOTIONAL", "TESTIMONY", "FINANCE", "SPIRITUAL"];
+    const cat =
+      updates.category && validCategories.includes(updates.category.toUpperCase())
+        ? (updates.category.toUpperCase() as any)
+        : undefined;
+
+    const updated = await prisma.cmsPost.update({
       where: { id },
       data: {
-        ...(updates.title ? { title: updates.title } : {}),
+        ...(updates.title !== undefined ? { title: updates.title } : {}),
         ...(updates.summary !== undefined ? { summary: updates.summary } : {}),
-        ...(updates.content || updates.contentHtml ? { contentHtml: updates.content || updates.contentHtml } : {}),
+        ...(updates.content || updates.contentHtml ? { contentHtml: updates.contentHtml || updates.content } : {}),
+        ...(cat !== undefined ? { category: cat } : {}),
         ...(updates.featuredImageUrl !== undefined ? { featuredImageUrl: updates.featuredImageUrl } : {}),
-        ...(updates.status ? { status: updates.status as any } : {}),
+        ...(updates.altText !== undefined ? { altText: updates.altText } : {}),
+        ...(updates.status !== undefined ? { status: updates.status as any } : {}),
+        ...(updates.author !== undefined ? { authorUserId: updates.author } : {}),
       },
     });
-  } catch (e) {
-    console.warn("Prisma cmsPost update error:", e);
-  }
 
-  const idx = IN_MEMORY_NEWS.findIndex(p => p.id === id);
-  if (idx !== -1) {
-    IN_MEMORY_NEWS[idx] = { ...IN_MEMORY_NEWS[idx], ...updates };
-    return IN_MEMORY_NEWS[idx];
+    return mapCmsPost(updated);
+  } catch (e) {
+    console.error("Prisma cmsPost update error:", e);
+    return null;
   }
-  return null;
 }
 
 export async function deleteNewsPost(id: string): Promise<boolean> {
-  // deleteMany avoids P2025 when item only exists in memory (not yet persisted to DB)
   try {
-    await prisma.cmsPost.deleteMany({ where: { id } });
+    const res = await prisma.cmsPost.deleteMany({ where: { id } });
+    return res.count > 0;
   } catch (e: any) {
-    if (e?.code !== "P2025") {
-      console.warn("Prisma cmsPost delete error:", e);
-    }
+    console.error("Prisma cmsPost delete error:", e);
+    return false;
   }
-  const prevLen = IN_MEMORY_NEWS.length;
-  IN_MEMORY_NEWS = IN_MEMORY_NEWS.filter(p => p.id !== id);
-  return IN_MEMORY_NEWS.length < prevLen;
 }
 
 // ─── DOCUMENTS & RESOURCES ───────────────────────────────────────────────────

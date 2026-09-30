@@ -3,7 +3,7 @@ import { getChapterById, updateChapter, deleteChapter } from "@/lib/db";
 import { guardApi, apiForbidden } from "@/lib/auth";
 import { STAFF_WRITE_ROLES, CHAPTER_ROLES, isChapterRole } from "@/lib/roles";
 
-const TIER_MANAGERS = ["SUPER_ADMIN", "COUNCIL_MEMBER"];
+const TIER_MANAGERS: readonly string[] = STAFF_WRITE_ROLES;
 
 // Fields a chapter may never change about itself; tier and status are
 // reserved for the council roles in TIER_MANAGERS.

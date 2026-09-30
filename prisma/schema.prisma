@@ -145,6 +145,8 @@ enum CmsPostCategory {
   STORY
   DEVOTIONAL
   TESTIMONY
+  FINANCE
+  SPIRITUAL
 }
 
 enum JobStatus {

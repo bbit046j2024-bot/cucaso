@@ -55,7 +55,6 @@ export function Navbar() {
 
   // Secondary items in the "More" desktop dropdown
   const moreLinks = [
-    { href: "/sermons", label: "Sermons & Songs", icon: Music2, desc: "Rally messages and worship music" },
     { href: "/alumni", label: "Alumni Network", icon: GraduationCap, desc: "Mentorship & associate membership" },
     { href: "/partners", label: "Partners & Supporters", icon: HeartHandshake, desc: "Church & institutional sponsors" },
     { href: "/support", label: "Donate / Support", icon: Heart, desc: "Sponsor student rallies & missions" },

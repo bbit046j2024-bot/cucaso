@@ -144,14 +144,30 @@ export default function ResourcesPage() {
 
       <main className="flex-1">
         {/* Header */}
-        <section className="bg-navy-950 text-white py-16 md:py-20 relative overflow-hidden">
+        <section className="relative overflow-hidden text-white py-16 md:py-24 bg-navy-950 flex items-center min-h-[320px]">
+          {/* Background image */}
+          <div
+            className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+            style={{
+              backgroundImage: "url('https://images.hopesoftware.org/resize/L3c6MTkyMCxxOjc1L2hvcGUtaW1hZ2VzLzY3MDU0MDEzYTYwOTE5YzkyZDkyYzk1OS9CdE4xNzQ3Mzc5OTc3MjQwLmpwZw/w:1920,q:75/hope-images/67054013a60919c92d92c959/BtN1747379977240.jpg')",
+            }}
+          />
+          {/* Dark gradient overlay for optimal contrast & readability */}
+          <div className="absolute inset-0 bg-gradient-to-r from-navy-950/95 via-navy-950/90 to-navy-950/80" />
           <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#14B8A6_1px,transparent_1px)] [background-size:16px_16px]" />
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-teal-500/15 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute bottom-0 left-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 w-full">
             <div className="max-w-3xl">
-              <h1 className="font-heading font-black text-4xl sm:text-5xl text-white mt-4 mb-4">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-500/20 text-teal-300 border border-teal-500/30 text-xs font-semibold uppercase tracking-wider mb-3">
+                <Sparkles className="w-3.5 h-3.5 text-teal-400" />
+                CUCASO Resource Vault
+              </div>
+              <h1 className="font-heading font-black text-4xl sm:text-5xl text-white mb-4">
                 Spiritual Resources &amp; Document Centre
               </h1>
-              <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
+              <p className="text-slate-200 text-sm sm:text-base leading-relaxed">
                 Empowering Adventist students across the Coast with authoritative Bible study guides,
                 official constitutional policies, and a dedicated pastoral prayer network.
               </p>
