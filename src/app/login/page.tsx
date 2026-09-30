@@ -23,7 +23,6 @@ const STAFF_ROLES = [
   "SECRETARY",
   "CHAPLAIN",
   "COMMUNICATIONS_DIRECTOR",
-  "OBSERVER",
 ];
 
 interface LoggedInUser {

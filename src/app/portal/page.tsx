@@ -15,6 +15,7 @@ import {
 import type { Invoice, Payment, ChapterApplication, AuditLogEntry, Attendee } from "@/types";
 import { calculateCapabilityFees } from "@/lib/cost-engine";
 import { formatCurrency, normalizeGoogleImageUrl, isGoogleAlbumOrFolder, getAlbumTypeLabel } from "@/lib/utils";
+import { isStaffRole, isChapterRole } from "@/lib/roles";
 import {
   LayoutDashboard,
   Building2,
@@ -92,12 +93,21 @@ import {
 
 function PortalContent() {
   const searchParams = useSearchParams();
+  const modeParam = searchParams.get("mode");
+  const chapterParam = searchParams.get("chapter");
 
-  // Mode: derived exclusively from the authenticated user's role (not user-switchable)
-  const [activePortal, setActivePortal] = useState<"CHAPTER" | "ADMIN">("CHAPTER");
+  // Track session authentication state
+  const [sessionLoading, setSessionLoading] = useState(true);
 
-  // Chapter Portal selected chapter — auto-set from session, never user-switchable
-  const [selectedChapterId, setSelectedChapterId] = useState<string>("ch-tum");
+  // Mode: initialized from URL param if available, then confirmed by session
+  const [activePortal, setActivePortal] = useState<"CHAPTER" | "ADMIN">(
+    modeParam === "ADMIN" ? "ADMIN" : "CHAPTER"
+  );
+
+  // Chapter Portal selected chapter — auto-set from URL param or authenticated session
+  const [selectedChapterId, setSelectedChapterId] = useState<string>(
+    chapterParam || ""
+  );
   const [chapterActiveTab, setChapterActiveTab] = useState<
     "dashboard" | "my-chapter" | "attendees" | "payments" | "rally-info" | "gallery" | "documents" | "news" | "notifications" | "profile"
   >("dashboard");
@@ -169,8 +179,11 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
     );
   }, [paymentsList, selectedChapterId, currentInvoice, currentChapter]);
 
-  // Fetch real invoices and payments from API
+  // Fetch real invoices and payments from API only when session is confirmed
   useEffect(() => {
+    if (sessionLoading) return;
+    if (activePortal === "CHAPTER" && !selectedChapterId) return;
+
     setInvoicesLoading(true);
     setPaymentsLoading(true);
     fetch("/api/invoices")
@@ -183,21 +196,21 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
       .then(j => { if (j.success && Array.isArray(j.data)) setPaymentsList(j.data); })
       .catch(() => { })
       .finally(() => setPaymentsLoading(false));
-  }, [selectedChapterId]);
+  }, [selectedChapterId, sessionLoading, activePortal]);
 
-  // Attendees — fetched from API, filtered by chapter
+  // Attendees — fetched from API, filtered by chapter (gated on session)
   const [attendeesList, setAttendeesList] = useState<Attendee[]>([]);
   const [attendeesLoading, setAttendeesLoading] = useState(false);
 
   useEffect(() => {
-    if (!selectedChapterId) return;
+    if (sessionLoading || !selectedChapterId) return;
     setAttendeesLoading(true);
     fetch(`/api/attendees?chapterId=${selectedChapterId}`)
       .then(r => r.json())
       .then(j => { if (j.success) setAttendeesList(j.data); })
       .catch(() => { })
       .finally(() => setAttendeesLoading(false));
-  }, [selectedChapterId]);
+  }, [selectedChapterId, sessionLoading]);
   const [attendeeSearch, setAttendeeSearch] = useState("");
   const [showAddAttendeeModal, setShowAddAttendeeModal] = useState(false);
   const [newAttendee, setNewAttendee] = useState({
@@ -1060,16 +1073,30 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
         if (j.isLoggedIn && j.user) {
           const u = j.user;
           setSessionUser({ id: u.id, email: u.email, role: u.role, chapterId: u.chapterId ?? null, totpEnabled: u.totpEnabled ?? false });
-          // Derive portal from role — each user only ever sees their own dashboard
-          const isAdmin = ["SUPER_ADMIN", "ADMIN", "CENTRAL_TREASURER", "SECRETARY", "COMMUNICATIONS_DIRECTOR", "OBSERVER"].includes(u.role);
+          // Derive portal strictly from verified staff roles (including COUNCIL_MEMBER, CHAPLAIN, etc.)
+          const isAdmin = isStaffRole(u.role);
           setActivePortal(isAdmin ? "ADMIN" : "CHAPTER");
-          // For chapter users, lock the selected chapter to their own
-          if (!isAdmin && u.chapterId) {
-            setSelectedChapterId(u.chapterId);
+          if (isAdmin) {
+            if (chapterParam) {
+              setSelectedChapterId(chapterParam);
+            } else if (u.chapterId) {
+              setSelectedChapterId(u.chapterId);
+            }
+          } else {
+            // For chapter users, lock the selected chapter strictly to their assigned chapter
+            if (u.chapterId) {
+              setSelectedChapterId(u.chapterId);
+            }
           }
+        } else {
+          // Unauthenticated: redirect safely to login
+          window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`;
         }
       })
-      .catch(() => { });
+      .catch(() => { })
+      .finally(() => {
+        setSessionLoading(false);
+      });
 
     fetch("/api/users")
       .then(r => r.json())
@@ -1118,10 +1145,20 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
       .catch(() => { });
   }, []);
 
+  // Periodic live background check for announcements and notifications
+  useEffect(() => {
+    if (sessionLoading) return;
+    fetchNotifications();
+    const notifInterval = setInterval(() => {
+      fetchNotifications();
+    }, 20000);
+    return () => clearInterval(notifInterval);
+  }, [sessionLoading, chapterActiveTab, adminActiveTab]);
+
   // Load admin-level data once sessionUser resolves as an admin
   useEffect(() => {
     if (!sessionUser) return;
-    const isAdmin = ["SUPER_ADMIN", "ADMIN", "CENTRAL_TREASURER", "SECRETARY", "COMMUNICATIONS_DIRECTOR", "OBSERVER"].includes(sessionUser.role);
+    const isAdmin = isStaffRole(sessionUser.role);
     if (!isAdmin) return;
     fetch("/api/applications")
       .then(r => r.json())
@@ -1825,9 +1862,6 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
     } else if (user.role === "COMMUNICATIONS_DIRECTOR") {
       setAdminActiveTab("rallies");
       setLocationToast(`Viewing ${user.name}'s area: Communications Director`);
-    } else if (user.role === "OBSERVER") {
-      setAdminActiveTab("reports");
-      setLocationToast(`Viewing ${user.name}'s area: Read-Only Observer`);
     } else {
       setAdminActiveTab("overview");
       setLocationToast(`Viewing ${user.name}'s area: ${user.roleTitle || "Administrator"}`);
@@ -2345,6 +2379,29 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
       reader.readAsDataURL(file);
     });
   };
+
+  if (sessionLoading) {
+    return (
+      <div className="h-screen bg-navy-950 flex flex-col items-center justify-center text-white antialiased">
+        <div className="flex flex-col items-center space-y-4 max-w-sm text-center px-4 animate-in fade-in duration-200">
+          <div className="w-14 h-14 rounded-2xl bg-teal-500/10 border border-teal-500/30 flex items-center justify-center shadow-lg">
+            <ShieldCheck className="w-8 h-8 text-teal-400 animate-pulse" />
+          </div>
+          <div className="space-y-1">
+            <h2 className="text-base font-bold tracking-tight text-white font-heading">
+              Verifying CUCASO Workspace
+            </h2>
+            <p className="text-xs text-slate-400">
+              Securing session permissions and initializing your authorized portal...
+            </p>
+          </div>
+          <div className="w-36 h-1 bg-navy-900 rounded-full overflow-hidden">
+            <div className="w-full h-full bg-teal-500 animate-pulse" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen bg-slate-100 flex flex-col antialiased overflow-hidden">
@@ -8715,7 +8772,6 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                     { roleKey: "SECRETARY", role: "Organization Secretary", desc: "Chapter onboarding queue, document management, and attendee master roster.", color: "border-blue-500 bg-blue-50", badge: "bg-blue-600 text-white", icon: FileText },
                     { roleKey: "COMMUNICATIONS_DIRECTOR", role: "Communication Director", desc: "Notifications dispatch, gallery uploads, and public website content management.", color: "border-purple-500 bg-purple-50", badge: "bg-purple-600 text-white", icon: Bell },
                     { roleKey: "CHAPTER_REP", role: "Chapter Representative", desc: "Chapter-scoped portal: their own attendees, invoice view, and rally information.", color: "border-slate-300 bg-slate-50", badge: "bg-slate-700 text-white", icon: Building2 },
-                    { roleKey: "OBSERVER", role: "Read-Only Observer", desc: "View-only access to approved reports and chapter lists for ex-officio council members.", color: "border-slate-200 bg-white", badge: "bg-slate-400 text-white", icon: User },
                   ].map((item) => {
                     const count = usersList.filter(u => u.role === item.roleKey).length;
                     const isSelected = selectedRoleFilter === item.roleKey;
@@ -8826,7 +8882,6 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                                   <option value="SECRETARY">Organization Secretary</option>
                                   <option value="COMMUNICATIONS_DIRECTOR">Communication Director</option>
                                   <option value="CHAPTER_REP">Chapter Representative</option>
-                                  <option value="OBSERVER">Read-Only Observer</option>
                                 </select>
                               </td>
                               <td className="py-3 px-3">
@@ -10430,7 +10485,6 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                   <option value="CENTRAL_TREASURER">Council Treasurer</option>
                   <option value="SECRETARY">Organization Secretary</option>
                   <option value="COMMUNICATIONS_DIRECTOR">Communication Director</option>
-                  <option value="OBSERVER">Read-Only Observer</option>
                 </select>
               </div>
 

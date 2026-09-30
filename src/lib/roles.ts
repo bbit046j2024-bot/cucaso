@@ -17,10 +17,9 @@ export const STAFF_ROLES = [
   ...TOTP_ROLES,
   "CHAPLAIN",
   "COMMUNICATIONS_DIRECTOR",
-  "OBSERVER",
 ] as const;
 
-/** Staff roles allowed to mutate data — OBSERVER is read-only */
+/** Staff roles allowed to mutate data */
 export const STAFF_WRITE_ROLES = [
   "SUPER_ADMIN",
   "COUNCIL_MEMBER",

@@ -1174,6 +1174,28 @@ export async function createApplication(appData: Partial<ChapterApplication>): P
     }
   }
 
+  // Confirm receipt to the applicant by Email
+  const applicantEmail = (created.chairpersonEmail || created.patronEmail || "").trim();
+  if (applicantEmail) {
+    try {
+      const { sendEmail, EmailTemplates } = await import("@/lib/email");
+      const emailResult = await sendEmail({
+        to: applicantEmail,
+        ...EmailTemplates.chapterApplicationReceived({
+          applicantName,
+          institutionName: created.institutionName,
+          chapterName: created.chapterName || undefined,
+          referenceNumber: `CUCASO-APP-${created.id.slice(-6).toUpperCase()}`,
+        }),
+      });
+      if (!emailResult.success) {
+        console.warn(`[ONBOARDING] Application receipt email to ${applicantEmail} failed: ${emailResult.error}`);
+      }
+    } catch (emailErr) {
+      console.error("[ONBOARDING] Application receipt email error:", emailErr);
+    }
+  }
+
   return mapApplication(created);
 }
 
@@ -2315,12 +2337,12 @@ let IN_MEMORY_USERS: UserAccount[] = [
   {
     id: "usr-9",
     name: "Elder Joshua Ndungu",
-    email: "observer1@adventist.or.ke",
+    email: "council1@adventist.or.ke",
     phone: "+254 756 789012",
-    role: "OBSERVER",
-    roleTitle: "Read-Only Observer (Coast Field)",
+    role: "COUNCIL_MEMBER",
+    roleTitle: "Council Member (Coast Field)",
     status: "ACTIVE",
-    totpEnabled: false,
+    totpEnabled: true,
     lastActive: "Yesterday",
   },
   {

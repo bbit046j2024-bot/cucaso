@@ -2,7 +2,7 @@
  * /portal/admin — Admin-only dashboard entry point.
  *
  * Access is enforced by middleware.ts for SUPER_ADMIN, COUNCIL_MEMBER,
- * CENTRAL_TREASURER, SECRETARY, COMMUNICATIONS_DIRECTOR, and OBSERVER roles.
+ * CENTRAL_TREASURER, SECRETARY, and COMMUNICATIONS_DIRECTOR roles.
  *
  * This page redirects to the unified portal with ?mode=ADMIN so all admin
  * sections are loaded correctly from within the portal shell.

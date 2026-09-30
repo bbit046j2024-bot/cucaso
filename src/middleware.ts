@@ -46,6 +46,16 @@ export async function middleware(req: NextRequest) {
     return redirectToLogin();
   }
 
+  if (isStaff) {
+    const missingMode =
+      pathname === "/portal" && !req.nextUrl.searchParams.get("mode");
+    if (missingMode) {
+      const url = new URL("/portal", req.url);
+      url.searchParams.set("mode", "ADMIN");
+      return NextResponse.redirect(url);
+    }
+  }
+
   if (isChapter) {
     const wantsAdmin =
       pathname.startsWith("/portal/admin") ||

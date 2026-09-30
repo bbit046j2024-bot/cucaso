@@ -282,4 +282,63 @@ export const EmailTemplates = {
 
     return { subject, html };
   },
+
+  chapterApplicationReceived(params: {
+    applicantName: string;
+    institutionName: string;
+    chapterName?: string;
+    referenceNumber?: string;
+  }): { subject: string; html: string } {
+    const subject = `Application Received: ${params.institutionName} — CUCASO Chapter Accreditation`;
+
+    const html = wrapCucasoEmail(
+      subject,
+      `
+      <div style="text-align: center; margin-bottom: 20px;">
+        <span class="badge" style="background-color: #fef3c7; color: #92400e; border-color: #fde68a;">UNDER REVIEW</span>
+        <h2 style="color: #0a2540; margin: 12px 0 4px 0; font-size: 24px; font-weight: 800;">Chapter Application Received</h2>
+        <p style="margin: 0; color: #64748b;">Your application to join the Coastal Universities and Colleges Adventist Students Organization has been submitted.</p>
+      </div>
+
+      <p>Dear <strong>${params.applicantName}</strong>,</p>
+      <p>Thank you for submitting the chapter accreditation application for <strong>${params.institutionName}</strong> (${params.chapterName || "Seventh-day Adventist Chapter"}). The CUCASO Secretariat and Central Administration Council have received your details.</p>
+
+      <div class="receipt-box">
+        <div class="receipt-row">
+          <span style="color: #64748b;">Institution</span>
+          <span style="font-weight: 700; color: #0a2540;">${params.institutionName}</span>
+        </div>
+        <div class="receipt-row">
+          <span style="color: #64748b;">Chapter Name</span>
+          <span style="font-weight: 600; color: #0f172a;">${params.chapterName || "SDA Chapter"}</span>
+        </div>
+        <div class="receipt-row">
+          <span style="color: #64748b;">Review Status</span>
+          <span style="font-weight: 700; color: #d97706;">QUEUED FOR COUNCIL REVIEW</span>
+        </div>
+        ${params.referenceNumber ? `
+        <div class="receipt-row">
+          <span style="color: #64748b;">Reference</span>
+          <span style="font-family: monospace; font-weight: 700; color: #0284c7;">${params.referenceNumber}</span>
+        </div>
+        ` : ""}
+      </div>
+
+      <h3 style="color: #0a2540; font-size: 15px; margin: 20px 0 8px 0;">What happens next?</h3>
+      <ol style="padding-left: 20px; color: #475569; font-size: 13px; line-height: 1.8;">
+        <li>The CUCASO Central Council reviews institutional endorsement documents and assigns your Capability Tier.</li>
+        <li>Upon approval, you will receive an official notification via SMS and Email with your <strong>Chapter Code</strong> and <strong>Portal Login Credentials</strong>.</li>
+        <li>Your chapter leadership can then access the Chapter Portal to register delegates, coordinate logistics, and download resources for coastal rallies.</li>
+      </ol>
+
+      <div style="text-align: center; margin-top: 24px;">
+        <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://cucaso.org"}" class="btn">Visit CUCASO Platform</a>
+      </div>
+
+      <p style="font-size: 12px; color: #94a3b8; margin-top: 24px;">If you have any questions or need assistance, contact the Secretariat at <a href="mailto:secretariat@cucaso.org" style="color: #00a389;">secretariat@cucaso.org</a>.</p>
+      `
+    );
+
+    return { subject, html };
+  },
 };
