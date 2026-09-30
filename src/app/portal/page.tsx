@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useState, useMemo, useEffect, useCallback, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { BrandLogo } from "@/components/brand-logo";
@@ -93,8 +93,20 @@ import {
 
 function PortalContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const modeParam = searchParams.get("mode");
   const chapterParam = searchParams.get("chapter");
+
+  // Helper for admins to switch which chapter portal they're viewing.
+  // Updates state + URL + sessionStorage atomically so a refresh never loses context.
+  const selectChapterForAdmin = useCallback((chapterId: string, userId?: string) => {
+    setSelectedChapterId(chapterId);
+    if (userId) {
+      try { sessionStorage.setItem(`cucaso_active_chapter_${userId}`, chapterId); } catch {}
+    }
+    // Update the URL so refreshing lands on the same chapter
+    router.replace(`/portal?mode=CHAPTER&chapter=${chapterId}`, { scroll: false });
+  }, [router]);
 
   // Track session authentication state
   const [sessionLoading, setSessionLoading] = useState(true);
@@ -104,10 +116,30 @@ function PortalContent() {
     modeParam === "ADMIN" ? "ADMIN" : "CHAPTER"
   );
 
-  // Chapter Portal selected chapter — auto-set from URL param or authenticated session
+  // Chapter Portal selected chapter.
+  // Priority: URL param > sessionStorage (persisted per-user) > session.chapterId
+  // IMPORTANT: Never default to chaptersList[0] — that caused the KMTC→TUM bug.
   const [selectedChapterId, setSelectedChapterId] = useState<string>(
     chapterParam || ""
   );
+
+  // Persist chapter selection to sessionStorage keyed by userId
+  const persistChapterSelection = (userId: string, chapterId: string) => {
+    try {
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem(`cucaso_active_chapter_${userId}`, chapterId);
+      }
+    } catch {}
+  };
+
+  const restoreChapterSelection = (userId: string): string | null => {
+    try {
+      if (typeof window !== "undefined") {
+        return sessionStorage.getItem(`cucaso_active_chapter_${userId}`);
+      }
+    } catch {}
+    return null;
+  };
   const [chapterActiveTab, setChapterActiveTab] = useState<
     "dashboard" | "my-chapter" | "attendees" | "payments" | "rally-info" | "gallery" | "documents" | "news" | "notifications" | "profile"
   >("dashboard");
@@ -156,8 +188,11 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
 };
 
   // Chapter state data
+  // SECURITY: Never fall back to chaptersList[0] — always return the placeholder
+  // until a verified selectedChapterId is set from the authenticated session.
   const currentChapter = useMemo(() => {
-    return chaptersList.find((c) => c.id === selectedChapterId) || chaptersList[0] || DEFAULT_CHAPTER_PLACEHOLDER;
+    if (!selectedChapterId) return DEFAULT_CHAPTER_PLACEHOLDER;
+    return chaptersList.find((c) => c.id === selectedChapterId) || DEFAULT_CHAPTER_PLACEHOLDER;
   }, [chaptersList, selectedChapterId]);
 
   const [invoicesList, setInvoicesList] = useState<Invoice[]>([]);
@@ -245,10 +280,23 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
     tierId: "TIER_3",
     approximateMembers: 150,
     attendeesCount: 0,
-    patronName: "",
-    patronPhone: "",
+    // Representative
     repName: "",
+    repEmail: "",
     repPhone: "",
+    // Patron / Chaplain
+    patronName: "",
+    patronEmail: "",
+    patronPhone: "",
+    // Other Leadership (Optional)
+    treasurerName: "",
+    treasurerPhone: "",
+    secretaryName: "",
+    secretaryPhone: "",
+    // Credentials
+    initialPassword: "",
+    sendCredentials: true,
+    // Geo
     lat: -4.0435,
     lng: 39.6682,
     top: 50,
@@ -311,7 +359,7 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
   const [passwordFeedback, setPasswordFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Change Email State (self-service + super-admin override)
-  const [sessionUser, setSessionUser] = useState<{ id: string; email: string; role: string; chapterId?: string | null; totpEnabled?: boolean } | null>(null);
+  const [sessionUser, setSessionUser] = useState<{ id: string; email: string; name?: string; phone?: string; role: string; chapterId?: string | null; totpEnabled?: boolean } | null>(null);
   const [emailTargetUserId, setEmailTargetUserId] = useState<string>("");
   const [emailForm, setEmailForm] = useState({ newEmail: "", currentPassword: "" });
   const [emailLoading, setEmailLoading] = useState(false);
@@ -1017,6 +1065,7 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
     avatarUrl: "",
     currentPassword: "",
   });
+  const [savingProfile, setSavingProfile] = useState(false);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [passwordToast, setPasswordToast] = useState<string | null>(null);
   const [showLeadershipModal, setShowLeadershipModal] = useState(false);
@@ -1072,20 +1121,43 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
       .then(j => {
         if (j.isLoggedIn && j.user) {
           const u = j.user;
-          setSessionUser({ id: u.id, email: u.email, role: u.role, chapterId: u.chapterId ?? null, totpEnabled: u.totpEnabled ?? false });
+          setSessionUser({
+            id: u.id,
+            email: u.email,
+            name: u.name,
+            phone: u.phone,
+            role: u.role,
+            chapterId: u.chapterId ?? null,
+            totpEnabled: u.totpEnabled ?? false,
+          });
           // Derive portal strictly from verified staff roles (including COUNCIL_MEMBER, CHAPLAIN, etc.)
           const isAdmin = isStaffRole(u.role);
           setActivePortal(isAdmin ? "ADMIN" : "CHAPTER");
+
           if (isAdmin) {
+            // Admin: URL param wins → then sessionStorage restore → then user's own chapterId
             if (chapterParam) {
               setSelectedChapterId(chapterParam);
-            } else if (u.chapterId) {
-              setSelectedChapterId(u.chapterId);
+              persistChapterSelection(u.id, chapterParam);
+            } else {
+              const restored = restoreChapterSelection(u.id);
+              if (restored) {
+                setSelectedChapterId(restored);
+              } else if (u.chapterId) {
+                setSelectedChapterId(u.chapterId);
+                persistChapterSelection(u.id, u.chapterId);
+              }
+              // If no chapterId at all, leave empty — admin sees overview, not a chapter
             }
           } else {
-            // For chapter users, lock the selected chapter strictly to their assigned chapter
+            // Chapter rep: ALWAYS lock to their own session.chapterId — never override
             if (u.chapterId) {
               setSelectedChapterId(u.chapterId);
+              persistChapterSelection(u.id, u.chapterId);
+            } else {
+              // Chapter user without a chapterId — send to login
+              window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+              return;
             }
           }
         } else {
@@ -1461,7 +1533,7 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
   const handleCreateChapter = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const payload: Partial<Chapter> = {
+      const payload = {
         code: newChapterForm.code || `CHP-${chaptersList.length + 1}`,
         institutionName: newChapterForm.institutionName,
         chapterName: newChapterForm.chapterName,
@@ -1472,10 +1544,23 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
         tierId: newChapterForm.tierId,
         approximateMembers: Number(newChapterForm.approximateMembers),
         attendeesCount: Number(newChapterForm.attendeesCount),
-        patronName: newChapterForm.patronName,
-        patronPhone: newChapterForm.patronPhone,
+        // Representative
         repName: newChapterForm.repName,
+        repEmail: newChapterForm.repEmail,
         repPhone: newChapterForm.repPhone,
+        // Patron
+        patronName: newChapterForm.patronName,
+        patronEmail: newChapterForm.patronEmail,
+        patronPhone: newChapterForm.patronPhone,
+        // Other leadership
+        treasurerName: newChapterForm.treasurerName,
+        treasurerPhone: newChapterForm.treasurerPhone,
+        secretaryName: newChapterForm.secretaryName,
+        secretaryPhone: newChapterForm.secretaryPhone,
+        // Credentials
+        initialPassword: newChapterForm.initialPassword || undefined,
+        sendCredentials: newChapterForm.sendCredentials,
+        // Geo
         coordinates: { lat: Number(newChapterForm.lat), lng: Number(newChapterForm.lng) },
         mapPosition: { top: Number(newChapterForm.top), left: Number(newChapterForm.left) },
       };
@@ -1499,10 +1584,18 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
           tierId: "TIER_3",
           approximateMembers: 150,
           attendeesCount: 0,
-          patronName: "",
-          patronPhone: "",
           repName: "",
+          repEmail: "",
           repPhone: "",
+          patronName: "",
+          patronEmail: "",
+          patronPhone: "",
+          treasurerName: "",
+          treasurerPhone: "",
+          secretaryName: "",
+          secretaryPhone: "",
+          initialPassword: "",
+          sendCredentials: true,
           lat: -4.0435,
           lng: 39.6682,
           top: 50,
@@ -2276,7 +2369,7 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
     e.preventDefault();
     const newEmail = profileForm.email.trim();
     const emailChanged =
-      !!sessionUser && !!newEmail && newEmail.toLowerCase() !== sessionUser.email.toLowerCase();
+      !!sessionUser?.email && !!newEmail && newEmail.toLowerCase() !== sessionUser.email.toLowerCase();
 
     if (emailChanged && !profileForm.currentPassword) {
       setLocationToast("Enter your current password to change your email address.");
@@ -2284,38 +2377,62 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
       return;
     }
 
+    setSavingProfile(true);
     try {
-      if (emailChanged) {
-        const res = await fetch("/api/auth/change-email", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ newEmail, currentPassword: profileForm.currentPassword }),
-        });
-        const data = await res.json();
-        if (!data.success) {
-          setLocationToast(data.error || "Failed to update email address.");
-          setTimeout(() => setLocationToast(null), 4000);
-          return;
-        }
-        setSessionUser(prev => (prev ? { ...prev, email: newEmail } : prev));
-        setUsersList(prev => prev.map(u => (u.id === sessionUser?.id ? { ...u, email: newEmail } : u)));
-      }
+      const targetChapterId = sessionUser?.chapterId || (currentChapter.id !== "default-chapter" ? currentChapter.id : undefined);
 
-      const updates: Partial<Chapter> = {
-        repName: profileForm.name || currentChapter.repName,
-        repPhone: profileForm.phone || currentChapter.repPhone,
-      };
-      await fetch(`/api/chapters/${currentChapter.id}`, {
+      const res = await fetch("/api/auth/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates),
+        body: JSON.stringify({
+          name: profileForm.name,
+          phone: profileForm.phone,
+          email: newEmail,
+          currentPassword: profileForm.currentPassword || undefined,
+          avatarUrl: profileForm.avatarUrl || undefined,
+          chapterId: targetChapterId,
+        }),
       });
-      setChaptersList(prev => prev.map(c => c.id === currentChapter.id ? { ...c, ...updates } : c));
+
+      const data = await res.json();
+      if (!data.success) {
+        setLocationToast(data.error || "Failed to update profile details.");
+        setTimeout(() => setLocationToast(null), 5000);
+        return;
+      }
+
+      // Update session user in client state
+      if (data.user) {
+        setSessionUser(prev => (prev ? {
+          ...prev,
+          name: data.user.name,
+          email: data.user.email,
+          phone: data.user.phone,
+        } : prev));
+        setUsersList(prev => prev.map(u => (u.id === data.user.id ? { ...u, ...data.user } : u)));
+      }
+
+      // Update chapter in client state
+      if (data.chapter) {
+        setChaptersList(prev => prev.map(c => c.id === data.chapter.id ? { ...c, ...data.chapter } : c));
+      } else if (targetChapterId && targetChapterId !== "default-chapter") {
+        setChaptersList(prev => prev.map(c => c.id === targetChapterId ? {
+          ...c,
+          repName: profileForm.name || c.repName,
+          repPhone: profileForm.phone || c.repPhone,
+          repPhoto: profileForm.avatarUrl || c.repPhoto,
+        } : c));
+      }
+
       setShowEditProfileModal(false);
-      setLocationToast(emailChanged ? "Profile and email updated successfully!" : "Profile details updated successfully!");
+      setLocationToast(data.message || (emailChanged ? "Profile and credentials updated successfully!" : "Profile details updated successfully!"));
       setTimeout(() => setLocationToast(null), 4000);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Profile save error:", err);
+      setLocationToast(err.message || "Failed to update profile details.");
+      setTimeout(() => setLocationToast(null), 4000);
+    } finally {
+      setSavingProfile(false);
     }
   };
 
@@ -4758,8 +4875,8 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                   <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
                     <h3 className="font-heading font-bold text-base text-navy-950 pb-3 border-b border-slate-100">Account Details</h3>
                     {[
-                      { label: "Full Name", value: currentChapter.repName || "John Mwangi" },
-                      { label: "Phone Number", value: currentChapter.repPhone || "+254 720 112 233" },
+                      { label: "Full Name", value: sessionUser?.name || currentChapter.repName || "Representative" },
+                      { label: "Phone Number", value: sessionUser?.phone || currentChapter.repPhone || "Not set" },
                       { label: "Institution", value: currentChapter.institutionName },
                       { label: "Chapter Code", value: currentChapter.code },
                       { label: "Portal Role", value: "Chapter Representative" },
@@ -4774,10 +4891,10 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                       <button
                         onClick={() => {
                           setProfileForm({
-                            name: currentChapter.repName || "John Mwangi",
-                            phone: currentChapter.repPhone || "+254 720 112 233",
-                            email: sessionUser?.email || `${currentChapter.code.toLowerCase()}@cucaso.org`,
-                            avatarUrl: "",
+                            name: sessionUser?.name || currentChapter.repName || "",
+                            phone: sessionUser?.phone || currentChapter.repPhone || "",
+                            email: sessionUser?.email || (currentChapter.code ? `${currentChapter.code.toLowerCase()}@cucaso.org` : ""),
+                            avatarUrl: currentChapter.repPhoto || "",
                             currentPassword: "",
                           });
                           setShowEditProfileModal(true);
@@ -6597,30 +6714,140 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                           </div>
                         </div>
 
-                        {/* Leadership info */}
+                        {/* ── Representative (Login User) */}
+                        <div className="space-y-1">
+                          <h4 className="font-bold text-slate-800 text-[11px] uppercase tracking-widest pb-1 border-b border-slate-100">
+                            Chapter Representative (Login Account)
+                          </h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block font-bold text-slate-700 mb-1">Representative Name *</label>
+                              <input
+                                type="text"
+                                required
+                                value={newChapterForm.repName}
+                                onChange={(e) => setNewChapterForm({ ...newChapterForm, repName: e.target.value })}
+                                placeholder="e.g. Faith Ndinda"
+                                className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block font-bold text-slate-700 mb-1">Rep Phone Number</label>
+                              <input
+                                type="tel"
+                                value={newChapterForm.repPhone}
+                                onChange={(e) => setNewChapterForm({ ...newChapterForm, repPhone: e.target.value })}
+                                placeholder="+254 712 345 678"
+                                className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                              />
+                            </div>
+                            <div className="sm:col-span-2">
+                              <label className="block font-bold text-slate-700 mb-1">
+                                Rep Email Address *{" "}
+                                <span className="text-teal-600 font-normal">(used as login credential)</span>
+                              </label>
+                              <input
+                                type="email"
+                                required
+                                value={newChapterForm.repEmail}
+                                onChange={(e) => setNewChapterForm({ ...newChapterForm, repEmail: e.target.value })}
+                                placeholder="e.g. faith.ndinda@university.ac.ke"
+                                className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* ── Patron / Chaplain */}
+                        <div className="space-y-1">
+                          <h4 className="font-bold text-slate-800 text-[11px] uppercase tracking-widest pb-1 border-b border-slate-100">
+                            Patron / Chaplain
+                          </h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block font-bold text-slate-700 mb-1">Patron / Chaplain Name</label>
+                              <input
+                                type="text"
+                                value={newChapterForm.patronName}
+                                onChange={(e) => setNewChapterForm({ ...newChapterForm, patronName: e.target.value })}
+                                placeholder="e.g. Pr. Samuel Mwamburi"
+                                className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block font-bold text-slate-700 mb-1">Patron Phone</label>
+                              <input
+                                type="tel"
+                                value={newChapterForm.patronPhone}
+                                onChange={(e) => setNewChapterForm({ ...newChapterForm, patronPhone: e.target.value })}
+                                placeholder="+254 722 000 111"
+                                className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                              />
+                            </div>
+                            <div className="sm:col-span-2">
+                              <label className="block font-bold text-slate-700 mb-1">Patron Email</label>
+                              <input
+                                type="email"
+                                value={newChapterForm.patronEmail}
+                                onChange={(e) => setNewChapterForm({ ...newChapterForm, patronEmail: e.target.value })}
+                                placeholder="e.g. chaplain@institution.ac.ke"
+                                className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* ── Other Leadership */}
+                        <div className="space-y-1">
+                          <h4 className="font-bold text-slate-800 text-[11px] uppercase tracking-widest pb-1 border-b border-slate-100">
+                            Treasurer & Secretary (Optional)
+                          </h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block font-bold text-slate-700 mb-1">Treasurer Name</label>
+                              <input
+                                type="text"
+                                value={newChapterForm.treasurerName}
+                                onChange={(e) => setNewChapterForm({ ...newChapterForm, treasurerName: e.target.value })}
+                                placeholder="e.g. Peter Otieno"
+                                className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block font-bold text-slate-700 mb-1">Treasurer Phone</label>
+                              <input
+                                type="tel"
+                                value={newChapterForm.treasurerPhone}
+                                onChange={(e) => setNewChapterForm({ ...newChapterForm, treasurerPhone: e.target.value })}
+                                placeholder="+254 733 000 222"
+                                className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block font-bold text-slate-700 mb-1">Secretary Name</label>
+                              <input
+                                type="text"
+                                value={newChapterForm.secretaryName}
+                                onChange={(e) => setNewChapterForm({ ...newChapterForm, secretaryName: e.target.value })}
+                                placeholder="e.g. Grace Auma"
+                                className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block font-bold text-slate-700 mb-1">Secretary Phone</label>
+                              <input
+                                type="tel"
+                                value={newChapterForm.secretaryPhone}
+                                onChange={(e) => setNewChapterForm({ ...newChapterForm, secretaryPhone: e.target.value })}
+                                placeholder="+254 744 000 333"
+                                className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* ── Membership & Quota */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block font-bold text-slate-700 mb-1">Patron / Chaplain Name</label>
-                            <input
-                              type="text"
-                              value={newChapterForm.patronName}
-                              onChange={(e) => setNewChapterForm({ ...newChapterForm, patronName: e.target.value })}
-                              placeholder="e.g. Pr. Samuel Mwamburi"
-                              className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block font-bold text-slate-700 mb-1">Representative Name</label>
-                            <input
-                              type="text"
-                              value={newChapterForm.repName}
-                              onChange={(e) => setNewChapterForm({ ...newChapterForm, repName: e.target.value })}
-                              placeholder="e.g. Faith Ndinda"
-                              className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none"
-                            />
-                          </div>
-
                           <div>
                             <label className="block font-bold text-slate-700 mb-1">Approximate Campus Members</label>
                             <input
@@ -6630,7 +6857,6 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                               className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none"
                             />
                           </div>
-
                           <div>
                             <label className="block font-bold text-slate-700 mb-1">Initial Rally Quota</label>
                             <input
@@ -6641,6 +6867,38 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                             />
                           </div>
                         </div>
+
+                        {/* ── Login Credentials */}
+                        <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl space-y-3">
+                          <h4 className="font-bold text-amber-900 text-[11px] uppercase tracking-widest">
+                            🔐 Login Credentials
+                          </h4>
+                          <p className="text-[11px] text-amber-700">
+                            A login account will be auto-created for the representative. Leave the password field blank to auto-generate one.
+                          </p>
+                          <div>
+                            <label className="block font-bold text-slate-700 mb-1">Custom Initial Password (optional)</label>
+                            <input
+                              type="text"
+                              value={newChapterForm.initialPassword}
+                              onChange={(e) => setNewChapterForm({ ...newChapterForm, initialPassword: e.target.value })}
+                              placeholder="Leave blank to auto-generate"
+                              className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-teal-600 focus:outline-none font-mono text-xs"
+                            />
+                          </div>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={newChapterForm.sendCredentials}
+                              onChange={(e) => setNewChapterForm({ ...newChapterForm, sendCredentials: e.target.checked })}
+                              className="w-4 h-4 rounded accent-teal-600"
+                            />
+                            <span className="text-xs font-semibold text-slate-700">
+                              Send login credentials to rep via Email & SMS
+                            </span>
+                          </label>
+                        </div>
+
 
                         <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-3">
                           <button
@@ -9835,10 +10093,11 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-md transition-all flex items-center gap-1.5"
+                  disabled={savingProfile}
+                  className="px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold shadow-md transition-all flex items-center gap-1.5"
                 >
                   <Save className="w-3.5 h-3.5" />
-                  <span>Save Changes</span>
+                  <span>{savingProfile ? "Saving..." : "Save Changes"}</span>
                 </button>
               </div>
             </form>

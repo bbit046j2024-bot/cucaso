@@ -1,15 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Globe, Building2, ShieldCheck, CheckCircle2 } from "lucide-react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { Globe, Building2, ShieldCheck } from "lucide-react";
 
 export function SystemSwitcher() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const isPublic = pathname === "/" || pathname === "/apply" || pathname.startsWith("/#");
-  const isPortal = pathname.startsWith("/portal") && !pathname.includes("/admin");
+  const isPortal = pathname.startsWith("/portal") && !pathname.includes("/admin") && !pathname.includes("/council");
   const isCouncil = pathname.includes("/council") || pathname.startsWith("/admin");
+
+  // Preserve the active chapter param so clicking "Chapter Portal" doesn't
+  // silently switch which chapter portal is shown (the KMTC→TUM bug cause).
+  const chapterParam = searchParams.get("chapter");
+  const portalHref = chapterParam
+    ? `/portal?mode=CHAPTER&chapter=${chapterParam}`
+    : "/portal";
 
   return (
     <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-navy-950/90 text-white backdrop-blur-lg px-3 py-2 rounded-full border border-white/20 shadow-2xl flex items-center gap-1.5 text-xs font-semibold">
@@ -30,7 +38,7 @@ export function SystemSwitcher() {
       </Link>
 
       <Link
-        href="/portal"
+        href={portalHref}
         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all ${
           isPortal
             ? "bg-teal-500 text-navy-950 font-bold shadow-sm"
@@ -42,7 +50,7 @@ export function SystemSwitcher() {
       </Link>
 
       <Link
-        href="/portal/council"
+        href="/portal?mode=ADMIN"
         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all ${
           isCouncil
             ? "bg-white text-navy-950 font-bold shadow-sm"

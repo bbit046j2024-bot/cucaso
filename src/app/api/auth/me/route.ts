@@ -21,6 +21,7 @@ export async function GET() {
         id: true,
         email: true,
         name: true,
+        phone: true,
         role: true,
         chapterId: true,
         totpEnabled: true,

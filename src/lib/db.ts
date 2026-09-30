@@ -188,7 +188,14 @@ export async function getChapterById(id: string): Promise<Chapter | null> {
   return chapter ? mapChapter(chapter) : null;
 }
 
-export async function createChapter(chapterData: Partial<Chapter>): Promise<Chapter> {
+type CreateChapterInput = Partial<Chapter> & {
+  repEmail?: string;
+  initialPassword?: string;
+  sendCredentials?: boolean;
+};
+
+export async function createChapter(chapterData: CreateChapterInput): Promise<Chapter> {
+
   const instName = chapterData.institutionName || "New Institution";
   let institution = await prisma.institution.findFirst({ where: { name: instName } });
   if (!institution) {
@@ -244,6 +251,66 @@ export async function createChapter(chapterData: Partial<Chapter>): Promise<Chap
         tierId: tierExists.id,
       },
     });
+  }
+
+  // Provision Chapter Representative User Account if email is provided
+  const repEmail = (chapterData.repEmail || "").trim().toLowerCase();
+  const repPhone = (chapterData.repPhone || "").trim();
+  const repName = chapterData.repName || `${instName} Representative`;
+  const initialPassword =
+    chapterData.initialPassword ||
+    ("Cucaso" + Math.random().toString(36).substring(2, 6).toUpperCase() + "!" + Math.floor(100 + Math.random() * 900));
+
+  if (repEmail) {
+    try {
+      const { hashPassword } = await import("@/lib/auth");
+      const passwordHash = await hashPassword(initialPassword);
+
+      await prisma.user.upsert({
+        where: { email: repEmail },
+        create: {
+          email: repEmail,
+          name: repName,
+          phone: repPhone || null,
+          passwordHash,
+          role: "CHAPTER_REP",
+          chapterId: created.id,
+          isActive: true,
+        },
+        update: {
+          chapterId: created.id,
+          name: repName,
+          phone: repPhone || undefined,
+          isActive: true,
+        },
+      });
+
+      if (chapterData.sendCredentials !== false) {
+        const { sendEmail, EmailTemplates } = await import("@/lib/email");
+        const { sendSms } = await import("@/lib/sms");
+
+        await sendEmail({
+          to: repEmail,
+          subject: `CUCASO Chapter Access Created — ${created.name}`,
+          html: EmailTemplates.chapterApproved({
+            applicantName: repName,
+            institutionName: instName,
+            chapterCode: created.code,
+            initialPassword,
+            loginUrl: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/login`,
+          }),
+        }).catch((err) => console.warn("[CREATE_CHAPTER] Email send failed:", err));
+
+        if (repPhone) {
+          await sendSms({
+            to: repPhone,
+            message: `Welcome to CUCASO! Your chapter ${created.name} (${created.code}) has been registered. Login: ${repEmail} Temporary Password: ${initialPassword}`,
+          }).catch((err) => console.warn("[CREATE_CHAPTER] SMS send failed:", err));
+        }
+      }
+    } catch (err) {
+      console.warn("[CREATE_CHAPTER] Provisioning user account failed:", err);
+    }
   }
 
   await prisma.auditLog.create({

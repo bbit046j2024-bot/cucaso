@@ -26,9 +26,10 @@ export async function POST(request: Request) {
     const body = await request.json();
     const newChapter = await createChapter(body);
     return NextResponse.json({ success: true, data: newChapter }, { status: 201 });
-  } catch (error) {
+  } catch (error: any) {
+    console.error("[POST /api/chapters] Error:", error);
     return NextResponse.json(
-      { success: false, error: "Failed to create chapter" },
+      { success: false, error: error?.message || "Failed to create chapter" },
       { status: 500 }
     );
   }
