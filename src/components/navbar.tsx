@@ -21,7 +21,8 @@ import {
   GraduationCap,
   Heart,
   Newspaper,
-  HeartHandshake
+  HeartHandshake,
+  Music2
 } from "lucide-react";
 
 export function Navbar() {
@@ -47,12 +48,14 @@ export function Navbar() {
     { href: "/about", label: "About" },
     { href: "/chapters", label: "Chapters" },
     { href: "/rallies", label: "Rallies" },
+    { href: "/sermons", label: "Sermons & Songs" },
     { href: "/resources", label: "Resources" },
     { href: "/news", label: "News" },
   ];
 
   // Secondary items in the "More" desktop dropdown
   const moreLinks = [
+    { href: "/sermons", label: "Sermons & Songs", icon: Music2, desc: "Rally messages and worship music" },
     { href: "/alumni", label: "Alumni Network", icon: GraduationCap, desc: "Mentorship & associate membership" },
     { href: "/partners", label: "Partners & Supporters", icon: HeartHandshake, desc: "Church & institutional sponsors" },
     { href: "/support", label: "Donate / Support", icon: Heart, desc: "Sponsor student rallies & missions" },
@@ -67,6 +70,7 @@ export function Navbar() {
     { href: "/about", label: "About CUCASO", icon: Shield },
     { href: "/chapters", label: "Member Chapters", icon: Building2 },
     { href: "/rallies", label: "Spiritual Rallies", icon: Calendar },
+    { href: "/sermons", label: "Sermons & Songs", icon: Music2 },
     { href: "/resources", label: "Spiritual Resources & Docs", icon: BookOpen },
     { href: "/news", label: "News & Bulletins", icon: Newspaper },
     { href: "/alumni", label: "Alumni Community", icon: GraduationCap },

@@ -88,8 +88,11 @@ import {
   Heart,
   Lock,
   EyeOff,
-  Send
+  Send,
+  Film,
+  Music2
 } from "lucide-react";
+import { AdminSermonsTab } from "@/components/admin/sermons-tab";
 
 function PortalContent() {
   const searchParams = useSearchParams();
@@ -146,7 +149,7 @@ function PortalContent() {
 
   // Admin Portal active tab
   const [adminActiveTab, setAdminActiveTab] = useState<
-    "overview" | "chapters" | "rallies" | "attendees" | "payments" | "funding" | "reports" | "leadership" | "gallery" | "news" | "resources" | "inbox" | "users" | "settings" | "audit" | "notifications"
+    "overview" | "chapters" | "rallies" | "attendees" | "payments" | "funding" | "reports" | "leadership" | "gallery" | "news" | "resources" | "inbox" | "users" | "settings" | "audit" | "notifications" | "sermons"
   >("overview");
 
   // Mobile sidebar open
@@ -2825,6 +2828,20 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                   <span className="flex-1 text-left">News & CMS</span>
                   <span className="px-1.5 py-0.5 rounded-full bg-white/20 text-[10px]">
                     {newsList.length}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => setAdminActiveTab("sermons")}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${adminActiveTab === "sermons"
+                    ? "bg-amber-600 text-navy-950 font-bold shadow-md"
+                    : "hover:bg-white/5 text-slate-300 hover:text-white"
+                    }`}
+                >
+                  <Film className="w-4 h-4" />
+                  <span className="flex-1 text-left">Sermons & Songs</span>
+                  <span className="px-1.5 py-0.5 rounded-full bg-white/20 text-[10px]">
+                    Media
                   </span>
                 </button>
 
@@ -8328,6 +8345,13 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                     ))}
                 </div>
               </div>
+            )}
+
+            {/* ========================================================= */}
+            {/* VIEW H-SERMONS: ADMIN SERMONS & SONGS                     */}
+            {/* ========================================================= */}
+            {activePortal === "ADMIN" && adminActiveTab === "sermons" && (
+              <AdminSermonsTab />
             )}
 
             {/* ========================================================= */}

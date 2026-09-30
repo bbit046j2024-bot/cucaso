@@ -772,3 +772,42 @@ model Leadership {
   @@index([category])
   @@index([isActive])
 }
+
+// ─── Sermons & Songs ──────────────────────────────────────────────────────────
+
+model Sermon {
+  id           String        @id @default(cuid())
+  type         SermonType    @default(SERMON)        // SERMON or SONG
+  title        String
+  speaker      String                                // Preacher or group name
+  description  String?       @db.Text
+  youtubeUrl   String        @db.Text               // Full YouTube URL
+  thumbnailUrl String?       @db.Text               // Optional override; else auto-derived
+  rallyId      String?
+  chapterId    String?
+  tags         String?       @db.Text               // CSV: "evangelism,youth,prayer"
+  series       String?                              // e.g. "CUR 2026 Sermons"
+  duration     String?                              // e.g. "45:32"
+  status       SermonStatus  @default(PUBLISHED)
+  publishedAt  DateTime?     @default(now())
+  viewCount    Int           @default(0)
+  createdBy    String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([status])
+  @@index([type])
+  @@index([rallyId])
+  @@index([chapterId])
+}
+
+enum SermonType {
+  SERMON
+  SONG
+}
+
+enum SermonStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
