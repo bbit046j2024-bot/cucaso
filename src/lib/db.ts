@@ -1155,6 +1155,25 @@ export async function createApplication(appData: Partial<ChapterApplication>): P
       notes: appData.notes ?? null,
     },
   });
+
+  // Confirm receipt to the applicant by SMS (independent of any other notification)
+  const applicantPhone = (created.chairpersonPhone || created.patronPhone || "").trim();
+  const applicantName = created.chairpersonName || created.patronName || created.institutionName;
+  if (applicantPhone) {
+    try {
+      const { sendSms, SmsTemplates } = await import("@/lib/sms");
+      const result = await sendSms({
+        to: applicantPhone,
+        message: SmsTemplates.chapterApplicationReceived(applicantName, created.institutionName),
+      });
+      if (!result.success) {
+        console.warn(`[ONBOARDING] Application receipt SMS to ${applicantPhone} failed: ${result.error}`);
+      }
+    } catch (smsErr) {
+      console.error("[ONBOARDING] Application receipt SMS error:", smsErr);
+    }
+  }
+
   return mapApplication(created);
 }
 
@@ -1235,25 +1254,39 @@ export async function updateApplication(id: string, updates: Partial<ChapterAppl
         });
 
         // Send Email with credentials
-        const { sendEmail, EmailTemplates } = await import("@/lib/email");
-        await sendEmail({
-          to: contactEmail,
-          ...EmailTemplates.chapterApproval({
-            contactName,
-            institutionName: existing.institutionName,
-            chapterCode: chapter.code,
-            loginEmail: contactEmail,
-            tempPassword,
-          }),
-        });
-
-        // Send SMS
-        if (contactPhone) {
-          const { sendSms, SmsTemplates } = await import("@/lib/sms");
-          await sendSms({
-            to: contactPhone,
-            message: SmsTemplates.chapterApplicationApproved(contactName, existing.institutionName, tempPassword),
+        try {
+          const { sendEmail, EmailTemplates } = await import("@/lib/email");
+          const emailResult = await sendEmail({
+            to: contactEmail,
+            ...EmailTemplates.chapterApproval({
+              contactName,
+              institutionName: existing.institutionName,
+              chapterCode: chapter.code,
+              loginEmail: contactEmail,
+              tempPassword,
+            }),
           });
+          if (!emailResult.success) {
+            console.warn(`[ONBOARDING] Approval email to ${contactEmail} failed: ${emailResult.error}`);
+          }
+        } catch (emailErr) {
+          console.error("[ONBOARDING] Approval email error:", emailErr);
+        }
+
+        // Send SMS (independent of email outcome)
+        if (contactPhone) {
+          try {
+            const { sendSms, SmsTemplates } = await import("@/lib/sms");
+            const smsResult = await sendSms({
+              to: contactPhone,
+              message: SmsTemplates.chapterApplicationApproved(contactName, existing.institutionName, tempPassword),
+            });
+            if (!smsResult.success) {
+              console.warn(`[ONBOARDING] Approval SMS to ${contactPhone} failed: ${smsResult.error}`);
+            }
+          } catch (smsErr) {
+            console.error("[ONBOARDING] Approval SMS error:", smsErr);
+          }
         }
       } catch (provisionErr) {
         console.error("[ONBOARDING] Automated user provisioning / notification error:", provisionErr);

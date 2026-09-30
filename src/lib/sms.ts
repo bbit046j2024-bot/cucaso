@@ -130,6 +130,10 @@ export const SmsTemplates = {
     return `Congratulations ${contactName}! The CUCASO Central Council has approved the chapter application for ${institutionName}.${pwdStr} Login at cucaso.org/login. Welcome to the CUCASO family!`;
   },
 
+  chapterApplicationReceived(contactName: string, institutionName: string): string {
+    return `Dear ${contactName}, CUCASO has received the chapter application for ${institutionName}. The Central Council will review it and notify you of the outcome. Thank you!`;
+  },
+
   prayerRequestConfirmation(name: string): string {
     return `Dear ${name}, CUCASO Chaplaincy has received your prayer request. Our intercessory team is lifting you up in prayer before God's throne of grace. (Jeremiah 29:11)`;
   },
