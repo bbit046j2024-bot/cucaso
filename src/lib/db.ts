@@ -289,16 +289,17 @@ export async function createChapter(chapterData: CreateChapterInput): Promise<Ch
         const { sendEmail, EmailTemplates } = await import("@/lib/email");
         const { sendSms } = await import("@/lib/sms");
 
-        await sendEmail({
-          to: repEmail,
-          subject: `CUCASO Chapter Access Created — ${created.name}`,
-          html: EmailTemplates.chapterApproved({
-            applicantName: repName,
+        const emailResult = EmailTemplates.chapterApproval({
+            contactName: repName,
             institutionName: instName,
             chapterCode: created.code,
-            initialPassword,
-            loginUrl: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/login`,
-          }),
+            loginEmail: repEmail,
+            tempPassword: initialPassword,
+          });
+        await sendEmail({
+          to: repEmail,
+          subject: emailResult.subject,
+          html: emailResult.html,
         }).catch((err) => console.warn("[CREATE_CHAPTER] Email send failed:", err));
 
         if (repPhone) {
