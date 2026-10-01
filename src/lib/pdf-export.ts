@@ -973,3 +973,91 @@ export function exportSingleInvoicePDF(data: SingleInvoicePdfData) {
   drawFooter(doc);
   doc.save(`Invoice_${data.invoiceNumber || data.chapterCode}_${data.chapterCode}.pdf`);
 }
+
+/**
+ * 8. Export Alumni Master Register / Directory PDF
+ */
+export function exportAlumniDirectoryPDF(data: {
+  alumni: Array<{
+    id: string;
+    fullName: string;
+    email: string;
+    phone: string;
+    institutionGraduated: string;
+    graduationYear: string;
+    profession?: string;
+    areasOfInterest?: string[];
+    status: string;
+    createdAt?: string;
+  }>;
+}) {
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const curY = drawHeader(
+    doc,
+    "Alumni Network Master Directory",
+    "Adventist Graduates, Mentors, Career Advisors, and Associate Members",
+    "COUNCIL ARCHIVE"
+  );
+
+  // Summary Metrics
+  const total = data.alumni.length;
+  const approved = data.alumni.filter(a => a.status === "APPROVED").length;
+  const pending = data.alumni.filter(a => a.status === "PENDING").length;
+
+  const afterCards = drawKpiCards(doc, curY, [
+    { label: "Total Registered Alumni", value: `${total} Graduates`, color: COLOR_NAVY },
+    { label: "Active / Approved", value: `${approved} Members`, color: COLOR_EMERALD },
+    { label: "Pending Secretariat Review", value: `${pending} Pending`, color: COLOR_AMBER },
+  ]);
+
+  const rows = data.alumni.map((a, idx) => [
+    idx + 1,
+    a.fullName,
+    a.institutionGraduated,
+    a.graduationYear,
+    a.profession || "—",
+    a.phone,
+    (a.areasOfInterest || []).slice(0, 2).join(", ") || "—",
+    a.status,
+  ]);
+
+  autoTable(doc, {
+    startY: afterCards + 4,
+    head: [["#", "Full Name", "Alma Mater", "Class", "Profession", "Phone", "Key Interests", "Status"]],
+    body: rows,
+    theme: "striped",
+    headStyles: {
+      fillColor: COLOR_NAVY,
+      textColor: [255, 255, 255],
+      fontSize: 8,
+      fontStyle: "bold",
+    },
+    styles: {
+      fontSize: 7.5,
+      cellPadding: 2,
+    },
+    columnStyles: {
+      0: { cellWidth: 8, halign: "center" },
+      1: { cellWidth: 35, fontStyle: "bold" },
+      2: { cellWidth: 28 },
+      3: { cellWidth: 14, halign: "center" },
+      4: { cellWidth: 26 },
+      5: { cellWidth: 24 },
+      6: { cellWidth: 32 },
+      7: { cellWidth: 16, halign: "center", fontStyle: "bold" },
+    },
+    didParseCell: (data) => {
+      if (data.section === "body" && data.column.index === 7) {
+        if (data.cell.raw === "APPROVED") {
+          data.cell.styles.textColor = COLOR_EMERALD;
+        } else if (data.cell.raw === "PENDING") {
+          data.cell.styles.textColor = COLOR_AMBER;
+        }
+      }
+    },
+  });
+
+  drawFooter(doc);
+  doc.save(`CUCASO_Alumni_Directory_${new Date().toISOString().split("T")[0]}.pdf`);
+}
+

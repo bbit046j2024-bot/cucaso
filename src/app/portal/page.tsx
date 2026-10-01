@@ -25,6 +25,7 @@ import {
   exportRallyLogisticsPDF,
   exportCouncilAuditPDF,
   exportSingleInvoicePDF,
+  exportAlumniDirectoryPDF,
 } from "@/lib/pdf-export";
 import {
   LayoutDashboard,
@@ -33,6 +34,7 @@ import {
   CreditCard,
   Calendar,
   FileText,
+  GraduationCap,
   Bell,
   User,
   LogOut,
@@ -160,7 +162,7 @@ function PortalContent() {
 
   // Admin Portal active tab
   const [adminActiveTab, setAdminActiveTab] = useState<
-    "overview" | "chapters" | "rallies" | "attendees" | "payments" | "funding" | "reports" | "leadership" | "gallery" | "news" | "resources" | "inbox" | "users" | "settings" | "audit" | "notifications" | "sermons"
+    "overview" | "chapters" | "rallies" | "attendees" | "payments" | "funding" | "reports" | "leadership" | "gallery" | "news" | "resources" | "inbox" | "users" | "settings" | "audit" | "notifications" | "sermons" | "alumni"
   >("overview");
 
   // Mobile sidebar open
@@ -515,6 +517,13 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
   const [deletingInvoiceId, setDeletingInvoiceId] = useState<string | null>(null);
   const [clearingInvoices, setClearingInvoices] = useState(false);
 
+  // Alumni Network State
+  const [alumniList, setAlumniList] = useState<any[]>([]);
+  const [alumniLoading, setAlumniLoading] = useState(false);
+  const [alumniSearch, setAlumniSearch] = useState("");
+  const [alumniStatusFilter, setAlumniStatusFilter] = useState<string>("ALL");
+  const [updatingAlumniId, setUpdatingAlumniId] = useState<string | null>(null);
+
   // Dynamic Users & RBAC State
   const [usersList, setUsersList] = useState<UserAccount[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
@@ -828,6 +837,64 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
       }
     } catch (err) {
       console.error("Error deleting prayer request", err);
+    }
+  };
+
+  // Alumni Handlers
+  const fetchAlumni = useCallback(async () => {
+    setAlumniLoading(true);
+    try {
+      const res = await fetch("/api/alumni");
+      const j = await res.json();
+      if (j.success && Array.isArray(j.data)) {
+        setAlumniList(j.data);
+      }
+    } catch (e) {
+      console.error("Failed to load alumni records", e);
+    } finally {
+      setAlumniLoading(false);
+    }
+  }, []);
+
+  const handleUpdateAlumniStatus = async (id: string, newStatus: string) => {
+    setUpdatingAlumniId(id);
+    try {
+      const res = await fetch("/api/alumni", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status: newStatus }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setAlumniList(prev => prev.map(a => a.id === id ? { ...a, status: newStatus } : a));
+        setLocationToast(`Alumni record updated to ${newStatus}`);
+        setTimeout(() => setLocationToast(null), 3000);
+      } else {
+        alert(json.error || "Failed to update alumni status");
+      }
+    } catch (err: any) {
+      alert(err.message || "Failed to update alumni status");
+    } finally {
+      setUpdatingAlumniId(null);
+    }
+  };
+
+  const handleDeleteAlumni = async (id: string) => {
+    if (!confirm("Are you sure you want to remove this alumni registration?")) return;
+    try {
+      const res = await fetch(`/api/alumni?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      const json = await res.json();
+      if (json.success) {
+        setAlumniList(prev => prev.filter(a => a.id !== id));
+        setLocationToast("Alumni registration removed");
+        setTimeout(() => setLocationToast(null), 3000);
+      } else {
+        alert(json.error || "Failed to delete alumni");
+      }
+    } catch (err: any) {
+      alert(err.message || "Failed to delete alumni");
     }
   };
 
@@ -1351,7 +1418,14 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
       .then(r => r.json())
       .then(j => { if (j.success && Array.isArray(j.data)) setUsersList(j.data); })
       .catch(() => { });
-  }, [sessionUser?.id]);
+    fetchAlumni();
+  }, [sessionUser?.id, fetchAlumni]);
+
+  useEffect(() => {
+    if (activePortal === "ADMIN" && adminActiveTab === "alumni") {
+      fetchAlumni();
+    }
+  }, [activePortal, adminActiveTab, fetchAlumni]);
 
   // Admin capability calculations
   const engineChaptersInput = useMemo(() => {
@@ -3013,6 +3087,26 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                   <span className="px-1.5 py-0.5 rounded-full bg-white/20 text-[10px]">
                     {councilLeaders.length}
                   </span>
+                </button>
+
+                <button
+                  onClick={() => setAdminActiveTab("alumni")}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${adminActiveTab === "alumni"
+                    ? "bg-amber-600 text-navy-950 font-bold shadow-md"
+                    : "hover:bg-white/5 text-slate-300 hover:text-white"
+                    }`}
+                >
+                  <GraduationCap className="w-4 h-4" />
+                  <span className="flex-1 text-left">Alumni Network</span>
+                  {alumniList.filter(a => a.status === "PENDING").length > 0 ? (
+                    <span className="px-1.5 py-0.5 rounded-full bg-teal-500 text-white text-[10px] font-bold">
+                      {alumniList.filter(a => a.status === "PENDING").length}
+                    </span>
+                  ) : (
+                    <span className="px-1.5 py-0.5 rounded-full bg-white/20 text-[10px]">
+                      {alumniList.length}
+                    </span>
+                  )}
                 </button>
 
                 <button
@@ -9100,6 +9194,402 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* ======================================================= */}
+            {/* VIEW: ADMIN ALUMNI & ASSOCIATE MEMBERSHIP NETWORK       */}
+            {/* ======================================================= */}
+            {activePortal === "ADMIN" && adminActiveTab === "alumni" && (
+              <div className="space-y-8 animate-in fade-in duration-200">
+                {/* Header & Quick Actions */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">
+                        Constitutional Advisory & Mentorship
+                      </span>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                        Associate Members
+                      </span>
+                    </div>
+                    <h1 className="font-heading font-black text-2xl text-navy-950 mt-1">
+                      Alumni & Associate Members Network
+                    </h1>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Directory of coastal Adventist graduates, student career mentors, rally guest speakers, and project sponsors.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => fetchAlumni()}
+                      disabled={alumniLoading}
+                      className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition-colors border border-slate-200"
+                      title="Refresh alumni records from database"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${alumniLoading ? "animate-spin text-teal-600" : ""}`} />
+                      <span>{alumniLoading ? "Refreshing..." : "Refresh"}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        exportToCSV(
+                          "cucaso_alumni_directory",
+                          ["Full Name", "Email", "Phone", "Institution", "Class", "Profession", "Interests", "Status", "Registered Date"],
+                          alumniList.map(a => [
+                            a.fullName,
+                            a.email,
+                            a.phone,
+                            a.institutionGraduated,
+                            a.graduationYear,
+                            a.profession || "",
+                            (a.areasOfInterest || []).join("; "),
+                            a.status,
+                            new Date(a.createdAt).toLocaleDateString(),
+                          ])
+                        );
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition-colors border border-slate-200 shadow-sm"
+                    >
+                      <Download className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Export CSV</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLocationToast("Generating official Alumni Directory (.pdf)...");
+                        setTimeout(() => {
+                          try {
+                            exportAlumniDirectoryPDF({ alumni: alumniList });
+                            setLocationToast("Alumni Directory (.pdf) downloaded successfully!");
+                            setTimeout(() => setLocationToast(null), 3000);
+                          } catch (err: any) {
+                            alert("Failed to export PDF: " + err.message);
+                          }
+                        }, 50);
+                      }}
+                      className="px-4 py-2 rounded-xl bg-navy-900 hover:bg-navy-800 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm"
+                    >
+                      <Download className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Export PDF Directory</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* KPI Metrics Summary */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Registered</p>
+                      <h3 className="text-2xl font-black text-navy-950 mt-1">{alumniList.length}</h3>
+                      <p className="text-[11px] text-teal-700 font-semibold mt-0.5">Across coastal chapters</p>
+                    </div>
+                    <div className="w-12 h-12 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center">
+                      <GraduationCap className="w-6 h-6" />
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                      <p className="text-[11px] font-bold text-amber-600 uppercase tracking-wider">Pending Review</p>
+                      <h3 className="text-2xl font-black text-navy-950 mt-1">
+                        {alumniList.filter(a => a.status === "PENDING").length}
+                      </h3>
+                      <p className="text-[11px] text-slate-400 mt-0.5">Awaiting secretariat call</p>
+                    </div>
+                    <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                      <Clock className="w-6 h-6" />
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                      <p className="text-[11px] font-bold text-blue-600 uppercase tracking-wider">Contacted / Vetted</p>
+                      <h3 className="text-2xl font-black text-navy-950 mt-1">
+                        {alumniList.filter(a => a.status === "CONTACTED").length}
+                      </h3>
+                      <p className="text-[11px] text-slate-400 mt-0.5">In communication</p>
+                    </div>
+                    <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                      <Users className="w-6 h-6" />
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                    <div>
+                      <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Active Associate Members</p>
+                      <h3 className="text-2xl font-black text-navy-950 mt-1">
+                        {alumniList.filter(a => a.status === "APPROVED").length}
+                      </h3>
+                      <p className="text-[11px] text-emerald-700 font-semibold mt-0.5">Approved & Directory listed</p>
+                    </div>
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                      <CheckCircle2 className="w-6 h-6" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Filter and Search Bar */}
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="relative w-full sm:w-80">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={alumniSearch}
+                      onChange={(e) => setAlumniSearch(e.target.value)}
+                      placeholder="Search name, university, profession..."
+                      className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto">
+                    {["ALL", "PENDING", "CONTACTED", "APPROVED"].map((status) => (
+                      <button
+                        key={status}
+                        onClick={() => setAlumniStatusFilter(status)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                          alumniStatusFilter === status
+                            ? "bg-navy-900 text-white shadow-sm"
+                            : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                        }`}
+                      >
+                        {status === "ALL" ? "All Statuses" : status}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Alumni Table */}
+                <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+                    <div>
+                      <h3 className="font-heading font-black text-base text-navy-950">
+                        Registered Alumni Directory
+                      </h3>
+                      <p className="text-xs text-slate-500">
+                        Showing {alumniList.filter((a) => {
+                          const matchS = !alumniSearch ||
+                            a.fullName?.toLowerCase().includes(alumniSearch.toLowerCase()) ||
+                            a.email?.toLowerCase().includes(alumniSearch.toLowerCase()) ||
+                            a.institutionGraduated?.toLowerCase().includes(alumniSearch.toLowerCase()) ||
+                            a.profession?.toLowerCase().includes(alumniSearch.toLowerCase()) ||
+                            a.phone?.includes(alumniSearch);
+                          const matchSt = alumniStatusFilter === "ALL" || a.status === alumniStatusFilter;
+                          return matchS && matchSt;
+                        }).length} of {alumniList.length} total entries
+                      </p>
+                    </div>
+
+                    <Link
+                      href="/alumni"
+                      target="_blank"
+                      className="text-xs text-teal-700 hover:text-teal-800 font-bold flex items-center gap-1"
+                    >
+                      <span>Public Registration Link</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider border-b border-slate-200">
+                          <th className="py-3 px-4">Alumni Profile</th>
+                          <th className="py-3 px-4">Alma Mater & Year</th>
+                          <th className="py-3 px-4">Current Profession</th>
+                          <th className="py-3 px-4">Ministry & Support Focus</th>
+                          <th className="py-3 px-4">Direct Contact</th>
+                          <th className="py-3 px-4 text-center">Review Status</th>
+                          <th className="py-3 px-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {alumniList
+                          .filter((a) => {
+                            const matchS = !alumniSearch ||
+                              a.fullName?.toLowerCase().includes(alumniSearch.toLowerCase()) ||
+                              a.email?.toLowerCase().includes(alumniSearch.toLowerCase()) ||
+                              a.institutionGraduated?.toLowerCase().includes(alumniSearch.toLowerCase()) ||
+                              a.profession?.toLowerCase().includes(alumniSearch.toLowerCase()) ||
+                              a.phone?.includes(alumniSearch);
+                            const matchSt = alumniStatusFilter === "ALL" || a.status === alumniStatusFilter;
+                            return matchS && matchSt;
+                          })
+                          .map((alum) => {
+                            const cleanPhone = alum.phone.replace(/[^0-9]/g, "");
+                            const whatsappUrl = `https://wa.me/${cleanPhone.startsWith("0") ? "254" + cleanPhone.slice(1) : cleanPhone}?text=${encodeURIComponent(`Greetings ${alum.fullName}, this is the CUCASO Secretariat reaching out regarding your Alumni Network registration.`)}`;
+
+                            return (
+                              <tr key={alum.id} className="hover:bg-slate-50/70 transition-colors">
+                                <td className="py-3.5 px-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-2xl bg-navy-900 text-amber-400 font-black flex items-center justify-center text-xs shadow-sm flex-shrink-0">
+                                      {alum.fullName.slice(0, 2).toUpperCase()}
+                                    </div>
+                                    <div>
+                                      <span className="font-bold text-slate-900 block">{alum.fullName}</span>
+                                      <span className="text-[11px] text-slate-400">{alum.email}</span>
+                                    </div>
+                                  </div>
+                                </td>
+
+                                <td className="py-3.5 px-4">
+                                  <span className="font-bold text-slate-800 block">{alum.institutionGraduated}</span>
+                                  <span className="text-[11px] text-teal-700 font-semibold">Class of {alum.graduationYear}</span>
+                                </td>
+
+                                <td className="py-3.5 px-4">
+                                  <span className="font-semibold text-slate-700">
+                                    {alum.profession || "Adventist Graduate"}
+                                  </span>
+                                </td>
+
+                                <td className="py-3.5 px-4">
+                                  <div className="flex flex-wrap gap-1 max-w-xs">
+                                    {(alum.areasOfInterest && alum.areasOfInterest.length > 0) ? (
+                                      alum.areasOfInterest.map((interest: string) => (
+                                        <span
+                                          key={interest}
+                                          className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200"
+                                        >
+                                          {interest}
+                                        </span>
+                                      ))
+                                    ) : (
+                                      <span className="text-slate-400 italic">General Fellowship</span>
+                                    )}
+                                  </div>
+                                </td>
+
+                                <td className="py-3.5 px-4">
+                                  <div className="flex items-center gap-2">
+                                    <a
+                                      href={whatsappUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-[10px] inline-flex items-center gap-1 transition-colors border border-emerald-200"
+                                      title="Chat on WhatsApp"
+                                    >
+                                      <span>WhatsApp</span>
+                                    </a>
+                                    <a
+                                      href={`mailto:${alum.email}`}
+                                      className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] inline-flex items-center gap-1 transition-colors"
+                                      title="Send Email"
+                                    >
+                                      <Mail className="w-3 h-3" />
+                                    </a>
+                                  </div>
+                                </td>
+
+                                <td className="py-3.5 px-4 text-center">
+                                  <span
+                                    className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                      alum.status === "APPROVED"
+                                        ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                                        : alum.status === "CONTACTED"
+                                        ? "bg-blue-100 text-blue-800 border border-blue-200"
+                                        : "bg-amber-100 text-amber-800 border border-amber-200"
+                                    }`}
+                                  >
+                                    {alum.status}
+                                  </span>
+                                </td>
+
+                                <td className="py-3.5 px-4 text-right">
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    {alum.status !== "APPROVED" && (
+                                      <button
+                                        type="button"
+                                        disabled={updatingAlumniId === alum.id}
+                                        onClick={() => handleUpdateAlumniStatus(alum.id, "APPROVED")}
+                                        className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition-colors"
+                                        title="Approve as Associate Member"
+                                      >
+                                        <Check className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+
+                                    {alum.status !== "CONTACTED" && (
+                                      <button
+                                        type="button"
+                                        disabled={updatingAlumniId === alum.id}
+                                        onClick={() => handleUpdateAlumniStatus(alum.id, "CONTACTED")}
+                                        className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 transition-colors"
+                                        title="Mark as Contacted"
+                                      >
+                                        <Users className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+
+                                    {alum.status !== "PENDING" && (
+                                      <button
+                                        type="button"
+                                        disabled={updatingAlumniId === alum.id}
+                                        onClick={() => handleUpdateAlumniStatus(alum.id, "PENDING")}
+                                        className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 transition-colors"
+                                        title="Reset to Pending"
+                                      >
+                                        <Clock className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteAlumni(alum.id)}
+                                      className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 transition-colors ml-1"
+                                      title="Delete record"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
+
+                    {alumniList.length === 0 && !alumniLoading && (
+                      <div className="p-12 text-center">
+                        <GraduationCap className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                        <h4 className="font-bold text-slate-700 text-sm">No Alumni Registered Yet</h4>
+                        <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                          Alumni who register through the public /alumni registration portal will appear here immediately.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Mentorship & Associate Membership Guidelines Box */}
+                <div className="bg-gradient-to-r from-navy-950 to-navy-900 rounded-3xl p-6 text-white shadow-sm flex flex-col md:flex-row items-center justify-between gap-6 border border-slate-800">
+                  <div className="space-y-2">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-teal-400 bg-white/10 px-2.5 py-1 rounded-full">
+                      CUCASO Constitution Article VI
+                    </span>
+                    <h4 className="font-heading font-bold text-lg text-white">
+                      Associate Membership & Advisory Council Integration
+                    </h4>
+                    <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+                      Approved alumni can serve as resource persons, financial contributors, and advisory members in CUCASO general meetings. The Secretariat can coordinate direct mentorship pairings with chapter presidents for graduating seniors.
+                    </p>
+                  </div>
+
+                  <a
+                    href="/alumni"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-5 py-2.5 rounded-xl bg-teal-500 hover:bg-teal-400 text-navy-950 font-bold text-xs flex items-center gap-2 whitespace-nowrap transition-colors shadow-md"
+                  >
+                    <span>View Public Page</span>
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
+                </div>
               </div>
             )}
 

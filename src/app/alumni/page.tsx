@@ -20,6 +20,8 @@ import {
 
 export default function AlumniPage() {
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
@@ -44,9 +46,26 @@ export default function AlumniPage() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
+    setIsSubmitting(true);
+    setErrorMessage(null);
+    try {
+      const res = await fetch("/api/alumni", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to submit alumni registration");
+      }
+      setSubmitted(true);
+    } catch (err: any) {
+      setErrorMessage(err.message || "An error occurred while submitting your registration. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const opportunities = [
@@ -282,11 +301,25 @@ export default function AlumniPage() {
                     </div>
                   </div>
 
+                  {errorMessage && (
+                    <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold">
+                      {errorMessage}
+                    </div>
+                  )}
+
                   <button
                     type="submit"
-                    className="w-full py-3.5 rounded-xl bg-navy-950 text-white font-bold text-sm hover:bg-navy-900 transition-colors shadow-md mt-4"
+                    disabled={isSubmitting}
+                    className="w-full py-3.5 rounded-xl bg-navy-950 text-white font-bold text-sm hover:bg-navy-900 transition-colors shadow-md mt-4 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
-                    Submit Alumni Registration
+                    {isSubmitting ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Submitting Registration...
+                      </>
+                    ) : (
+                      "Submit Alumni Registration"
+                    )}
                   </button>
                 </form>
               )}
