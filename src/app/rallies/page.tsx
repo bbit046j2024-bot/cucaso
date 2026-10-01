@@ -87,8 +87,9 @@ export default function RalliesPage() {
 
       <main className="flex-1">
         {/* Banner with Photo & Countdown (Directly matching Rally Information (Public) in image1/image2) */}
-        <section className="bg-navy-950 text-white py-12 md:py-16 relative overflow-hidden">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        <section className="bg-navy-950 text-white py-12 md:py-16 relative overflow-hidden flex items-stretch min-h-[200px]">
+          <div className="flex-1 relative">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 h-full">
             {currentRally ? (
               <div className="bg-gradient-to-r from-navy-900 via-navy-950 to-slate-900 rounded-3xl border border-white/10 overflow-hidden shadow-2xl">
                 <div className="grid grid-cols-1 lg:grid-cols-12 items-center">
@@ -207,6 +208,23 @@ export default function RalliesPage() {
                 </div>
               </div>
             )}
+            </div>
+          </div>
+
+          {/* Right SDA Panel */}
+          <div className="relative hidden md:flex flex-col items-center justify-center bg-[#1a3a8f] w-28 lg:w-36 flex-shrink-0 z-10">
+            <div className="flex flex-col items-center justify-center gap-4 px-4">
+              <Image
+                src="/seventh-day-adventist-icon.png"
+                alt="Seventh-day Adventist Church logo"
+                width={80}
+                height={80}
+                className="w-16 lg:w-20 object-contain drop-shadow-lg"
+              />
+              <p className="text-white text-[9px] lg:text-[10px] font-bold text-center uppercase tracking-wider leading-tight opacity-90">
+                Seventh-day<br />Adventist<br />Church
+              </p>
+            </div>
           </div>
         </section>
 

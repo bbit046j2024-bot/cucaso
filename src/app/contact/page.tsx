@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import {
@@ -55,19 +56,37 @@ export default function ContactPage() {
 
       <main className="flex-1">
         {/* Header */}
-        <section className="bg-navy-950 text-white py-14 md:py-20 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 border border-white/20 text-teal-300 text-xs font-bold uppercase tracking-wider mb-4">
-              <Mail className="w-3.5 h-3.5 text-amber-400" />
-              <span>Direct Secretariat Access</span>
+        <section className="bg-navy-950 text-white py-14 md:py-20 relative overflow-hidden flex items-stretch min-h-[220px]">
+          <div className="relative flex-1 flex items-center">
+            <div className="absolute top-0 right-0 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 w-full">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 border border-white/20 text-teal-300 text-xs font-bold uppercase tracking-wider mb-4">
+                <Mail className="w-3.5 h-3.5 text-amber-400" />
+                <span>Direct Secretariat Access</span>
+              </div>
+              <h1 className="font-heading font-black text-3xl sm:text-5xl text-white tracking-tight leading-tight mb-3">
+                Contact & Secretariat
+              </h1>
+              <p className="text-base text-slate-300 max-w-2xl leading-relaxed">
+                Have questions regarding chapter accreditation, capability-based capitation tiers, or Coastal Unity Rally 2026 registration? Reach out directly to our administration team.
+              </p>
             </div>
-            <h1 className="font-heading font-black text-3xl sm:text-5xl text-white tracking-tight leading-tight mb-3">
-              Contact & Secretariat
-            </h1>
-            <p className="text-base text-slate-300 max-w-2xl leading-relaxed">
-              Have questions regarding chapter accreditation, capability-based capitation tiers, or Coastal Unity Rally 2026 registration? Reach out directly to our administration team.
-            </p>
+          </div>
+
+          {/* Right SDA Panel */}
+          <div className="relative hidden md:flex flex-col items-center justify-center bg-[#1a3a8f] w-28 lg:w-36 flex-shrink-0 z-10">
+            <div className="flex flex-col items-center justify-center gap-4 px-4">
+              <Image
+                src="/seventh-day-adventist-icon.png"
+                alt="Seventh-day Adventist Church logo"
+                width={80}
+                height={80}
+                className="w-16 lg:w-20 object-contain drop-shadow-lg"
+              />
+              <p className="text-white text-[9px] lg:text-[10px] font-bold text-center uppercase tracking-wider leading-tight opacity-90">
+                Seventh-day<br />Adventist<br />Church
+              </p>
+            </div>
           </div>
         </section>
 

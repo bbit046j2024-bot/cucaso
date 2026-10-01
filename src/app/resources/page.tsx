@@ -145,11 +145,22 @@ export default function ResourcesPage() {
       <main className="flex-1">
         {/* Header */}
         <section className="relative overflow-hidden text-white py-16 md:py-24 bg-navy-950 flex items-center min-h-[320px]">
+          {/* CUCASO logo watermark background */}
+          <div
+            className="absolute inset-0 bg-center bg-no-repeat"
+            style={{
+              backgroundImage: "url('/logo.png')",
+              backgroundSize: "45%",
+              backgroundPosition: "center center",
+              opacity: 0.05,
+            }}
+          />
           {/* Background image */}
           <div
             className="absolute inset-0 bg-cover bg-center bg-no-repeat"
             style={{
               backgroundImage: "url('https://images.hopesoftware.org/resize/L3c6MTkyMCxxOjc1L2hvcGUtaW1hZ2VzLzY3MDU0MDEzYTYwOTE5YzkyZDkyYzk1OS9CdE4xNzQ3Mzc5OTc3MjQwLmpwZw/w:1920,q:75/hope-images/67054013a60919c92d92c959/BtN1747379977240.jpg')",
+              opacity: 0.15,
             }}
           />
           {/* Dark gradient overlay for optimal contrast & readability */}

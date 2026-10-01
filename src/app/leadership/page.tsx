@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
@@ -109,15 +110,33 @@ export default function LeadershipPage() {
 
       <main className="flex-1">
         {/* ── Header ─────────────────────────────────────────────────────── */}
-        <section className="bg-navy-950 text-white py-14 md:py-20 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-            <h1 className="font-heading font-black text-3xl sm:text-5xl text-white tracking-tight leading-tight mb-3">
-              Our Council &amp; Leadership
-            </h1>
-            <p className="text-base text-slate-300 max-w-2xl leading-relaxed">
-              Committed to transparent stewardship, spiritual mentorship, and equitable representation for all Seventh-day Adventist institutions across the Kenyan coast.
-            </p>
+        <section className="bg-navy-950 text-white py-14 md:py-20 relative overflow-hidden flex items-stretch min-h-[220px]">
+          <div className="relative flex-1 flex items-center">
+            <div className="absolute top-0 right-0 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 w-full">
+              <h1 className="font-heading font-black text-3xl sm:text-5xl text-white tracking-tight leading-tight mb-3">
+                Our Council &amp; Leadership
+              </h1>
+              <p className="text-base text-slate-300 max-w-2xl leading-relaxed">
+                Committed to transparent stewardship, spiritual mentorship, and equitable representation for all Seventh-day Adventist institutions across the Kenyan coast.
+              </p>
+            </div>
+          </div>
+
+          {/* Right SDA Panel */}
+          <div className="relative hidden md:flex flex-col items-center justify-center bg-[#1a3a8f] w-28 lg:w-36 flex-shrink-0 z-10">
+            <div className="flex flex-col items-center justify-center gap-4 px-4">
+              <Image
+                src="/seventh-day-adventist-icon.png"
+                alt="Seventh-day Adventist Church logo"
+                width={80}
+                height={80}
+                className="w-16 lg:w-20 object-contain drop-shadow-lg"
+              />
+              <p className="text-white text-[9px] lg:text-[10px] font-bold text-center uppercase tracking-wider leading-tight opacity-90">
+                Seventh-day<br />Adventist<br />Church
+              </p>
+            </div>
           </div>
         </section>
 

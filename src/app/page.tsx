@@ -115,52 +115,71 @@ export default function HomePage() {
         {/* ========================================================= */}
         {/* 1. HERO SECTION — Proposal §25 Welcome Concept           */}
         {/* ========================================================= */}
-        <section className="relative overflow-hidden min-h-[90vh] flex items-center border-b border-navy-900">
-          <div className="absolute inset-0 z-0">
-            <Image
-              src="/logo.jpeg"
-              alt="CUCASO Background"
-              fill
-              className="object-cover object-center"
-              priority
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-navy-950/95 via-navy-950/85 to-navy-950/60" />
-            <div className="absolute bottom-0 inset-x-0 h-32 bg-gradient-to-t from-navy-950/80 to-transparent" />
+        <section className="relative overflow-hidden min-h-[90vh] flex items-stretch border-b border-navy-900">
+          {/* Main hero content */}
+          <div className="relative flex-1 flex items-center">
+            <div className="absolute inset-0 z-0">
+              <Image
+                src="/logo.jpeg"
+                alt="CUCASO Background"
+                fill
+                className="object-cover object-center"
+                priority
+              />
+              <div className="absolute inset-0 bg-gradient-to-r from-navy-950/95 via-navy-950/85 to-navy-950/60" />
+              <div className="absolute bottom-0 inset-x-0 h-32 bg-gradient-to-t from-navy-950/80 to-transparent" />
+            </div>
+
+            <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-28">
+              <h1 className="font-heading font-black text-4xl sm:text-6xl lg:text-7xl text-white tracking-tight leading-[1.08] mb-6 max-w-4xl">
+                Coastal Universities & Colleges <br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-amber-300 to-teal-300">
+                  Adventists Students Organization
+                </span>
+              </h1>
+
+              <p className="text-base sm:text-xl text-white/80 leading-relaxed mb-8 max-w-3xl font-body">
+                Connecting Adventist students across the Coastal region through faith, fellowship, service and mission. Uniting universities, polytechnics, and medical colleges under one regional family.
+              </p>
+
+              <div className="flex flex-wrap items-center gap-4">
+                <Link
+                  href="/about"
+                  className="px-8 py-4 rounded-full bg-amber-400 text-navy-950 font-black text-sm shadow-xl hover:bg-amber-300 transition-all flex items-center gap-2"
+                >
+                  <span>Explore CUCASO</span>
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+                <Link
+                  href="/rallies"
+                  className="px-8 py-4 rounded-full bg-white/10 backdrop-blur-sm border border-white/30 text-white font-bold text-sm hover:bg-white/20 transition-all flex items-center gap-2"
+                >
+                  <Calendar className="w-4 h-4 text-teal-300" />
+                  <span>Upcoming Events & Rallies</span>
+                </Link>
+                <Link
+                  href="/apply"
+                  className="px-6 py-4 rounded-full bg-teal-600/80 hover:bg-teal-500 text-white font-bold text-sm transition-all border border-teal-400/30"
+                >
+                  Join CUCASO
+                </Link>
+              </div>
+            </div>
           </div>
 
-          <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-28">
-            <h1 className="font-heading font-black text-4xl sm:text-6xl lg:text-7xl text-white tracking-tight leading-[1.08] mb-6 max-w-4xl">
-              Coastal Universities & Colleges <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-amber-300 to-teal-300">
-                Adventists Students Organization
-              </span>
-            </h1>
-
-            <p className="text-base sm:text-xl text-white/80 leading-relaxed mb-8 max-w-3xl font-body">
-              Connecting Adventist students across the Coastal region through faith, fellowship, service and mission. Uniting universities, polytechnics, and medical colleges under one regional family.
-            </p>
-
-            <div className="flex flex-wrap items-center gap-4">
-              <Link
-                href="/about"
-                className="px-8 py-4 rounded-full bg-amber-400 text-navy-950 font-black text-sm shadow-xl hover:bg-amber-300 transition-all flex items-center gap-2"
-              >
-                <span>Explore CUCASO</span>
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-              <Link
-                href="/rallies"
-                className="px-8 py-4 rounded-full bg-white/10 backdrop-blur-sm border border-white/30 text-white font-bold text-sm hover:bg-white/20 transition-all flex items-center gap-2"
-              >
-                <Calendar className="w-4 h-4 text-teal-300" />
-                <span>Upcoming Events & Rallies</span>
-              </Link>
-              <Link
-                href="/apply"
-                className="px-6 py-4 rounded-full bg-teal-600/80 hover:bg-teal-500 text-white font-bold text-sm transition-all border border-teal-400/30"
-              >
-                Join CUCASO
-              </Link>
+          {/* Right SDA Panel */}
+          <div className="relative hidden md:flex flex-col items-center justify-center bg-[#1a3a8f] w-28 lg:w-36 flex-shrink-0 z-10">
+            <div className="flex flex-col items-center justify-center gap-4 px-4">
+              <Image
+                src="/seventh-day-adventist-icon.png"
+                alt="Seventh-day Adventist Church logo"
+                width={80}
+                height={80}
+                className="w-16 lg:w-20 object-contain drop-shadow-lg"
+              />
+              <p className="text-white text-[9px] lg:text-[10px] font-bold text-center uppercase tracking-wider leading-tight opacity-90">
+                Seventh-day<br />Adventist<br />Church
+              </p>
             </div>
           </div>
         </section>

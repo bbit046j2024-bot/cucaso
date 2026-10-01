@@ -111,31 +111,51 @@ export default function AboutPage() {
 
       <main className="flex-1">
         {/* Page Hero */}
-        <section className="relative overflow-hidden text-white py-20 md:py-28 min-h-[380px] flex items-center">
-          {/* Background image */}
-          <div
-            className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-            style={{
-              backgroundImage: "url('https://images.unsplash.com/photo-1529070538774-1843cb3265df?w=1600&q=80')",
-            }}
-          />
-          {/* Dark overlay — much darker so background is subtle */}
-          <div className="absolute inset-0 bg-gradient-to-r from-navy-950/98 via-navy-950/95 to-navy-950/85" />
-          <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#14B8A6_1px,transparent_1px)] [background-size:16px_16px]" />
-          <div className="absolute top-0 right-0 w-96 h-96 bg-teal-500/20 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute bottom-0 left-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+        <section className="relative overflow-hidden text-white min-h-[380px] flex items-stretch">
+          {/* Left content area — takes up the space minus the SDA panel */}
+          <div className="relative flex-1 flex items-center py-20 md:py-28">
+            {/* Background image — blurred so text is clearly readable */}
+            <div
+              className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+              style={{
+                backgroundImage: "url('https://images.pexels.com/photos/6147369/pexels-photo-6147369.jpeg?cs=srgb&dl=pexels-keira-burton-6147369.jpg&fm=jpg')",
+                filter: "blur(3px)",
+                transform: "scale(1.05)",
+              }}
+            />
+            {/* Dark overlay — enough contrast for text clarity */}
+            <div className="absolute inset-0 bg-gradient-to-r from-navy-950/90 via-navy-950/80 to-navy-950/65" />
+            <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#14B8A6_1px,transparent_1px)] [background-size:16px_16px]" />
+            <div className="absolute bottom-0 left-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
 
-          {/* Text flush left */}
-          <div className="w-full px-4 sm:px-8 lg:px-16 relative z-10">
-            <h1 className="font-heading font-black text-4xl sm:text-5xl lg:text-6xl text-white tracking-tight leading-[1.15] mb-6 max-w-3xl">
-              About CUCASO: <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-amber-300 to-teal-300">
-                One Community. One Faith. One Mission.
-              </span>
-            </h1>
-            <p className="text-base sm:text-lg text-slate-300 leading-relaxed max-w-2xl font-body">
-              The Coastal Universities and Colleges Adventists Students Organization (CUCASO) unites organized Seventh-day Adventist student fellowships across universities, colleges, and schools in Mombasa and the Kenyan coastal region.
-            </p>
+            {/* Text flush left */}
+            <div className="w-full px-4 sm:px-8 lg:px-16 relative z-10">
+              <h1 className="font-heading font-black text-4xl sm:text-5xl lg:text-6xl text-white tracking-tight leading-[1.15] mb-6 max-w-3xl drop-shadow-lg">
+                About CUCASO: <br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-amber-300 to-teal-300">
+                  One Community. One Faith. One Mission.
+                </span>
+              </h1>
+              <p className="text-base sm:text-lg text-slate-200 leading-relaxed max-w-2xl font-body drop-shadow-md">
+                The Coastal Universities and Colleges Adventists Students Organization (CUCASO) unites organized Seventh-day Adventist student fellowships across universities, colleges, and schools in Mombasa and the Kenyan coastal region.
+              </p>
+            </div>
+          </div>
+
+          {/* Right SDA Panel — full height blue strip with SDA logo (like TUMSDA website) */}
+          <div className="relative hidden md:flex flex-col items-center justify-center bg-[#1a3a8f] w-28 lg:w-36 flex-shrink-0 z-10">
+            <div className="flex flex-col items-center justify-center gap-4 px-4">
+              <Image
+                src="/seventh-day-adventist-icon.png"
+                alt="Seventh-day Adventist Church logo"
+                width={80}
+                height={80}
+                className="w-16 lg:w-20 object-contain drop-shadow-lg"
+              />
+              <p className="text-white text-[9px] lg:text-[10px] font-bold text-center uppercase tracking-wider leading-tight opacity-90">
+                Seventh-day<br />Adventist<br />Church
+              </p>
+            </div>
           </div>
         </section>
 

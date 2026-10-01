@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
@@ -54,15 +55,33 @@ export default function PartnersPage() {
 
       <main className="flex-1">
         {/* Header */}
-        <section className="bg-navy-950 text-white py-16 md:py-24 relative overflow-hidden">
-          <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#14B8A6_1px,transparent_1px)] [background-size:16px_16px]" />
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-            <div className="max-w-3xl">
-              <h1 className="font-heading font-black text-4xl sm:text-5xl lg:text-6xl text-white mt-4 mb-4">
-                Partners & Supporters
-              </h1>
-              <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-                Recognizing the conferences, academic institutions, community sponsors, and well-wishers who stand with Adventist students across the Coast.
+        <section className="bg-navy-950 text-white py-16 md:py-24 relative overflow-hidden flex items-stretch min-h-[260px]">
+          <div className="relative flex-1 flex items-center">
+            <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#14B8A6_1px,transparent_1px)] [background-size:16px_16px]" />
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 w-full">
+              <div className="max-w-3xl">
+                <h1 className="font-heading font-black text-4xl sm:text-5xl lg:text-6xl text-white mt-4 mb-4">
+                  Partners & Supporters
+                </h1>
+                <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
+                  Recognizing the conferences, academic institutions, community sponsors, and well-wishers who stand with Adventist students across the Coast.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Right SDA Panel */}
+          <div className="relative hidden md:flex flex-col items-center justify-center bg-[#1a3a8f] w-28 lg:w-36 flex-shrink-0 z-10">
+            <div className="flex flex-col items-center justify-center gap-4 px-4">
+              <Image
+                src="/seventh-day-adventist-icon.png"
+                alt="Seventh-day Adventist Church logo"
+                width={80}
+                height={80}
+                className="w-16 lg:w-20 object-contain drop-shadow-lg"
+              />
+              <p className="text-white text-[9px] lg:text-[10px] font-bold text-center uppercase tracking-wider leading-tight opacity-90">
+                Seventh-day<br />Adventist<br />Church
               </p>
             </div>
           </div>
