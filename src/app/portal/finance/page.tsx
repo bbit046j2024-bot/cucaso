@@ -21,8 +21,13 @@ import {
   X,
   FileCheck,
   AlertTriangle,
+  Download,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
+import {
+  exportChapterFinancialSummaryPDF,
+  exportSingleInvoicePDF,
+} from "@/lib/pdf-export";
 
 interface InvoiceItem {
   id: string;
@@ -54,6 +59,7 @@ interface PaymentItem {
 export default function FinancePortalPage() {
   const [invoices, setInvoices] = useState<InvoiceItem[]>([]);
   const [payments, setPayments] = useState<PaymentItem[]>([]);
+  const [chapters, setChapters] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [feeLocked, setFeeLocked] = useState(false);
   const [activeTab, setActiveTab] = useState<"invoices" | "payments">("invoices");
@@ -76,6 +82,15 @@ export default function FinancePortalPage() {
   });
   const [submittingPayment, setSubmittingPayment] = useState(false);
 
+  // Council Custom Invoice state
+  const [showCustomInvoiceModal, setShowCustomInvoiceModal] = useState(false);
+  const [customInvoiceForm, setCustomInvoiceForm] = useState({
+    chapterId: "",
+    amountDue: "",
+    dueDate: "",
+  });
+  const [submittingInvoice, setSubmittingInvoice] = useState(false);
+
   const showToast = (type: "success" | "error", text: string) => {
     setToast({ type, text });
     setTimeout(() => setToast(null), 4000);
@@ -84,19 +99,26 @@ export default function FinancePortalPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [invRes, payRes] = await Promise.all([
+      const [invRes, payRes, chapRes] = await Promise.all([
         fetch("/api/invoices"),
         fetch("/api/payments"),
+        fetch("/api/chapters"),
       ]);
 
-      const invJson = await invRes.json();
-      const payJson = await payRes.json();
+      const [invJson, payJson, chapJson] = await Promise.all([
+        invRes.json(),
+        payRes.json(),
+        chapRes.json(),
+      ]);
 
       if (invJson.success && Array.isArray(invJson.data)) {
         setInvoices(invJson.data);
       }
       if (payJson.success && Array.isArray(payJson.data)) {
         setPayments(payJson.data);
+      }
+      if (chapJson.success && Array.isArray(chapJson.data)) {
+        setChapters(chapJson.data);
       }
     } catch {
       showToast("error", "Failed to load financial records from database.");
@@ -108,6 +130,61 @@ export default function FinancePortalPage() {
   useEffect(() => {
     loadData();
   }, []);
+
+  const handleExportLedger = () => {
+    showToast("success", "Generating Chapter Financial Ledger (.pdf)...");
+    try {
+      exportChapterFinancialSummaryPDF({
+        chapters: chapters.length > 0 ? chapters : invoices.map(i => ({ id: i.chapterId, code: i.paymentReference.replace("CUCASO-", ""), institutionName: i.institutionName, chapterName: i.institutionName, tierId: "TIER_3", attendeesCount: 0 } as any)),
+        invoices: invoices as any,
+        payments: payments as any,
+        rallyTitle: "Annual Coastal Rally 2026",
+      });
+      showToast("success", "Downloaded CUCASO_Financial_Ledger.pdf!");
+    } catch (e) {
+      console.error(e);
+      showToast("error", "Failed to export PDF ledger.");
+    }
+  };
+
+  const handleSaveCustomInvoice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customInvoiceForm.chapterId) {
+      showToast("error", "Please select a chapter.");
+      return;
+    }
+    const amt = parseFloat(customInvoiceForm.amountDue);
+    if (isNaN(amt) || amt < 0) {
+      showToast("error", "Enter a valid positive invoice amount.");
+      return;
+    }
+
+    setSubmittingInvoice(true);
+    try {
+      const res = await fetch("/api/invoices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chapterId: customInvoiceForm.chapterId,
+          amountDue: amt,
+          dueDate: customInvoiceForm.dueDate || undefined,
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        showToast("success", `Council invoice of KES ${amt.toLocaleString()} saved!`);
+        setShowCustomInvoiceModal(false);
+        setCustomInvoiceForm({ chapterId: "", amountDue: "", dueDate: "" });
+        loadData();
+      } else {
+        showToast("error", json.error || "Failed to save invoice.");
+      }
+    } catch {
+      showToast("error", "Network error saving invoice.");
+    } finally {
+      setSubmittingInvoice(false);
+    }
+  };
 
   const handleSyncMpesa = async () => {
     setSyncing(true);
@@ -266,6 +343,23 @@ export default function FinancePortalPage() {
             >
               <Lock className="w-4 h-4" />
               {feeLocked ? "Fee Lock Frozen (Locked)" : "Freeze Rally Fee Lock"}
+            </button>
+
+            <button
+              onClick={() => setShowCustomInvoiceModal(true)}
+              className="px-4 py-2.5 rounded-xl bg-navy-900 hover:bg-navy-800 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5 text-amber-400" />
+              <span>Issue Council Invoice</span>
+            </button>
+
+            <button
+              onClick={handleExportLedger}
+              className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+              title="Download official PDF ledger document"
+            >
+              <Download className="w-3.5 h-3.5 text-teal-700" />
+              <span>Export PDF Ledger</span>
             </button>
 
             <button
@@ -431,22 +525,45 @@ export default function FinancePortalPage() {
                           </span>
                         </td>
                         <td className="py-4 px-4 text-right">
-                          <button
-                            onClick={() => {
-                              setSelectedInvoice(inv);
-                              setPaymentForm({
-                                amount: inv.balance > 0 ? String(inv.balance) : "",
-                                reference: inv.paymentReference,
-                                method: "MPESA_C2B",
-                                payerName: inv.institutionName,
-                                payerPhone: "+254700000000",
-                              });
-                              setShowPaymentModal(true);
-                            }}
-                            className="px-3 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs transition-colors cursor-pointer inline-flex items-center gap-1"
-                          >
-                            <CreditCard className="w-3.5 h-3.5" /> Record Payment
-                          </button>
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => {
+                                const ch = chapters.find(c => c.id === inv.chapterId);
+                                exportSingleInvoicePDF({
+                                  invoiceNumber: inv.invoiceNumber || `INV-${inv.paymentReference}`,
+                                  institutionName: inv.institutionName,
+                                  chapterCode: ch?.code || inv.paymentReference.replace("CUCASO-", ""),
+                                  paymentReference: inv.paymentReference,
+                                  dueDate: inv.dueDate ? new Date(inv.dueDate).toLocaleDateString("en-KE") : "TBA",
+                                  amountDue: inv.amountDue,
+                                  amountPaid: inv.amountPaid,
+                                  balance: inv.balance,
+                                  status: inv.status,
+                                  rallyTitle: "Annual Coastal Rally 2026",
+                                });
+                              }}
+                              className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer inline-flex items-center gap-1 border border-slate-200"
+                              title="Download official PDF invoice"
+                            >
+                              <Download className="w-3.5 h-3.5 text-teal-700" /> PDF
+                            </button>
+                            <button
+                              onClick={() => {
+                                setSelectedInvoice(inv);
+                                setPaymentForm({
+                                  amount: inv.balance > 0 ? String(inv.balance) : "",
+                                  reference: inv.paymentReference,
+                                  method: "MPESA_C2B",
+                                  payerName: inv.institutionName,
+                                  payerPhone: "+254700000000",
+                                });
+                                setShowPaymentModal(true);
+                              }}
+                              className="px-3 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs transition-colors cursor-pointer inline-flex items-center gap-1"
+                            >
+                              <CreditCard className="w-3.5 h-3.5" /> Record Payment
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -631,6 +748,102 @@ export default function FinancePortalPage() {
                   className="px-5 py-2 rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-bold text-xs flex items-center gap-1.5 disabled:opacity-50"
                 >
                   {submittingPayment ? "Recording…" : "Confirm Payment"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Council Custom Invoice Modal */}
+      {showCustomInvoiceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 animate-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="font-heading font-extrabold text-base text-navy-900 flex items-center gap-2">
+                <Plus className="w-5 h-5 text-teal-700" />
+                Issue Council Chapter Invoice
+              </h3>
+              <button
+                onClick={() => setShowCustomInvoiceModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCustomInvoice} className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Select Chapter *
+                </label>
+                <select
+                  value={customInvoiceForm.chapterId}
+                  onChange={(e) => {
+                    const chId = e.target.value;
+                    const existing = invoices.find(i => i.chapterId === chId);
+                    setCustomInvoiceForm(f => ({
+                      ...f,
+                      chapterId: chId,
+                      amountDue: existing ? String(existing.amountDue) : f.amountDue,
+                    }));
+                  }}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-700"
+                  required
+                >
+                  <option value="">-- Choose Chapter --</option>
+                  {(chapters.length > 0 ? chapters : invoices).map((c: any) => (
+                    <option key={c.id || c.chapterId} value={c.id || c.chapterId}>
+                      {c.code ? `${c.code} - ` : ""}{c.institutionName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Council Decided Invoiced Amount (KES) *
+                </label>
+                <input
+                  type="number"
+                  required
+                  min={1}
+                  placeholder="e.g. 35000"
+                  value={customInvoiceForm.amountDue}
+                  onChange={(e) => setCustomInvoiceForm({ ...customInvoiceForm, amountDue: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm font-bold text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-teal-700"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Council custom quota for rally logistics and chapter capability contribution.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Payment Due Date
+                </label>
+                <input
+                  type="date"
+                  value={customInvoiceForm.dueDate}
+                  onChange={(e) => setCustomInvoiceForm({ ...customInvoiceForm, dueDate: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-700"
+                />
+              </div>
+
+              <div className="flex gap-2 justify-end pt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowCustomInvoiceModal(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingInvoice}
+                  className="px-5 py-2 rounded-xl bg-navy-900 hover:bg-teal-700 text-white font-bold text-xs flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {submittingInvoice ? "Saving…" : "Save & Issue Invoice"}
                 </button>
               </div>
             </form>
