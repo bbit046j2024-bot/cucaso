@@ -126,6 +126,7 @@ export async function PUT(request: Request) {
         phone: true,
         role: true,
         chapterId: true,
+        avatarUrl: true,
       },
     });
 

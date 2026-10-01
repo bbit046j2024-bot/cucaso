@@ -25,6 +25,7 @@ export async function GET() {
         role: true,
         chapterId: true,
         totpEnabled: true,
+        avatarUrl: true,
         createdAt: true,
         chapter: {
           select: {

@@ -464,7 +464,7 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
   const [passwordFeedback, setPasswordFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Change Email State (self-service + super-admin override)
-  const [sessionUser, setSessionUser] = useState<{ id: string; email: string; name?: string; phone?: string; role: string; chapterId?: string | null; totpEnabled?: boolean } | null>(null);
+  const [sessionUser, setSessionUser] = useState<{ id: string; email: string; name?: string; phone?: string; role: string; chapterId?: string | null; totpEnabled?: boolean; avatarUrl?: string | null } | null>(null);
   const [emailTargetUserId, setEmailTargetUserId] = useState<string>("");
   const [emailForm, setEmailForm] = useState({ newEmail: "", currentPassword: "" });
   const [emailLoading, setEmailLoading] = useState(false);
@@ -516,6 +516,9 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
   const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
   const [deletingInvoiceId, setDeletingInvoiceId] = useState<string | null>(null);
   const [clearingInvoices, setClearingInvoices] = useState(false);
+  const [deletingAttendeeId, setDeletingAttendeeId] = useState<string | null>(null);
+  const [adminAttendeeSearch, setAdminAttendeeSearch] = useState("");
+  const [adminAttendeeChapterFilter, setAdminAttendeeChapterFilter] = useState("ALL");
 
   // Alumni Network State
   const [alumniList, setAlumniList] = useState<any[]>([]);
@@ -1299,6 +1302,7 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
             role: u.role,
             chapterId: u.chapterId ?? null,
             totpEnabled: u.totpEnabled ?? false,
+            avatarUrl: u.avatarUrl ?? null,
           });
           // Derive portal strictly from verified staff roles (including COUNCIL_MEMBER, CHAPLAIN, etc.)
           const isAdmin = isStaffRole(u.role);
@@ -1652,6 +1656,42 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
       console.error("Failed to add attendee:", err);
     } finally {
       setAddAttendeeSubmitting(false);
+    }
+  };
+
+  // Handler: Delete Attendee from Chapter or Admin Portal
+  const handleDeleteAttendee = async (attendee: Attendee | { id: string; fullName: string; admissionOrIdNumber?: string }) => {
+    const name = attendee.fullName || "this delegate";
+    const idNum = attendee.admissionOrIdNumber ? ` (${attendee.admissionOrIdNumber})` : "";
+    if (!confirm(`Are you sure you want to remove delegate ${name}${idNum} from the attendance roster? This will remove them from accreditation and update chapter numbers.`)) {
+      return;
+    }
+    setDeletingAttendeeId(attendee.id);
+    try {
+      const res = await fetch(`/api/attendees?id=${encodeURIComponent(attendee.id)}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (data.success) {
+        // Update local chapter attendee roster
+        setAttendeesList(prev => prev.filter(a => a.id !== attendee.id));
+        // Update local admin master attendee roster
+        setAllAttendeesList(prev => prev.filter(a => a.id !== attendee.id));
+        // Refresh chapters to update delegate counts
+        fetch("/api/chapters")
+          .then(r => r.json())
+          .then(j => { if (j.success && Array.isArray(j.data)) setChaptersList(j.data); })
+          .catch(() => {});
+        setLocationToast(`Removed delegate "${name}" from attendance roster.`);
+        setTimeout(() => setLocationToast(null), 3000);
+      } else {
+        alert(data.error || "Failed to remove delegate from attendance roster.");
+      }
+    } catch (err) {
+      console.error("Failed to delete attendee:", err);
+      alert("A network error occurred while removing the delegate. Please try again.");
+    } finally {
+      setDeletingAttendeeId(null);
     }
   };
 
@@ -2646,6 +2686,7 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
           name: data.user.name,
           email: data.user.email,
           phone: data.user.phone,
+          avatarUrl: data.user.avatarUrl ?? profileForm.avatarUrl ?? prev.avatarUrl,
         } : prev));
         setUsersList(prev => prev.map(u => (u.id === data.user.id ? { ...u, ...data.user } : u)));
       }
@@ -3374,15 +3415,24 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
               </div>
 
               <div className="flex items-center gap-3 pl-3 border-l border-slate-200">
-                <div className={`w-9 h-9 rounded-full font-black text-xs flex items-center justify-center shadow-sm ${activePortal === "CHAPTER"
-                  ? "bg-gradient-to-br from-teal-600 to-navy-900 text-white"
-                  : "bg-gradient-to-br from-amber-400 to-amber-600 text-navy-950"
-                  }`}>
-                  {activePortal === "CHAPTER" ? currentChapter.code?.slice(0, 2).toUpperCase() || "CH" : "AD"}
-                </div>
+                {/* User avatar — shows photo when available, initials otherwise */}
+                {sessionUser?.avatarUrl ? (
+                  <img
+                    src={sessionUser.avatarUrl}
+                    alt={sessionUser?.name || "User"}
+                    className="w-9 h-9 rounded-full object-cover shadow-sm ring-2 ring-white"
+                  />
+                ) : (
+                  <div className={`w-9 h-9 rounded-full font-black text-xs flex items-center justify-center shadow-sm ${activePortal === "CHAPTER"
+                    ? "bg-gradient-to-br from-teal-600 to-navy-900 text-white"
+                    : "bg-gradient-to-br from-amber-400 to-amber-600 text-navy-950"
+                    }`}>
+                    {activePortal === "CHAPTER" ? currentChapter.code?.slice(0, 2).toUpperCase() || "CH" : "AD"}
+                  </div>
+                )}
                 <div className="hidden sm:flex flex-col text-left">
                   <span className="text-xs font-bold text-slate-900 leading-tight">
-                    {activePortal === "CHAPTER" ? currentChapter.repName || "Chapter Rep" : "Council Admin"}
+                    {sessionUser?.name || (activePortal === "CHAPTER" ? currentChapter.repName || "Chapter Rep" : "Council Admin")}
                   </span>
                   <span className="text-[10px] text-slate-500 leading-tight">
                     {activePortal === "CHAPTER" ? currentChapter.location || "Mombasa" : "System Administrator"}
@@ -3855,6 +3905,7 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                           <th className="py-3 px-4">Dietary</th>
                           <th className="py-3 px-4">Guardian Consent</th>
                           <th className="py-3 px-4">Status</th>
+                          <th className="py-3 px-4 text-right">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -3908,8 +3959,32 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                                   {att.status}
                                 </span>
                               </td>
+                              <td className="py-3.5 px-4 text-right">
+                                <button
+                                  type="button"
+                                  disabled={deletingAttendeeId === att.id}
+                                  onClick={() => handleDeleteAttendee(att)}
+                                  className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 transition-colors disabled:opacity-50 inline-flex items-center gap-1 text-[11px] font-semibold"
+                                  title="Remove delegate from attendance roster"
+                                >
+                                  {deletingAttendeeId === att.id ? (
+                                    <div className="w-3.5 h-3.5 border-2 border-rose-600/30 border-t-rose-600 rounded-full animate-spin" />
+                                  ) : (
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  )}
+                                  <span className="hidden sm:inline">Delete</span>
+                                </button>
+                              </td>
                             </tr>
                           ))}
+
+                        {attendeesList.filter(a => a.fullName.toLowerCase().includes(attendeeSearch.toLowerCase()) || a.admissionOrIdNumber.toLowerCase().includes(attendeeSearch.toLowerCase())).length === 0 && (
+                          <tr>
+                            <td colSpan={8} className="py-8 text-center text-slate-400">
+                              {attendeesList.length === 0 ? "No registered delegates for this chapter yet." : "No delegates found matching your search."}
+                            </td>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -5199,9 +5274,17 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 flex flex-col items-center text-center space-y-3">
-                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-navy-800 to-teal-700 text-white font-heading font-black text-2xl flex items-center justify-center">
-                      {(currentChapter.repName || "JM").split(" ").map((w: string) => w[0]).join("").slice(0, 2)}
-                    </div>
+                    {sessionUser?.avatarUrl ? (
+                      <img
+                        src={sessionUser.avatarUrl}
+                        alt={sessionUser?.name || "Profile Photo"}
+                        className="w-20 h-20 rounded-full object-cover ring-4 ring-teal-100 shadow-md"
+                      />
+                    ) : (
+                      <div className="w-20 h-20 rounded-full bg-gradient-to-br from-navy-800 to-teal-700 text-white font-heading font-black text-2xl flex items-center justify-center">
+                        {(currentChapter.repName || sessionUser?.name || "JM").split(" ").map((w: string) => w[0]).join("").slice(0, 2)}
+                      </div>
+                    )}
                     <div>
                       <span className="font-heading font-black text-lg text-navy-950 block">{currentChapter.repName || "John Mwangi"}</span>
                       <span className="text-xs text-teal-700 font-semibold block">Chapter Representative</span>
@@ -8205,13 +8288,40 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                     <p className="text-xs text-slate-500 mt-1">All registered delegates across all chapters for Coastal Unity Rally 2026.</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2 shadow-sm">
-                      <Download className="w-3.5 h-3.5" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        exportToCSV(
+                          "cucaso_attendee_master_register",
+                          ["Full Name", "Admission / ID", "Chapter", "Department", "Gender", "Category", "Role", "Dietary", "Status"],
+                          allAttendeesList.map(a => {
+                            const ch = chaptersList.find(c => c.id === a.chapterId);
+                            return [
+                              a.fullName,
+                              a.admissionOrIdNumber,
+                              ch?.code || a.chapterId,
+                              a.department || "",
+                              a.gender,
+                              a.ageCategory,
+                              a.role,
+                              a.dietaryRequirements || "Standard",
+                              a.status
+                            ];
+                          })
+                        );
+                      }}
+                      className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2 shadow-sm transition-colors"
+                    >
+                      <Download className="w-3.5 h-3.5 text-slate-500" />
                       <span>Export CSV</span>
                     </button>
-                    <button className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2 shadow-sm">
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>Bulk Import</span>
+                    <button
+                      type="button"
+                      onClick={() => handleExportPDF("Attendee Master Register")}
+                      className="px-4 py-2.5 rounded-xl bg-navy-900 hover:bg-navy-800 text-white text-xs font-bold flex items-center gap-2 shadow-sm transition-colors"
+                    >
+                      <Download className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Export PDF</span>
                     </button>
                   </div>
                 </div>
@@ -8285,15 +8395,53 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                   </div>
                 </div>
 
-                {/* Sample Individual Roster */}
+                {/* Master Individual Roster */}
                 <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="font-heading font-bold text-base text-navy-950">Recent Registrations</h3>
-                    <div className="relative w-64">
-                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                      <input type="text" placeholder="Search delegate..." className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-600 focus:outline-none" />
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                    <div>
+                      <h3 className="font-heading font-bold text-base text-navy-950">Master Delegate Directory</h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Showing {
+                          allAttendeesList.filter((att) => {
+                            const matchS = !adminAttendeeSearch ||
+                              att.fullName.toLowerCase().includes(adminAttendeeSearch.toLowerCase()) ||
+                              att.admissionOrIdNumber.toLowerCase().includes(adminAttendeeSearch.toLowerCase()) ||
+                              (att.department && att.department.toLowerCase().includes(adminAttendeeSearch.toLowerCase())) ||
+                              att.chapterId.toLowerCase().includes(adminAttendeeSearch.toLowerCase());
+                            const matchCh = adminAttendeeChapterFilter === "ALL" || att.chapterId === adminAttendeeChapterFilter;
+                            return matchS && matchCh;
+                          }).length
+                        } of {allAttendeesList.length} registered delegates
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <select
+                        value={adminAttendeeChapterFilter}
+                        onChange={(e) => setAdminAttendeeChapterFilter(e.target.value)}
+                        className="px-3 py-2 border border-slate-200 rounded-xl text-xs bg-white text-slate-700 focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                      >
+                        <option value="ALL">All Chapters ({allAttendeesList.length})</option>
+                        {chaptersList.map((ch) => (
+                          <option key={ch.id} value={ch.id}>
+                            {ch.institutionName} ({allAttendeesList.filter(a => a.chapterId === ch.id).length})
+                          </option>
+                        ))}
+                      </select>
+
+                      <div className="relative w-full sm:w-60">
+                        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          value={adminAttendeeSearch}
+                          onChange={(e) => setAdminAttendeeSearch(e.target.value)}
+                          placeholder="Search delegate or ID..."
+                          className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-teal-600 focus:outline-none"
+                        />
+                      </div>
                     </div>
                   </div>
+
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
                       <thead>
@@ -8304,33 +8452,74 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                           <th className="py-3 px-4">Category</th>
                           <th className="py-3 px-4">Dietary</th>
                           <th className="py-3 px-4 text-center">Status</th>
+                          <th className="py-3 px-4 text-right">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {allAttendeesList.length === 0 ? (
+                        {allAttendeesList
+                          .filter((att) => {
+                            const matchS = !adminAttendeeSearch ||
+                              att.fullName.toLowerCase().includes(adminAttendeeSearch.toLowerCase()) ||
+                              att.admissionOrIdNumber.toLowerCase().includes(adminAttendeeSearch.toLowerCase()) ||
+                              (att.department && att.department.toLowerCase().includes(adminAttendeeSearch.toLowerCase())) ||
+                              att.chapterId.toLowerCase().includes(adminAttendeeSearch.toLowerCase());
+                            const matchCh = adminAttendeeChapterFilter === "ALL" || att.chapterId === adminAttendeeChapterFilter;
+                            return matchS && matchCh;
+                          })
+                          .map((att) => {
+                            const ch = chaptersList.find(c => c.id === att.chapterId);
+                            return (
+                              <tr key={att.id} className="hover:bg-slate-50/80 transition-colors">
+                                <td className="py-3.5 px-4">
+                                  <span className="font-bold text-slate-900 block">{att.fullName}</span>
+                                  <span className="text-slate-400 font-mono text-[10px]">{att.admissionOrIdNumber}</span>
+                                </td>
+                                <td className="py-3.5 px-4">
+                                  <span className="text-slate-800 font-semibold block">{ch?.institutionName || att.chapterId.replace("ch-", "").toUpperCase()}</span>
+                                  <span className="font-mono text-[10px] text-teal-700 font-bold">{ch?.code || att.chapterId}</span>
+                                </td>
+                                <td className="py-3.5 px-4"><span className="px-2 py-0.5 rounded bg-navy-100 text-navy-800 text-[10px] font-semibold">{att.role}</span></td>
+                                <td className="py-3.5 px-4 text-slate-600">{att.ageCategory}</td>
+                                <td className="py-3.5 px-4 text-slate-600">{att.dietaryRequirements || "Standard"}</td>
+                                <td className="py-3.5 px-4 text-center">
+                                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${att.status === "CONFIRMED" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
+                                    {att.status}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-4 text-right">
+                                  <button
+                                    type="button"
+                                    disabled={deletingAttendeeId === att.id}
+                                    onClick={() => handleDeleteAttendee(att)}
+                                    className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 transition-colors disabled:opacity-50 inline-flex items-center gap-1 text-[11px] font-semibold"
+                                    title="Remove delegate from master roster"
+                                  >
+                                    {deletingAttendeeId === att.id ? (
+                                      <div className="w-3.5 h-3.5 border-2 border-rose-600/30 border-t-rose-600 rounded-full animate-spin" />
+                                    ) : (
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    )}
+                                    <span className="hidden sm:inline">Delete</span>
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+
+                        {allAttendeesList.filter((att) => {
+                          const matchS = !adminAttendeeSearch ||
+                            att.fullName.toLowerCase().includes(adminAttendeeSearch.toLowerCase()) ||
+                            att.admissionOrIdNumber.toLowerCase().includes(adminAttendeeSearch.toLowerCase()) ||
+                            (att.department && att.department.toLowerCase().includes(adminAttendeeSearch.toLowerCase())) ||
+                            att.chapterId.toLowerCase().includes(adminAttendeeSearch.toLowerCase());
+                          const matchCh = adminAttendeeChapterFilter === "ALL" || att.chapterId === adminAttendeeChapterFilter;
+                          return matchS && matchCh;
+                        }).length === 0 && (
                           <tr>
-                            <td colSpan={6} className="py-8 text-center text-slate-400">
-                              No registered delegates in the database yet.
+                            <td colSpan={7} className="py-8 text-center text-slate-400">
+                              {allAttendeesList.length === 0 ? "No registered delegates in the database yet." : "No delegates found matching your search."}
                             </td>
                           </tr>
-                        ) : (
-                          allAttendeesList.map((att) => (
-                            <tr key={att.id} className="hover:bg-slate-50/80 transition-colors">
-                              <td className="py-3.5 px-4">
-                                <span className="font-bold text-slate-900 block">{att.fullName}</span>
-                                <span className="text-slate-400 font-mono text-[10px]">{att.admissionOrIdNumber}</span>
-                              </td>
-                              <td className="py-3.5 px-4 text-slate-600 font-mono text-[10px]">{att.chapterId.replace("ch-", "").toUpperCase()}</td>
-                              <td className="py-3.5 px-4"><span className="px-2 py-0.5 rounded bg-navy-100 text-navy-800 text-[10px] font-semibold">{att.role}</span></td>
-                              <td className="py-3.5 px-4 text-slate-600">{att.ageCategory}</td>
-                              <td className="py-3.5 px-4 text-slate-600">{att.dietaryRequirements || "Standard"}</td>
-                              <td className="py-3.5 px-4 text-center">
-                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${att.status === "CONFIRMED" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
-                                  {att.status}
-                                </span>
-                              </td>
-                            </tr>
-                          ))
                         )}
                       </tbody>
                     </table>
@@ -10651,8 +10840,50 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                   </div>
                 </div>
 
+                {/* Admin Profile Card */}
+                <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 flex items-center gap-6">
+                  <div className="relative flex-shrink-0">
+                    {sessionUser?.avatarUrl ? (
+                      <img
+                        src={sessionUser.avatarUrl}
+                        alt={sessionUser?.name || "Admin"}
+                        className="w-20 h-20 rounded-full object-cover ring-4 ring-amber-100 shadow-md"
+                      />
+                    ) : (
+                      <div className="w-20 h-20 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 text-navy-950 font-heading font-black text-2xl flex items-center justify-center shadow-md">
+                        AD
+                      </div>
+                    )}
+                    <span className="absolute bottom-0 right-0 w-5 h-5 rounded-full bg-emerald-400 ring-2 ring-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-heading font-black text-lg text-navy-950 leading-tight truncate">
+                      {sessionUser?.name || "Council Admin"}
+                    </p>
+                    <p className="text-xs text-amber-700 font-semibold">{sessionUser?.role?.replace(/_/g, " ") || "System Administrator"}</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5 truncate">{sessionUser?.email}</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setProfileForm({
+                        name: sessionUser?.name || "",
+                        phone: sessionUser?.phone || "",
+                        email: sessionUser?.email || "",
+                        avatarUrl: sessionUser?.avatarUrl || "",
+                        currentPassword: "",
+                      });
+                      setShowEditProfileModal(true);
+                    }}
+                    className="flex-shrink-0 px-4 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-xs transition-colors flex items-center gap-2 border border-amber-200"
+                  >
+                    <Camera className="w-3.5 h-3.5" />
+                    <span>Edit Profile &amp; Photo</span>
+                  </button>
+                </div>
+
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* CARD 1: Admin Password & Security (CRUD) */}
+
                   <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
                     <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                       <div className="flex items-center gap-2.5">
