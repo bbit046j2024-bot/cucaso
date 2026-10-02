@@ -409,7 +409,7 @@ export default function SupportPage() {
                         <strong className="text-amber-400 text-lg">coming soon</strong>
                         <button
                           type="button"
-                          onClick={() => copyToClipboard("4082200")}
+                          onClick={() => copyToClipboard("N/A")}
                           className="p-1 rounded hover:bg-white/10 text-slate-300"
                           title="Copy Paybill"
                         >
