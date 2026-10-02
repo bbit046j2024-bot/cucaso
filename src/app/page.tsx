@@ -21,9 +21,7 @@ import {
   Sprout,
   ArrowRight,
   Home as HomeIcon,
-  Flame,
   Globe2,
-  Award,
   Sparkles,
   BookOpen,
   Heart,
@@ -89,14 +87,6 @@ export default function HomePage() {
       .catch(() => { });
   }, []);
 
-  const coreValues = [
-    { title: "Faith", desc: "Rooted in Scripture and the teachings of the Seventh-day Adventist Church.", icon: Flame, color: "text-amber-500 bg-amber-500/10" },
-    { title: "Fellowship", desc: "Building meaningful relationships among Adventist students across institutions.", icon: HeartHandshake, color: "text-teal-500 bg-teal-500/10" },
-    { title: "Service", desc: "Using our gifts, skills, and academic training to serve God and coastal communities.", icon: Sprout, color: "text-emerald-500 bg-emerald-500/10" },
-    { title: "Unity", desc: "Working together across universities and colleges as one undivided student body.", icon: Users, color: "text-blue-500 bg-blue-500/10" },
-    { title: "Excellence", desc: "Encouraging high diligence and holistic Christian standards in all endeavors.", icon: Award, color: "text-purple-500 bg-purple-500/10" },
-    { title: "Evangelism", desc: "Sharing the everlasting Gospel of Jesus Christ with fellow students and society.", icon: Globe2, color: "text-rose-500 bg-rose-500/10" },
-  ];
 
   const constitutionalObjectives = [
     { action: "Nurture", desc: "Spiritual, mental, physical and social development through campus ministries.", icon: Sprout },
@@ -236,38 +226,7 @@ export default function HomePage() {
         </section>
 
         {/* ========================================================= */}
-        {/* 3. CORE VALUES (Proposal §7)                             */}
-        {/* ========================================================= */}
-        <section className="py-16 md:py-20 bg-slate-50 border-b border-slate-200">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center max-w-2xl mx-auto mb-12">
-              <h2 className="font-heading font-black text-3xl text-navy-950 mt-2">
-                Our Core Values
-              </h2>
-              <p className="text-sm text-slate-600 mt-2">
-                Six pillars shaping student life, worship, and leadership across all coastal institutions.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {coreValues.map((v) => {
-                const Icon = v.icon;
-                return (
-                  <div key={v.title} className="p-6 rounded-2xl bg-white border border-slate-200 shadow-sm hover:shadow-md transition-all">
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${v.color}`}>
-                      <Icon className="w-6 h-6" />
-                    </div>
-                    <h3 className="font-heading font-bold text-lg text-navy-950 mb-1.5">{v.title}</h3>
-                    <p className="text-xs text-slate-600 leading-relaxed">{v.desc}</p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-
-        {/* ========================================================= */}
-        {/* 4. CONSTITUTIONAL OBJECTIVES (Proposal §8)               */}
+        {/* 3. CONSTITUTIONAL OBJECTIVES (Proposal §8)               */}
         {/* ========================================================= */}
         <section className="py-16 md:py-20 bg-white border-b border-slate-200">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

@@ -87,13 +87,24 @@ export async function sendSms(options: SendSmsOptions): Promise<SmsResponse> {
 
     const smsMessageData = data?.SMSMessageData;
     if (smsMessageData && Array.isArray(smsMessageData.Recipients)) {
+      smsMessageData.Recipients.forEach((r: any) => {
+        console.log(
+          `[AFRICAS_TALKING SMS] Recipient: ${r.number} | Status: ${r.status} | Code: ${r.statusCode} | Cost: ${r.cost} | MessageId: ${r.messageId}`
+        );
+      });
+
       const successful = smsMessageData.Recipients.filter(
-        (r: any) => r.status === "Success" || r.statusCode === 101
+        (r: any) => r.status === "Success" || r.statusCode === 100 || r.statusCode === 101
       );
+      const failed = smsMessageData.Recipients.filter(
+        (r: any) => r.status !== "Success" && r.statusCode !== 100 && r.statusCode !== 101
+      );
+
       return {
         success: successful.length > 0,
         recipientsCount: successful.length,
         messageId: smsMessageData.Recipients[0]?.messageId,
+        error: failed.length > 0 ? `Failed for: ${failed.map((f: any) => `${f.number} (${f.status})`).join(", ")}` : undefined,
         simulated: false,
       };
     }

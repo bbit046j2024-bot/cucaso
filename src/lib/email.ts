@@ -21,7 +21,7 @@ interface EmailResponse {
  */
 export async function sendEmail(options: EmailOptions): Promise<EmailResponse> {
   const apiKey = process.env.RESEND_API_KEY;
-  const fromEmail = options.from || process.env.EMAIL_FROM || "CUCASO Giving <onboarding@resend.dev>";
+  const fromEmail = options.from || process.env.EMAIL_FROM || "CUCASO <notifications@cucaso.org>";
   const recipients = Array.isArray(options.to) ? options.to : [options.to];
 
   if (recipients.length === 0) {
