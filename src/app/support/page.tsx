@@ -229,16 +229,14 @@ export default function SupportPage() {
                             type="button"
                             key={c.title}
                             onClick={() => setSelectedCause(c.title)}
-                            className={`p-3.5 rounded-2xl border text-left transition-all flex items-start gap-3 ${
-                              isSelected
-                                ? "bg-teal-50 border-teal-600 text-teal-950 shadow-sm ring-1 ring-teal-600"
-                                : "bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300"
-                            }`}
+                            className={`p-3.5 rounded-2xl border text-left transition-all flex items-start gap-3 ${isSelected
+                              ? "bg-teal-50 border-teal-600 text-teal-950 shadow-sm ring-1 ring-teal-600"
+                              : "bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-300"
+                              }`}
                           >
                             <div
-                              className={`p-2 rounded-xl flex-shrink-0 ${
-                                isSelected ? "bg-teal-600 text-white" : "bg-white text-slate-500 border border-slate-200"
-                              }`}
+                              className={`p-2 rounded-xl flex-shrink-0 ${isSelected ? "bg-teal-600 text-white" : "bg-white text-slate-500 border border-slate-200"
+                                }`}
                             >
                               <Icon className="w-4 h-4" />
                             </div>
@@ -265,11 +263,10 @@ export default function SupportPage() {
                             setAmount(val);
                             setCustomAmount("");
                           }}
-                          className={`py-3 px-2 rounded-xl text-xs font-bold transition-all border ${
-                            amount === val
-                              ? "bg-navy-950 border-navy-950 text-white shadow-md"
-                              : "bg-white border-slate-200 text-slate-700 hover:border-slate-300"
-                          }`}
+                          className={`py-3 px-2 rounded-xl text-xs font-bold transition-all border ${amount === val
+                            ? "bg-navy-950 border-navy-950 text-white shadow-md"
+                            : "bg-white border-slate-200 text-slate-700 hover:border-slate-300"
+                            }`}
                         >
                           {val.toLocaleString()}
                         </button>
@@ -277,11 +274,10 @@ export default function SupportPage() {
                       <button
                         type="button"
                         onClick={() => setAmount("custom")}
-                        className={`py-3 px-2 rounded-xl text-xs font-bold transition-all border ${
-                          amount === "custom"
-                            ? "bg-navy-950 border-navy-950 text-white shadow-md"
-                            : "bg-white border-slate-200 text-slate-700 hover:border-slate-300"
-                        }`}
+                        className={`py-3 px-2 rounded-xl text-xs font-bold transition-all border ${amount === "custom"
+                          ? "bg-navy-950 border-navy-950 text-white shadow-md"
+                          : "bg-white border-slate-200 text-slate-700 hover:border-slate-300"
+                          }`}
                       >
                         Custom
                       </button>
@@ -410,7 +406,7 @@ export default function SupportPage() {
                     <div className="flex items-center justify-between pb-2 border-b border-white/10">
                       <span className="text-slate-400 text-xs">Business No:</span>
                       <div className="flex items-center gap-2">
-                        <strong className="text-amber-400 text-lg">4082200</strong>
+                        <strong className="text-amber-400 text-lg">coming soon</strong>
                         <button
                           type="button"
                           onClick={() => copyToClipboard("4082200")}
@@ -423,7 +419,7 @@ export default function SupportPage() {
                     </div>
                     <div className="flex items-center justify-between pt-1">
                       <span className="text-slate-400 text-xs">Account No:</span>
-                      <strong className="text-teal-300 text-xs sm:text-sm">DONATE or [CAUSE]</strong>
+                      <strong className="text-teal-300 text-xs sm:text-sm">Coming soon</strong>
                     </div>
                   </div>
 
@@ -446,10 +442,10 @@ export default function SupportPage() {
                   </p>
 
                   <div className="space-y-2 text-xs font-mono bg-slate-50 p-4 rounded-2xl border border-slate-200 text-slate-700">
-                    <div><strong>Bank:</strong> Kenya Commercial Bank (KCB)</div>
-                    <div><strong>Branch:</strong> Mombasa Main Branch</div>
-                    <div><strong>Account Name:</strong> CUCASO Regional Council</div>
-                    <div><strong>Reference:</strong> [Your Name / Chapter Code]</div>
+                    <div><strong>Bank:</strong> Coming soon</div>
+                    <div><strong>Branch:</strong> Coming soon </div>
+                    <div><strong>Account Name:</strong> Coming soon</div>
+                    <div><strong>Reference:</strong> Coming soon</div>
                   </div>
 
                   <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
