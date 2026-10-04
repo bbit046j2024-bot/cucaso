@@ -45,14 +45,6 @@ export default function TermsAndConditionsPage() {
               </button>
             </div>
 
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-xs font-bold uppercase tracking-widest text-amber-400 bg-amber-950/80 px-3 py-1 rounded-full border border-amber-500/30 flex items-center gap-1.5">
-                <Scale className="w-3.5 h-3.5" />
-                <span>Official Terms of Use</span>
-              </span>
-              <span className="text-xs text-slate-400">Version 2.0 • Last Revised: {lastUpdated}</span>
-            </div>
-
             <h1 className="font-heading font-black text-3xl sm:text-4xl lg:text-5xl text-white tracking-tight">
               Terms & Conditions of Service
             </h1>
