@@ -118,7 +118,7 @@ export default function TermsAndConditionsPage() {
                   In accordance with the CUCASO Capability-Based Funding Model (ADR-002), rally registration fees are assessed proportionally based on institutional tiering, member capacity, and logistics requirements:
                 </p>
                 <ul className="list-disc pl-5 mt-2 space-y-1.5 text-slate-600">
-                  <li><strong>Official Channels:</strong> All payments must be made strictly to the official Safaricom M-Pesa Paybill <strong>4082200</strong> or through the direct STK Push prompt on this website. Cash payments to unauthorized individuals are strictly invalid.</li>
+                  <li><strong>Official Channels:</strong> All payments must be made strictly to the official Safaricom M-Pesa Paybill <strong>That will be communicated</strong> or through the direct STK Push prompt on this website. Cash payments to unauthorized individuals are strictly invalid.</li>
                   <li><strong>Fee Lock Date:</strong> Chapter registration numbers and calculated fees become binding on the announced Fee Lock Date. Subsequent adjustments require Central Council Treasurer sign-off.</li>
                   <li><strong>Refund Policy:</strong> Due to upfront non-refundable procurement of food, tenting, venue security, and transportation hire, capitation fees paid are non-refundable once the logistical commitment window has commenced.</li>
                 </ul>
