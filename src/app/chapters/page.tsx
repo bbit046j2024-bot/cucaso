@@ -7,14 +7,14 @@ import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { EmbeddedCoastalMap } from "@/components/embedded-coastal-map";
 import { MEMBER_CHAPTERS, CAPABILITY_TIERS } from "@/lib/data";
-import { 
-  Building2, 
-  Search, 
-  Filter, 
-  MapPin, 
-  Users, 
-  ShieldCheck, 
-  ExternalLink, 
+import {
+  Building2,
+  Search,
+  Filter,
+  MapPin,
+  Users,
+  ShieldCheck,
+  ExternalLink,
   ArrowRight,
   GraduationCap,
   Sparkles,
@@ -44,11 +44,11 @@ export default function ChaptersPage() {
 
   const filteredChapters = useMemo(() => {
     return chapters.filter((ch) => {
-      const matchesSearch = 
+      const matchesSearch =
         ch.institutionName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         ch.chapterName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         ch.location.toLowerCase().includes(searchQuery.toLowerCase());
-      
+
       const matchesType = typeFilter === "ALL" || ch.type === typeFilter;
 
       return matchesSearch && matchesType;
@@ -65,10 +65,6 @@ export default function ChaptersPage() {
           <div className="relative flex-1 flex items-center">
             <div className="absolute top-0 right-0 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 w-full">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 border border-white/20 text-teal-300 text-xs font-bold uppercase tracking-wider mb-4">
-                <Building2 className="w-3.5 h-3.5 text-amber-400" />
-                <span>Coastal Chapter Directory</span>
-              </div>
               <h1 className="font-heading font-black text-3xl sm:text-5xl text-white tracking-tight leading-tight mb-4">
                 Our Member Chapters
               </h1>
@@ -98,7 +94,7 @@ export default function ChaptersPage() {
         {/* Map & Directory Section */}
         <section className="py-12 md:py-16">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            
+
             {/* Interactive Coastal Map Showcase */}
             <div className="mb-12">
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm">
@@ -116,12 +112,12 @@ export default function ChaptersPage() {
                     <span className="text-xs font-bold text-navy-950">12 Active Campuses</span>
                   </div>
                 </div>
-                
-                <EmbeddedCoastalMap 
-                  chapters={chapters} 
+
+                <EmbeddedCoastalMap
+                  chapters={chapters}
                   selectedChapterId={selectedChapter?.id}
                   onSelectChapter={(ch) => setSelectedChapter(ch)}
-                  className="min-h-[500px] rounded-2xl overflow-hidden" 
+                  className="min-h-[500px] rounded-2xl overflow-hidden"
                 />
               </div>
             </div>
@@ -151,11 +147,10 @@ export default function ChaptersPage() {
                   <button
                     key={tab.id}
                     onClick={() => setTypeFilter(tab.id)}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                      typeFilter === tab.id
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${typeFilter === tab.id
                         ? "bg-navy-900 text-white shadow-sm"
                         : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
-                    }`}
+                      }`}
                   >
                     {tab.label}
                   </button>

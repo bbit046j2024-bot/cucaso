@@ -27,17 +27,17 @@ import type { ResourceDocument } from "@/types";
 
 // ── Category labels & colors ──────────────────────────────────────────────────
 const CATEGORY_META: Record<string, { label: string; color: string }> = {
-  CONSTITUTION:  { label: "Constitutional", color: "bg-blue-100 text-blue-800 border-blue-200" },
-  POLICY:        { label: "Policy / PRD",   color: "bg-amber-100 text-amber-800 border-amber-200" },
-  FORM:          { label: "Form",           color: "bg-teal-100 text-teal-800 border-teal-200" },
-  REPORT:        { label: "Report",         color: "bg-purple-100 text-purple-800 border-purple-200" },
-  MINUTES:       { label: "Minutes",        color: "bg-slate-100 text-slate-700 border-slate-200" },
-  SPIRITUAL:     { label: "Spiritual",      color: "bg-rose-100 text-rose-800 border-rose-200" },
-  OTHER:         { label: "Other",          color: "bg-slate-100 text-slate-600 border-slate-200" },
+  CONSTITUTION: { label: "Constitutional", color: "bg-blue-100 text-blue-800 border-blue-200" },
+  POLICY: { label: "Policy / PRD", color: "bg-amber-100 text-amber-800 border-amber-200" },
+  FORM: { label: "Form", color: "bg-teal-100 text-teal-800 border-teal-200" },
+  REPORT: { label: "Report", color: "bg-purple-100 text-purple-800 border-purple-200" },
+  MINUTES: { label: "Minutes", color: "bg-slate-100 text-slate-700 border-slate-200" },
+  SPIRITUAL: { label: "Spiritual", color: "bg-rose-100 text-rose-800 border-rose-200" },
+  OTHER: { label: "Other", color: "bg-slate-100 text-slate-600 border-slate-200" },
 };
 
 const ACCESS_META: Record<string, { label: string; color: string }> = {
-  PUBLIC:       { label: "Public",       color: "bg-emerald-100 text-emerald-800" },
+  PUBLIC: { label: "Public", color: "bg-emerald-100 text-emerald-800" },
   MEMBERS_ONLY: { label: "Members Only", color: "bg-blue-100 text-blue-800" },
   LEADERS_ONLY: { label: "Leaders Only", color: "bg-purple-100 text-purple-800" },
 };
@@ -171,10 +171,6 @@ export default function ResourcesPage() {
 
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 w-full">
             <div className="max-w-3xl">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-500/20 text-teal-300 border border-teal-500/30 text-xs font-semibold uppercase tracking-wider mb-3">
-                <Sparkles className="w-3.5 h-3.5 text-teal-400" />
-                CUCASO Resource Vault
-              </div>
               <h1 className="font-heading font-black text-4xl sm:text-5xl text-white mb-4">
                 Spiritual Resources &amp; Document Centre
               </h1>
@@ -192,22 +188,20 @@ export default function ResourcesPage() {
             <div className="flex gap-8">
               <button
                 onClick={() => setActiveTab("spiritual")}
-                className={`py-4 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
-                  activeTab === "spiritual"
-                    ? "border-teal-600 text-teal-700"
-                    : "border-transparent text-slate-500 hover:text-slate-900"
-                }`}
+                className={`py-4 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${activeTab === "spiritual"
+                  ? "border-teal-600 text-teal-700"
+                  : "border-transparent text-slate-500 hover:text-slate-900"
+                  }`}
               >
                 <BookOpen className="w-4 h-4" />
                 <span>Spiritual Resources</span>
               </button>
               <button
                 onClick={() => setActiveTab("documents")}
-                className={`py-4 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
-                  activeTab === "documents"
-                    ? "border-teal-600 text-teal-700"
-                    : "border-transparent text-slate-500 hover:text-slate-900"
-                }`}
+                className={`py-4 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${activeTab === "documents"
+                  ? "border-teal-600 text-teal-700"
+                  : "border-transparent text-slate-500 hover:text-slate-900"
+                  }`}
               >
                 <FileText className="w-4 h-4" />
                 <span>Document Centre</span>
@@ -219,11 +213,10 @@ export default function ResourcesPage() {
               </button>
               <button
                 onClick={() => setActiveTab("prayer")}
-                className={`py-4 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
-                  activeTab === "prayer"
-                    ? "border-teal-600 text-teal-700"
-                    : "border-transparent text-slate-500 hover:text-slate-900"
-                }`}
+                className={`py-4 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${activeTab === "prayer"
+                  ? "border-teal-600 text-teal-700"
+                  : "border-transparent text-slate-500 hover:text-slate-900"
+                  }`}
               >
                 <Heart className="w-4 h-4" />
                 <span>Prayer Requests</span>
@@ -489,9 +482,9 @@ export default function ResourcesPage() {
                                   <td className="py-4 px-4 text-slate-500 text-[11px]">
                                     {doc.createdAt
                                       ? new Date(doc.createdAt).toLocaleDateString("en-KE", {
-                                          month: "short",
-                                          year: "numeric",
-                                        })
+                                        month: "short",
+                                        year: "numeric",
+                                      })
                                       : "—"}
                                   </td>
                                   <td className="py-4 px-4 text-right">

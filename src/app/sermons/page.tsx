@@ -62,11 +62,10 @@ function SermonCard({ sermon, onClick }: { sermon: Sermon; onClick: () => void }
         </div>
 
         {/* Type badge */}
-        <div className={`absolute top-3 left-3 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest backdrop-blur-sm border ${
-          isSermon
-            ? "bg-navy-950/80 text-teal-300 border-teal-600/40"
-            : "bg-purple-900/80 text-purple-200 border-purple-500/40"
-        }`}>
+        <div className={`absolute top-3 left-3 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest backdrop-blur-sm border ${isSermon
+          ? "bg-navy-950/80 text-teal-300 border-teal-600/40"
+          : "bg-purple-900/80 text-purple-200 border-purple-500/40"
+          }`}>
           {isSermon ? "Sermon" : "Song"}
         </div>
 
@@ -153,9 +152,8 @@ function VideoModal({
         <div className="flex items-start justify-between p-4 border-b border-white/10">
           <div className="flex-1 pr-4">
             <div className="flex items-center gap-2 mb-1">
-              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest ${
-                isSermon ? "bg-teal-900/80 text-teal-300" : "bg-purple-900/80 text-purple-300"
-              }`}>
+              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest ${isSermon ? "bg-teal-900/80 text-teal-300" : "bg-purple-900/80 text-purple-300"
+                }`}>
                 {isSermon ? "Sermon" : "Song"}
               </span>
               {sermon.series && (
@@ -308,9 +306,6 @@ export default function SermonsPage() {
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-teal-600/20 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative max-w-6xl mx-auto px-4 text-center space-y-6">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-teal-500/10 border border-teal-500/30 text-teal-300 text-xs font-bold uppercase tracking-widest">
-            <Youtube className="w-3.5 h-3.5" /> CUCASO Media Library
-          </div>
           <h1 className="text-4xl md:text-5xl font-black text-white leading-tight">
             Sermons &{" "}
             <span className="bg-gradient-to-r from-teal-400 to-cyan-400 bg-clip-text text-transparent">
@@ -352,13 +347,12 @@ export default function SermonsPage() {
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all duration-200 ${
-                activeTab === tab
-                  ? tab === "SONG"
-                    ? "bg-purple-700 text-white shadow-md shadow-purple-200"
-                    : "bg-teal-700 text-white shadow-md shadow-teal-200"
-                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-              }`}
+              className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all duration-200 ${activeTab === tab
+                ? tab === "SONG"
+                  ? "bg-purple-700 text-white shadow-md shadow-purple-200"
+                  : "bg-teal-700 text-white shadow-md shadow-teal-200"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
             >
               {tab === "ALL" && <Filter className="w-3.5 h-3.5" />}
               {tab === "SERMON" && <Mic2 className="w-3.5 h-3.5" />}
