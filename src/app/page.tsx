@@ -507,9 +507,6 @@ export default function HomePage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-8">
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
               <div>
-                <span className="text-xs font-bold uppercase tracking-widest text-teal-700 bg-teal-50 px-3 py-1 rounded-full border border-teal-200">
-                  Regional Presence
-                </span>
                 <h2 className="font-heading font-black text-2xl sm:text-3xl text-navy-950 mt-2">
                   Member Chapters Along the Coast
                 </h2>

@@ -93,7 +93,7 @@ export default function PrivacyPolicyPage() {
               <div>
                 <h2 className="font-heading font-black text-xl text-navy-950 mb-3 flex items-center gap-2">
                   <FileText className="w-5 h-5 text-teal-700" />
-                  <span>3. Legal Basis for Processing (KDPA §30)</span>
+                  <span>3. Legal Basis for Processing (KDPA)</span>
                 </h2>
                 <p>CUCASO processes personal data exclusively under the following lawful grounds:</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
@@ -150,7 +150,7 @@ export default function PrivacyPolicyPage() {
                 <div>
                   <h3 className="font-heading font-bold text-base text-navy-950">Questions or Data Requests?</h3>
                   <p className="text-xs text-slate-600 mt-0.5">
-                    Contact the CUCASO Data Protection Liaison and Secretariat at <span className="font-mono text-teal-700">cucaso2025@gmail.com</span> or <span className="font-mono text-teal-700">secretariat@cucaso.org</span>.
+                    Contact the CUCASO Data Protection Liaison and Secretariat at <span className="font-mono text-teal-700">cucaso2025@gmail.com</span>.
                   </p>
                 </div>
                 <Link
