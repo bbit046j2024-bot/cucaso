@@ -46,14 +46,6 @@ export default function PrivacyPolicyPage() {
               </button>
             </div>
 
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-xs font-bold uppercase tracking-widest text-teal-400 bg-teal-950/80 px-3 py-1 rounded-full border border-teal-500/30 flex items-center gap-1.5">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>KDPA 2019 Compliant</span>
-              </span>
-              <span className="text-xs text-slate-400">Version 2.0 • Last Revised: {lastUpdated}</span>
-            </div>
-
             <h1 className="font-heading font-black text-3xl sm:text-4xl lg:text-5xl text-white tracking-tight">
               Privacy Policy & Data Protection Notice
             </h1>
