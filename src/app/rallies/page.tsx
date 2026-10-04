@@ -90,124 +90,124 @@ export default function RalliesPage() {
         <section className="bg-navy-950 text-white py-12 md:py-16 relative overflow-hidden flex items-stretch min-h-[200px]">
           <div className="flex-1 relative">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 h-full">
-            {currentRally ? (
-              <div className="bg-gradient-to-r from-navy-900 via-navy-950 to-slate-900 rounded-3xl border border-white/10 overflow-hidden shadow-2xl">
-                <div className="grid grid-cols-1 lg:grid-cols-12 items-center">
-                  {/* Photo Left */}
-                  <div
-                    className="lg:col-span-6 relative h-64 sm:h-80 lg:h-96 w-full"
-                    style={{
-                      backgroundImage: `url('${currentRally.posterUrl || "https://static.vecteezy.com/system/resources/thumbnails/027/716/506/small_2x/people-hand-up-in-the-concert-hall-music-event-generative-ai-photo.jpg"}')`,
-                      backgroundSize: "cover",
-                      backgroundPosition: "center",
-                    }}
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-t from-navy-950/80 via-transparent to-transparent lg:hidden" />
-                    <div className="absolute top-4 left-4 bg-navy-900/80 backdrop-blur-md px-3 py-1 rounded-full border border-white/20 text-xs font-bold text-amber-400">
-                      OFFICIAL CONVENTION
-                    </div>
-                  </div>
-
-                  {/* Details Right */}
-                  <div className="lg:col-span-6 p-6 sm:p-10 space-y-5">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-500/20 text-teal-300 text-xs font-bold border border-teal-500/30">
-                        <Calendar className="w-3.5 h-3.5 text-teal-400" />
-                        <span>{formattedDate}</span>
+              {currentRally ? (
+                <div className="bg-gradient-to-r from-navy-900 via-navy-950 to-slate-900 rounded-3xl border border-white/10 overflow-hidden shadow-2xl">
+                  <div className="grid grid-cols-1 lg:grid-cols-12 items-center">
+                    {/* Photo Left */}
+                    <div
+                      className="lg:col-span-6 relative h-64 sm:h-80 lg:h-96 w-full"
+                      style={{
+                        backgroundImage: `url('${currentRally.posterUrl || "https://static.vecteezy.com/system/resources/thumbnails/027/716/506/small_2x/people-hand-up-in-the-concert-hall-music-event-generative-ai-photo.jpg"}')`,
+                        backgroundSize: "cover",
+                        backgroundPosition: "center",
+                      }}
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-t from-navy-950/80 via-transparent to-transparent lg:hidden" />
+                      <div className="absolute top-4 left-4 bg-navy-900/80 backdrop-blur-md px-3 py-1 rounded-full border border-white/20 text-xs font-bold text-amber-400">
+                        OFFICIAL CONVENTION
                       </div>
-                      <span
-                        className={`px-3 py-1 rounded-full border text-xs font-bold flex items-center gap-1.5 ${currentRally.state === "REGISTRATION_OPEN"
-                          ? "bg-emerald-500/20 border-emerald-400/30 text-emerald-300"
-                          : currentRally.state === "FEES_LOCKED"
-                            ? "bg-amber-500/20 border-amber-400/30 text-amber-300"
-                            : currentRally.state === "IN_PROGRESS"
-                              ? "bg-purple-500/20 border-purple-400/30 text-purple-300"
-                              : currentRally.state === "COMPLETED"
-                                ? "bg-blue-500/20 border-blue-400/30 text-blue-300"
-                                : "bg-slate-500/20 border-slate-400/30 text-slate-300"
-                          }`}
-                      >
+                    </div>
+
+                    {/* Details Right */}
+                    <div className="lg:col-span-6 p-6 sm:p-10 space-y-5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-500/20 text-teal-300 text-xs font-bold border border-teal-500/30">
+                          <Calendar className="w-3.5 h-3.5 text-teal-400" />
+                          <span>{formattedDate}</span>
+                        </div>
                         <span
-                          className={`w-2 h-2 rounded-full ${currentRally.state === "REGISTRATION_OPEN" ? "bg-emerald-400 animate-pulse" : "bg-slate-400"
+                          className={`px-3 py-1 rounded-full border text-xs font-bold flex items-center gap-1.5 ${currentRally.state === "REGISTRATION_OPEN"
+                            ? "bg-emerald-500/20 border-emerald-400/30 text-emerald-300"
+                            : currentRally.state === "FEES_LOCKED"
+                              ? "bg-amber-500/20 border-amber-400/30 text-amber-300"
+                              : currentRally.state === "IN_PROGRESS"
+                                ? "bg-purple-500/20 border-purple-400/30 text-purple-300"
+                                : currentRally.state === "COMPLETED"
+                                  ? "bg-blue-500/20 border-blue-400/30 text-blue-300"
+                                  : "bg-slate-500/20 border-slate-400/30 text-slate-300"
                             }`}
-                        />
-                        {(currentRally.state || "REGISTRATION OPEN").replace(/_/g, " ")}
-                      </span>
-                    </div>
-
-                    <div>
-                      <h1 className="font-heading font-black text-3xl sm:text-4xl text-white tracking-tight">
-                        {currentRally.title}
-                      </h1>
-                      {currentRally.theme && (
-                        <p className="text-amber-300 font-semibold text-sm sm:text-base italic mt-1">
-                          &ldquo;{currentRally.theme}&rdquo;
-                        </p>
-                      )}
-                      <p className="text-sm sm:text-base text-slate-300 mt-2 flex items-center gap-2">
-                        <MapPin className="w-4 h-4 text-amber-400 flex-shrink-0" />
-                        <span>{currentRally.venueName || currentRally.venueLocation || "Mombasa Sports Complex, Mombasa Island, Kenya"}</span>
-                      </p>
-                    </div>
-
-                    {/* Countdown Timer Blocks */}
-                    {currentRally.startDate && (
-                      <div className="pt-1">
-                        <RallyCountdown targetDate={currentRally.startDate} />
-                      </div>
-                    )}
-
-                    <div className="flex flex-wrap items-center gap-3 pt-2">
-                      {currentRally.state === "REGISTRATION_OPEN" ? (
-                        <Link
-                          href="/register"
-                          className="px-7 py-3 rounded-full bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold text-xs shadow-lg transition-all flex items-center gap-2"
                         >
-                          <span>Register Now</span>
-                          <ArrowRight className="w-4 h-4" />
-                        </Link>
-                      ) : (
-                        <span className="px-5 py-2.5 rounded-full bg-slate-800 text-slate-300 text-xs font-semibold border border-slate-700">
-                          Registration Closed
+                          <span
+                            className={`w-2 h-2 rounded-full ${currentRally.state === "REGISTRATION_OPEN" ? "bg-emerald-400 animate-pulse" : "bg-slate-400"
+                              }`}
+                          />
+                          {(currentRally.state || "REGISTRATION OPEN").replace(/_/g, " ")}
                         </span>
+                      </div>
+
+                      <div>
+                        <h1 className="font-heading font-black text-3xl sm:text-4xl text-white tracking-tight">
+                          {currentRally.title}
+                        </h1>
+                        {currentRally.theme && (
+                          <p className="text-amber-300 font-semibold text-sm sm:text-base italic mt-1">
+                            &ldquo;{currentRally.theme}&rdquo;
+                          </p>
+                        )}
+                        <p className="text-sm sm:text-base text-slate-300 mt-2 flex items-center gap-2">
+                          <MapPin className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                          <span>{currentRally.venueName || currentRally.venueLocation || ""}</span>
+                        </p>
+                      </div>
+
+                      {/* Countdown Timer Blocks */}
+                      {currentRally.startDate && (
+                        <div className="pt-1">
+                          <RallyCountdown targetDate={currentRally.startDate} />
+                        </div>
                       )}
-                      <Link
-                        href="/portal"
-                        className="px-6 py-3 rounded-full bg-white/10 hover:bg-white/20 text-white font-semibold text-xs border border-white/20 transition-all"
-                      >
-                        Chapter Rep Portal
-                      </Link>
+
+                      <div className="flex flex-wrap items-center gap-3 pt-2">
+                        {currentRally.state === "REGISTRATION_OPEN" ? (
+                          <Link
+                            href="/register"
+                            className="px-7 py-3 rounded-full bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold text-xs shadow-lg transition-all flex items-center gap-2"
+                          >
+                            <span>Register Now</span>
+                            <ArrowRight className="w-4 h-4" />
+                          </Link>
+                        ) : (
+                          <span className="px-5 py-2.5 rounded-full bg-slate-800 text-slate-300 text-xs font-semibold border border-slate-700">
+                            Registration Closed
+                          </span>
+                        )}
+                        <Link
+                          href="/portal"
+                          className="px-6 py-3 rounded-full bg-white/10 hover:bg-white/20 text-white font-semibold text-xs border border-white/20 transition-all"
+                        >
+                          Chapter Rep Portal
+                        </Link>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div className="bg-gradient-to-r from-navy-900 via-navy-950 to-slate-900 rounded-3xl border border-white/10 p-8 sm:p-12 text-center max-w-3xl mx-auto shadow-2xl">
-                <span className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-300 font-bold text-xs uppercase tracking-wider inline-block mb-3">
-                  Official Communication
-                </span>
-                <h1 className="font-heading font-black text-3xl sm:text-4xl text-white tracking-tight mb-3">
-                  No Official Rally Currently Scheduled
-                </h1>
-                <p className="text-slate-300 text-sm leading-relaxed mb-6">
-                  There is no active rally in the system at this time. The CUCASO Council Secretariat is coordinating with institutional chapters to schedule the upcoming regional convention.
-                </p>
-                <div className="flex items-center justify-center gap-3">
-                  <Link
-                    href="/"
-                    className="px-6 py-2.5 rounded-full bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold text-xs shadow transition-all"
-                  >
-                    Return to Homepage
-                  </Link>
-                  <Link
-                    href="/portal"
-                    className="px-6 py-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white font-semibold text-xs border border-white/20 transition-all"
-                  >
-                    Admin / Rep Portal
-                  </Link>
+              ) : (
+                <div className="bg-gradient-to-r from-navy-900 via-navy-950 to-slate-900 rounded-3xl border border-white/10 p-8 sm:p-12 text-center max-w-3xl mx-auto shadow-2xl">
+                  <span className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-300 font-bold text-xs uppercase tracking-wider inline-block mb-3">
+                    Official Communication
+                  </span>
+                  <h1 className="font-heading font-black text-3xl sm:text-4xl text-white tracking-tight mb-3">
+                    No Official Rally Currently Scheduled
+                  </h1>
+                  <p className="text-slate-300 text-sm leading-relaxed mb-6">
+                    There is no active rally in the system at this time. The CUCASO Council Secretariat is coordinating with institutional chapters to schedule the upcoming regional convention.
+                  </p>
+                  <div className="flex items-center justify-center gap-3">
+                    <Link
+                      href="/"
+                      className="px-6 py-2.5 rounded-full bg-amber-500 hover:bg-amber-400 text-navy-950 font-bold text-xs shadow transition-all"
+                    >
+                      Return to Homepage
+                    </Link>
+                    <Link
+                      href="/portal"
+                      className="px-6 py-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white font-semibold text-xs border border-white/20 transition-all"
+                    >
+                      Admin / Rep Portal
+                    </Link>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
             </div>
           </div>
 
