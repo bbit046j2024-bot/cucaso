@@ -26,27 +26,7 @@ export default function PartnersPage() {
         { name: "East Kenya Union Conference (EKUC)", role: "Youth & Campus Ministries Directorate", location: "Nairobi HQ" },
         { name: "Adventist Chaplaincy Ministries (ACM)", role: "Tertiary Education Campus Ministry Endorsement", location: "Regional" },
       ],
-    },
-    {
-      category: "Higher Education Institutions",
-      desc: "Host universities and tertiary colleges providing campus venues, patron support, and student welfare facilities.",
-      icon: Building2,
-      partners: [
-        { name: "Technical University of Mombasa (TUM)", role: "Founding Campus Host & Engineering Hub", location: "Tudor, Mombasa" },
-        { name: "Pwani University", role: "Regional Agricultural & Humanities Center", location: "Kilifi Town" },
-        { name: "Kenya Medical Training College (KMTC Mombasa)", role: "Health Sciences & Medical Missions Partner", location: "Mombasa Island" },
-        { name: "Kenyatta University (Mombasa Campus)", role: "Constituent Academic Outreach Partner", location: "Nyali, Mombasa" },
-      ],
-    },
-    {
-      category: "Community & Humanitarian Partners",
-      desc: "Local health centers, municipal associations, and community leaders who partner in public service and outreach.",
-      icon: HeartHandshake,
-      partners: [
-        { name: "Mombasa County Health Services", role: "Public Medical Camps & Blood Donation Drives", location: "Mombasa" },
-        { name: "ADRA Kenya (Adventist Development and Relief Agency)", role: "Community Disaster Preparedness & Relief", location: "Coast Regional Office" },
-      ],
-    },
+    }
   ];
 
   return (
