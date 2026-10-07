@@ -60,8 +60,8 @@ export default function RalliesPage() {
 
   const faqs = [
     {
-      q: "Who is eligible to attend the Coastal Unity Rally 2026?",
-      a: "All bona fide Seventh-day Adventist students, chapter patrons, chaplaincy sponsors, and alumni associated with accredited coastal universities, polytechnics, medical colleges, and high schools."
+      q: "Who is eligible to attend Rally ?",
+      a: "All bona fide Seventh-day Adventist students, chapter patrons, chaplaincy sponsors, and alumni associated with accredited coastal universities, polytechnics, medical colleges."
     },
     {
       q: "How does capitation and attendee registration work?",
@@ -72,12 +72,8 @@ export default function RalliesPage() {
       a: "Access to all keynote addresses, specialized breakout workshops, printed rally materials, security credentials, midday meals on Saturday & Sunday, and emergency on-site medical care."
     },
     {
-      q: "Are accommodation arrangements provided at Mombasa Sports Complex?",
+      q: "Are accommodation arrangements provided ?",
       a: "The Secretariat negotiates subsidized group rates with nearby Adventist guest houses and hostels. Chapter executives should request hostel allocations via the Chapter Portal."
-    },
-    {
-      q: "Can high school SDA students attend?",
-      a: "Yes! High school students from accredited secondary school chapters attend under the direct supervision of their institutional patrons and designated chaplains."
     }
   ];
 
