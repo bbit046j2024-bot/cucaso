@@ -82,12 +82,12 @@ function LoginForm() {
       if (data.requiresTwoFactor) {
         setPendingUser(data.user);
         setStep("TOTP");
+        setLoading(false);
         return;
       }
-      router.push(destinationFor(data.user));
+      window.location.href = destinationFor(data.user);
     } catch {
       setError("Network error — please check your connection and try again.");
-    } finally {
       setLoading(false);
     }
   };
@@ -105,12 +105,16 @@ function LoginForm() {
       const data = await res.json();
       if (!res.ok || !data.success) {
         setError(data.error || "Verification failed. Please try again.");
+        setLoading(false);
         return;
       }
-      if (pendingUser) router.push(destinationFor(pendingUser));
+      if (pendingUser) {
+        window.location.href = destinationFor(pendingUser);
+      } else {
+        window.location.href = "/portal";
+      }
     } catch {
       setError("Network error — please check your connection and try again.");
-    } finally {
       setLoading(false);
     }
   };

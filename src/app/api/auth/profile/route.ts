@@ -21,6 +21,7 @@ export async function GET() {
         role: true,
         chapterId: true,
         totpEnabled: true,
+        avatarUrl: true,
         chapter: {
           select: {
             id: true,
@@ -61,13 +62,16 @@ export async function PUT(request: Request) {
 
     if (!user) return apiUnauthorized();
 
-    const updates: { name?: string; phone?: string; email?: string } = {};
+    const updates: { name?: string; phone?: string; email?: string; avatarUrl?: string } = {};
 
     if (name && typeof name === "string") {
       updates.name = name.trim();
     }
     if (phone !== undefined && typeof phone === "string") {
       updates.phone = phone.trim();
+    }
+    if (avatarUrl !== undefined && typeof avatarUrl === "string") {
+      updates.avatarUrl = avatarUrl.trim();
     }
 
     // Email change handling

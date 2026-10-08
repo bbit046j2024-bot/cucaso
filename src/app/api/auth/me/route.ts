@@ -32,6 +32,7 @@ export async function GET() {
             id: true,
             code: true,
             name: true,
+            repPhoto: true,
             institution: {
               select: {
                 name: true,
@@ -51,9 +52,14 @@ export async function GET() {
       });
     }
 
+    const effectiveAvatar = user.avatarUrl || user.chapter?.repPhoto || null;
+
     return NextResponse.json({
       isLoggedIn: true,
-      user,
+      user: {
+        ...user,
+        avatarUrl: effectiveAvatar,
+      },
     });
   } catch (error: any) {
     console.error("GET /api/auth/me error:", error);

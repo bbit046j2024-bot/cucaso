@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
       cookieOptions: {
         secure: process.env.NODE_ENV === "production",
         httpOnly: true,
-        sameSite: "strict",
+        sameSite: "lax",
         maxAge: 60 * 60 * 24,
       },
     });
@@ -163,7 +163,7 @@ export async function DELETE(req: NextRequest) {
         cookieOptions: {
           secure: process.env.NODE_ENV === "production",
           httpOnly: true,
-          sameSite: "strict",
+          sameSite: "lax",
         },
       }
     );

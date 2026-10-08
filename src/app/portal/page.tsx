@@ -3404,9 +3404,9 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
 
               <div className="flex items-center gap-3 pl-3 border-l border-slate-200">
                 {/* User avatar — shows photo when available, initials otherwise */}
-                {sessionUser?.avatarUrl ? (
+                {(sessionUser?.avatarUrl || (activePortal === "CHAPTER" && currentChapter?.repPhoto)) ? (
                   <img
-                    src={sessionUser.avatarUrl}
+                    src={(sessionUser?.avatarUrl || currentChapter?.repPhoto) as string}
                     alt={sessionUser?.name || "User"}
                     className="w-9 h-9 rounded-full object-cover shadow-sm ring-2 ring-white"
                   />
@@ -5264,9 +5264,9 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 flex flex-col items-center text-center space-y-3">
-                    {sessionUser?.avatarUrl ? (
+                    {(sessionUser?.avatarUrl || currentChapter?.repPhoto) ? (
                       <img
-                        src={sessionUser.avatarUrl}
+                        src={(sessionUser?.avatarUrl || currentChapter?.repPhoto) as string}
                         alt={sessionUser?.name || "Profile Photo"}
                         className="w-20 h-20 rounded-full object-cover ring-4 ring-teal-100 shadow-md"
                       />
@@ -5304,7 +5304,7 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                             name: sessionUser?.name || currentChapter.repName || "",
                             phone: sessionUser?.phone || currentChapter.repPhone || "",
                             email: sessionUser?.email || (currentChapter.code ? `${currentChapter.code.toLowerCase()}@cucaso.org` : ""),
-                            avatarUrl: currentChapter.repPhoto || "",
+                            avatarUrl: sessionUser?.avatarUrl || currentChapter.repPhoto || "",
                             currentPassword: "",
                           });
                           setShowEditProfileModal(true);
