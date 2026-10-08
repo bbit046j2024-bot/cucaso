@@ -87,6 +87,23 @@ export function EmbeddedCoastalMap({
   const [searchQuery, setSearchQuery] = useState("");
   const [mapPreset, setMapPreset] = useState<"coast" | "kenya">("coast");
   const [mobileDirectoryOpen, setMobileDirectoryOpen] = useState(false);
+  const [hasInteractedWithDirectory, setHasInteractedWithDirectory] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem("cucaso_dir_hint_seen")) {
+        setHasInteractedWithDirectory(true);
+      }
+    } catch {}
+  }, []);
+
+  const handleToggleMobileDirectory = () => {
+    setMobileDirectoryOpen((prev) => !prev);
+    setHasInteractedWithDirectory(true);
+    try {
+      sessionStorage.setItem("cucaso_dir_hint_seen", "1");
+    } catch {}
+  };
 
   // Keep active pin in sync if external selectedChapterId changes
   useEffect(() => {
@@ -389,15 +406,39 @@ export function EmbeddedCoastalMap({
             </button>
           </div>
 
-          {/* Single, Clean Mobile Directory Button */}
-          <button
-            type="button"
-            onClick={() => setMobileDirectoryOpen(!mobileDirectoryOpen)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-sm transition-all flex-shrink-0"
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>{mobileDirectoryOpen ? "Map" : `List (${filteredChapters.length})`}</span>
-          </button>
+          {/* Mobile Directory Button with Interactive Visual Cue */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={handleToggleMobileDirectory}
+              className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-white font-bold text-xs shadow-md transition-all active:scale-95 flex-shrink-0 ${
+                mobileDirectoryOpen
+                  ? "bg-slate-700 hover:bg-slate-600 border border-white/20"
+                  : "bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-500 hover:to-teal-600 shadow-teal-900/40 ring-2 ring-teal-400/40"
+              }`}
+              title="Tap to view list of institutions"
+              aria-label="Tap to view list of institutions on map"
+            >
+              {/* Pulsing beacon indicator for new users */}
+              {!hasInteractedWithDirectory && !mobileDirectoryOpen && (
+                <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5 pointer-events-none">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-80" />
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-400 ring-2 ring-navy-950" />
+                </span>
+              )}
+              <Layers className={`w-3.5 h-3.5 ${mobileDirectoryOpen ? "text-slate-300" : "text-amber-300"}`} />
+              <span>{mobileDirectoryOpen ? "Map View" : `Browse List (${filteredChapters.length})`}</span>
+            </button>
+
+            {/* Subtle First-Time Hint Tooltip for new visitors */}
+            {!hasInteractedWithDirectory && !mobileDirectoryOpen && (
+              <div className="absolute right-0 top-full mt-2 z-30 pointer-events-none whitespace-nowrap animate-bounce">
+                <div className="bg-amber-400 text-navy-950 text-[10px] font-extrabold px-2 py-0.5 rounded-md shadow-lg flex items-center gap-1 border border-amber-300">
+                  <span>👆 Tap to view all campuses</span>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* TABLET / DESKTOP VIEW (sm+): Full rich control bar */}
