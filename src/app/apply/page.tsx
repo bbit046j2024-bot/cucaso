@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
-import { SystemSwitcher } from "@/components/system-switcher";
 import { BrandLogo } from "@/components/brand-logo";
 import { 
   Building2, 

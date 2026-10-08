@@ -5,7 +5,6 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { BrandLogo } from "@/components/brand-logo";
-import { SystemSwitcher } from "@/components/system-switcher";
 import { EmbeddedCoastalMap } from "@/components/embedded-coastal-map";
 import { Chapter, CoastalAreaPreset, UserAccount, ExecutiveLeader, NewsPost, ResourceDocument, CostItem } from "@/types";
 import {
@@ -2840,8 +2839,6 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
 
   return (
     <div className="h-screen bg-slate-100 flex flex-col antialiased overflow-hidden">
-      <SystemSwitcher />
-
       {/* ─── App Shell: Sidebar + Content ─── */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
         {/* ========================================================= */}

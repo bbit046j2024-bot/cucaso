@@ -104,6 +104,7 @@ export const metadata: Metadata = {
 
 import { MobileBottomNav } from "@/components/mobile-bottom-nav";
 import { AdventistBrandSidebar } from "@/components/adventist-brand-sidebar";
+import { CookieConsentBanner } from "@/components/cookie-banner";
 
 const structuredData = {
   "@context": "https://schema.org",
@@ -160,6 +161,7 @@ export default function RootLayout({
         {children}
         <AdventistBrandSidebar />
         <MobileBottomNav />
+        <CookieConsentBanner />
       </body>
     </html>
   );
