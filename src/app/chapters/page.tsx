@@ -233,14 +233,7 @@ export default function ChaptersPage() {
                     </div>
 
                     {/* Action */}
-                    <div className="flex items-center justify-between pt-2">
-                      <Link
-                        href={`/portal?chapter=${ch.id}`}
-                        className="text-xs font-bold text-teal-700 hover:text-teal-800 flex items-center gap-1"
-                      >
-                        <span>View In Portal</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </Link>
+                    <div className="flex items-center justify-end pt-2">
                       <button
                         onClick={() => setSelectedChapter(ch)}
                         className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition-colors"
@@ -294,12 +287,25 @@ export default function ChaptersPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-navy-950/60 backdrop-blur-sm animate-in fade-in">
             <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-slate-200">
               <div className="flex items-center justify-between mb-4">
-                <div className="w-10 h-10 rounded-xl bg-navy-950 text-white font-bold flex items-center justify-center">
-                  {selectedChapter.code.split("-")[0]}
+                <div className="w-12 h-12 rounded-2xl bg-navy-950 text-white font-heading font-black text-sm flex items-center justify-center flex-shrink-0 shadow-md overflow-hidden border border-slate-100">
+                  {selectedChapter.logoUrl ? (
+                    <img
+                      src={selectedChapter.logoUrl}
+                      alt={`${selectedChapter.code} logo`}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const t = e.target as HTMLImageElement;
+                        t.style.display = "none";
+                        t.parentElement!.textContent = selectedChapter.code.split("-")[0];
+                      }}
+                    />
+                  ) : (
+                    selectedChapter.code.split("-")[0]
+                  )}
                 </div>
                 <button
                   onClick={() => setSelectedChapter(null)}
-                  className="p-2 rounded-full hover:bg-slate-100 text-slate-500"
+                  className="p-2 rounded-full hover:bg-slate-100 text-slate-500 transition-colors"
                 >
                   ✕
                 </button>
@@ -328,16 +334,10 @@ export default function ChaptersPage() {
                 </div>
               </div>
 
-              <div className="flex gap-3">
-                <Link
-                  href={`/portal?chapter=${selectedChapter.id}`}
-                  className="flex-1 py-3 rounded-xl bg-navy-900 text-white font-bold text-xs text-center hover:bg-navy-800 transition-all"
-                >
-                  Open Chapter Portal
-                </Link>
+              <div className="flex justify-end">
                 <button
                   onClick={() => setSelectedChapter(null)}
-                  className="px-4 py-3 rounded-xl border border-slate-300 text-slate-700 font-semibold text-xs hover:bg-slate-50"
+                  className="w-full py-2.5 rounded-xl border border-slate-300 text-slate-700 font-semibold text-xs hover:bg-slate-50 transition-colors"
                 >
                   Close
                 </button>

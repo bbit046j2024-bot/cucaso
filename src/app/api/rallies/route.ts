@@ -17,7 +17,7 @@ export async function GET() {
     return NextResponse.json({ success: true, data: rally });
   } catch (error: any) {
     console.error("GET /api/rallies error:", error);
-    return NextResponse.json({ success: true, data: FALLBACK_RALLY, fallback: true });
+    return NextResponse.json({ success: false, data: null, error: error?.message || "Failed to fetch rally" }, { status: 500 });
   }
 }
 

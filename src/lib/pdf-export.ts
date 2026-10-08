@@ -496,7 +496,7 @@ export function exportMpesaReconciliationPDF(data: MpesaReconciliationData) {
   let y = drawHeader(
     doc,
     "M-Pesa Daraja & Bank Remittance Settlement Report",
-    `Paybill 4082200 automated callbacks, matched remittances, and audit trace · ${data.rallyTitle || "Annual Rally 2026"}`,
+    `Automated Paybill callbacks, matched remittances, and audit trace · ${data.rallyTitle || "Annual Rally 2026"}`,
     "TREASURY"
   );
 
@@ -942,7 +942,7 @@ export function exportSingleInvoicePDF(data: SingleInvoicePdfData) {
   doc.setFontSize(8);
   doc.setTextColor(20, 83, 45);
   doc.text("1. Go to M-PESA on your phone › Lipa na M-PESA › Paybill", 20, finalY + 13);
-  doc.text("2. Business Number: CUCASO Paybill 4082200", 20, finalY + 18);
+  doc.text("2. Business Number: CUCASO Official Paybill (as announced by Treasury)", 20, finalY + 18);
   doc.text(`3. Account Number: ${data.paymentReference} (Your payment will be automatically matched to this invoice)`, 20, finalY + 23);
 
   // Signatures

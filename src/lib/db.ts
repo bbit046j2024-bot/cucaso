@@ -483,80 +483,24 @@ export async function getCurrentRally(): Promise<Rally | null> {
     });
 
     if (!rally) {
-      // Auto-seed initial rally so the database has live persistent records
-      try {
-        let venue = await prisma.venue.findFirst({
-          where: { name: INITIAL_RALLY.venueName },
-        });
-        if (!venue) {
-          venue = await prisma.venue.create({
-            data: {
-              name: INITIAL_RALLY.venueName,
-              location: INITIAL_RALLY.venueLocation,
-              capacity: INITIAL_RALLY.capacity || 3000,
-            },
-          });
-        }
-
-        rally = await prisma.rally.create({
-          data: {
-            code: INITIAL_RALLY.code,
-            title: INITIAL_RALLY.title,
-            theme: INITIAL_RALLY.theme,
-            venueId: venue.id,
-            capacity: INITIAL_RALLY.capacity,
-            startDate: new Date(INITIAL_RALLY.startDate),
-            endDate: new Date(INITIAL_RALLY.endDate),
-            registrationDeadline: new Date(INITIAL_RALLY.registrationDeadline),
-            paymentDeadline: new Date(INITIAL_RALLY.paymentDeadline),
-            feeLockDate: new Date(INITIAL_RALLY.feeLockDate),
-            state: INITIAL_RALLY.state as any,
-            allocationMode: (INITIAL_RALLY.allocationMode as any) || "CAPABILITY_WEIGHTED",
-            contingencyBasisPoints: (INITIAL_RALLY.contingencyPercent || 10) * 100,
-            programmeJson: JSON.stringify(INITIAL_RALLY.programme ?? []),
-            venueAccessJson: JSON.stringify(INITIAL_RALLY.venueAccess ?? {}),
-            feesInfoJson: JSON.stringify(INITIAL_RALLY.feesAndCapitation ?? {}),
-          },
-          include: { venue: true, costItems: true },
-        });
-
-        // Seed initial cost items
-        if (RALLY_COST_ITEMS && RALLY_COST_ITEMS.length > 0) {
-          await prisma.costItem.createMany({
-            data: RALLY_COST_ITEMS.map((c) => ({
-              rallyId: rally!.id,
-              category: c.category as any,
-              name: c.name,
-              type: c.type as any,
-              amountKes: c.amount,
-              quantity: c.quantity || 1,
-              notes: c.notes || null,
-            })),
-          }).catch(() => { });
-        }
-      } catch (seedErr) {
-        console.warn("Could not auto-seed rally in DB, returning fallback:", seedErr);
-        return INITIAL_RALLY;
-      }
+      return null;
     }
 
-    if (!rally) return null;
-
-    let parsedProgramme = INITIAL_RALLY.programme;
+    let parsedProgramme = [];
     if (rally.programmeJson) {
       try {
         parsedProgramme = JSON.parse(rally.programmeJson);
       } catch { }
     }
 
-    let parsedVenueAccess = INITIAL_RALLY.venueAccess;
+    let parsedVenueAccess = undefined;
     if (rally.venueAccessJson) {
       try {
         parsedVenueAccess = JSON.parse(rally.venueAccessJson);
       } catch { }
     }
 
-    let parsedFeesAndCapitation = INITIAL_RALLY.feesAndCapitation;
+    let parsedFeesAndCapitation = undefined;
     if (rally.feesInfoJson) {
       try {
         parsedFeesAndCapitation = JSON.parse(rally.feesInfoJson);
@@ -1390,68 +1334,7 @@ export async function updateApplication(id: string, updates: Partial<ChapterAppl
 // ─── INVOICES & PAYMENTS SEEDING / PERSISTENCE ──────────────────────────────
 
 export async function ensureInvoicesAndPaymentsSeeded() {
-  try {
-    const rally = await prisma.rally.findFirst();
-    if (!rally) return;
-
-    const chapters = await prisma.chapter.findMany({
-      include: { institution: true },
-    });
-    if (chapters.length === 0) return;
-
-    // Use upsert per-chapter so partial seeding states never cause unique constraint violations
-    const initialInvoices = [
-      { code: "TUM-01", id: "ch-tum", amountDue: 340000, paid: 340000, ref: "CUCASO-TUM-2026", invNum: "INV-2026-001" },
-      { code: "PWANI-02", id: "ch-pwani", amountDue: 350000, paid: 350000, ref: "CUCASO-PWANI-2026", invNum: "INV-2026-002" },
-      { code: "MPOLY-03", id: "ch-mpoly", amountDue: 210000, paid: 140000, ref: "CUCASO-MPOLY-2026", invNum: "INV-2026-003" },
-      { code: "KMTC-04", id: "ch-kmtc", amountDue: 220000, paid: 220000, ref: "CUCASO-KMTC-2026", invNum: "INV-2026-004" },
-      { code: "TTU-06", id: "ch-ttu", amountDue: 240000, paid: 240000, ref: "CUCASO-TTU-2026", invNum: "INV-2026-006" },
-      { code: "GAR-07", id: "ch-garissa", amountDue: 200000, paid: 200000, ref: "CUCASO-GAR-2026", invNum: "INV-2026-007" },
-      { code: "KWL-08", id: "ch-kwale", amountDue: 150000, paid: 150000, ref: "CUCASO-KWL-2026", invNum: "INV-2026-008" },
-      { code: "MSS-10", id: "ch-mss", amountDue: 70000, paid: 70000, ref: "CUCASO-MSS-2026", invNum: "INV-2026-010" },
-      { code: "KCA-11", id: "ch-kca", amountDue: 120000, paid: 120000, ref: "CUCASO-KCA-2026", invNum: "INV-2026-011" },
-      { code: "MAL-12", id: "ch-mal", amountDue: 60000, paid: 60000, ref: "CUCASO-MAL-2026", invNum: "INV-2026-012" },
-    ];
-
-    for (let i = 0; i < chapters.length; i++) {
-      const ch = chapters[i];
-      // Skip if this chapter already has an invoice — never double-create
-      const existing = await prisma.invoice.findFirst({ where: { chapterId: ch.id } });
-      if (existing) continue;
-
-      const match = initialInvoices.find(init => init.id === ch.id || init.code === ch.code);
-      const amountDue = match ? match.amountDue : 150000;
-      const amountPaid = match ? match.paid : 0;
-      const balance = Math.max(0, amountDue - amountPaid);
-      const status = balance === 0 ? "PAID" : amountPaid > 0 ? "PARTIAL" : "UNPAID";
-      const cleanCode = (ch.code || `CH${i + 1}`).replace(/[^A-Za-z0-9]/g, "");
-      const invNumber = match ? match.invNum : `INV-2026-${String(i + 1).padStart(3, "0")}`;
-      const payRef = match ? match.ref : `CUCASO-${cleanCode}-2026`;
-
-      // Use upsert keyed on invoiceNumber to handle any concurrent/partial seeding
-      await prisma.invoice.upsert({
-        where: { invoiceNumber: invNumber },
-        update: {},  // already exists — leave it as-is
-        create: {
-          invoiceNumber: invNumber,
-          rallyId: rally.id,
-          chapterId: ch.id,
-          baseAmountKes: amountDue,
-          adjustmentKes: 0,
-          totalDueKes: amountDue,
-          amountPaidKes: amountPaid,
-          balanceKes: balance,
-          status: status as any,
-          paymentReference: payRef,
-          dueDate: new Date("2026-11-10"),
-        },
-      });
-    }
-
-
-  } catch (err) {
-    console.error("ensureInvoicesAndPaymentsSeeded failed:", err);
-  }
+  // Automatic sample invoice and payment seeding removed
 }
 
 // ─── INVOICES ────────────────────────────────────────────────────────────────
@@ -1686,7 +1569,7 @@ export async function syncMpesaPayments(): Promise<{ synced: number; matched: nu
     data: {
       actor: "Central Treasury Automated Sync",
       action: "DARAJA_PAYBILL_SYNC",
-      entityType: "Paybill_4082200",
+      entityType: "Paybill",
       entityId: `sync-${Date.now()}`,
       afterJson: JSON.stringify({ syncedAt: new Date().toISOString(), matchedCount, totalChecked: unmatched.length }),
     },
@@ -1695,7 +1578,7 @@ export async function syncMpesaPayments(): Promise<{ synced: number; matched: nu
   return {
     synced: unmatched.length,
     matched: matchedCount,
-    message: `Daraja Paybill 4082200 verified: ${matchedCount} transaction(s) auto-reconciled against chapter invoices.`,
+    message: `Daraja Paybill verified: ${matchedCount} transaction(s) auto-reconciled against chapter invoices.`,
   };
 }
 

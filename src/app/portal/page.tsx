@@ -485,7 +485,7 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
     location: "Mombasa Coast Field Secretariat, Mombasa, Kenya",
     email: "secretariat@cucaso.org",
     phone: "+254 706 398 658",
-    paybill: "4082200",
+    paybill: "",
     contingency: "10%",
   });
   const [savingOrgSettings, setSavingOrgSettings] = useState(false);
@@ -584,7 +584,7 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
     venueSecurityInfo: "",
     venueMedicalInfo: "",
     venueAccommodationNotes: "",
-    feesPaybillNumber: "4082200",
+    feesPaybillNumber: "",
     feesAccountInstructions: "",
     feesDeadlineText: "",
     feesPhilosophyTitle: "",
@@ -1920,7 +1920,7 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
     }
   };
 
-  // Handler: Sync M-Pesa Daraja Paybill 4082200 (Live Reconciliation)
+  // Handler: Sync M-Pesa Daraja Paybill (Live Reconciliation)
   const handleSyncMpesa = async () => {
     setSyncingMpesa(true);
     try {
@@ -1935,7 +1935,7 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
         if (invData.success && Array.isArray(invData.data)) {
           setInvoicesList(invData.data);
         }
-        setLocationToast(data.syncResult?.message || "M-Pesa Paybill 4082200 synced & reconciled with database!");
+        setLocationToast(data.syncResult?.message || "M-Pesa Paybill synced & reconciled with database!");
       }
     } catch (err) {
       console.error("M-Pesa sync error:", err);
@@ -2829,22 +2829,10 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
 
   if (sessionLoading) {
     return (
-      <div className="h-screen bg-navy-950 flex flex-col items-center justify-center text-white antialiased">
-        <div className="flex flex-col items-center space-y-4 max-w-sm text-center px-4 animate-in fade-in duration-200">
-          <div className="w-14 h-14 rounded-2xl bg-teal-500/10 border border-teal-500/30 flex items-center justify-center shadow-lg">
-            <ShieldCheck className="w-8 h-8 text-teal-400 animate-pulse" />
-          </div>
-          <div className="space-y-1">
-            <h2 className="text-base font-bold tracking-tight text-white font-heading">
-              Verifying CUCASO Workspace
-            </h2>
-            <p className="text-xs text-slate-400">
-              Securing session permissions and initializing your authorized portal...
-            </p>
-          </div>
-          <div className="w-36 h-1 bg-navy-900 rounded-full overflow-hidden">
-            <div className="w-full h-full bg-teal-500 animate-pulse" />
-          </div>
+      <div className="min-h-screen flex items-center justify-center bg-slate-100">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-4 border-navy-900 border-t-teal-500 rounded-full animate-spin" />
+          <span className="text-xs font-bold text-navy-950">Verifying CUCASO Workspace...</span>
         </div>
       </div>
     );
@@ -4256,7 +4244,9 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                         </div>
                         <div>
                           <span className="text-slate-500 block">Central M-Pesa Paybill:</span>
-                          <span className="font-mono font-bold text-slate-900 text-sm">coming soon</span>
+                          <span className="font-mono font-bold text-slate-900 text-sm">
+                            {currentRallyData?.feesAndCapitation?.paybillNumber || orgSettings.paybill || "To be announced"}
+                          </span>
                         </div>
                       </div>
 
@@ -4294,7 +4284,7 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                       <div className="p-4 rounded-2xl bg-teal-50 border border-teal-200 text-xs text-teal-800 flex items-start gap-2">
                         <Info className="w-4 h-4 text-teal-700 flex-shrink-0 mt-0.5" />
                         <div>
-                          <strong>Payment Instructions:</strong> Go to M-PESA &gt; Lipa na M-PESA &gt; Paybill &gt; Business No: <strong>coming soon</strong> &gt; Account No: <strong>{currentInvoice.paymentReference}</strong>. Your remittance will be automatically matched to this invoice.
+                          <strong>Payment Instructions:</strong> Go to M-PESA &gt; Lipa na M-PESA &gt; Paybill &gt; Business No: <strong>{currentRallyData?.feesAndCapitation?.paybillNumber || orgSettings.paybill || "To be announced"}</strong> &gt; Account No: <strong>{currentInvoice.paymentReference}</strong>. Your remittance will be automatically matched to this invoice.
                         </div>
                       </div>
                     </div>
@@ -5722,7 +5712,7 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                     </div>
 
                     <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                      <span>Central Paybill: 4082200</span>
+                      <span>Central Paybill: {currentRallyData?.feesAndCapitation?.paybillNumber || orgSettings.paybill || "Not Set"}</span>
                       <button onClick={() => setAdminActiveTab("funding")} className="text-teal-700 font-bold hover:underline">
                         Open Cost Engine →
                       </button>
@@ -8122,8 +8112,8 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                             venueSecurityInfo: "24-hr Kenya Police and private security.",
                             venueMedicalInfo: "Red Cross First Aid station on-site.",
                             venueAccommodationNotes: "Nearby hostels available.",
-                            feesPaybillNumber: "4082200",
-                            feesAccountInstructions: "Paybill 4082200, Account: Chapter Invoice Reference",
+                            feesPaybillNumber: "",
+                            feesAccountInstructions: "Account: Chapter Invoice Reference",
                             feesDeadlineText: "Fee settlement required before rally date.",
                             feesPhilosophyTitle: "Fair Capability-Based Capitation",
                             feesPhilosophyText: "Calculated based on institutional capability tier.",
@@ -8534,7 +8524,7 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
                     <h1 className="font-heading font-black text-2xl text-navy-950">Payments & Reconciliation</h1>
-                    <p className="text-xs text-slate-500 mt-1">Central treasury: M-Pesa Paybill 4082200 incoming transactions matched against chapter invoices.</p>
+                    <p className="text-xs text-slate-500 mt-1">Central treasury: M-Pesa Paybill incoming transactions matched against chapter invoices.</p>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <button
@@ -8620,7 +8610,7 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
                       <h3 className="font-heading font-bold text-base text-navy-950">M-Pesa & Bank Transaction Ledger</h3>
-                      <p className="text-xs text-slate-400">Live incoming bank and Paybill 4082200 records from the database</p>
+                      <p className="text-xs text-slate-400">Live incoming bank and Paybill records from the database</p>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
@@ -8943,7 +8933,7 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                     { title: "Chapter Financial Summary", desc: "Per-chapter fee invoices, payment status, and capability tier allocation for all 12 chapters.", icon: FileSpreadsheet, color: "text-teal-700", bg: "bg-teal-50 border-teal-200", tag: "Finance" },
                     { title: "Attendee Master Register", desc: "Full delegate roster with dietary requirements, accommodation requests, and guardian consent records.", icon: Users, color: "text-navy-700", bg: "bg-navy-50 border-navy-200", tag: "Delegates" },
                     { title: "Capability Fee Distribution", desc: "Automated cost engine output: tier weights, cross-subsidies, and per-chapter invoiced amounts.", icon: PieChart, color: "text-amber-700", bg: "bg-amber-50 border-amber-200", tag: "Cost Engine" },
-                    { title: "M-Pesa Reconciliation Report", desc: "Matched, unmatched, and pending transactions from Paybill 4082200 with receipt verification.", icon: CreditCard, color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200", tag: "Treasury" },
+                    { title: "M-Pesa Reconciliation Report", desc: "Matched, unmatched, and pending transactions from Paybill with receipt verification.", icon: CreditCard, color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200", tag: "Treasury" },
                     { title: "Rally Programme & Logistics", desc: "Day-by-day programme, venue layout, catering quantities, and security deployment schedule.", icon: Calendar, color: "text-blue-700", bg: "bg-blue-50 border-blue-200", tag: "Operations" },
                     { title: "Council Governance Audit", desc: "Full immutable audit trail of all approval actions, fee recalibrations, and administrative decisions.", icon: History, color: "text-slate-700", bg: "bg-slate-50 border-slate-200", tag: "Governance" },
                   ].map((report) => (
@@ -13057,7 +13047,7 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                             value={editRallyForm.feesPaybillNumber}
                             onChange={(e) => setEditRallyForm(prev => ({ ...prev, feesPaybillNumber: e.target.value }))}
                             className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                            placeholder="e.g. 4082200"
+                            placeholder="e.g. Paybill Number"
                           />
                         </div>
                         <div>
@@ -13078,7 +13068,7 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                           value={editRallyForm.feesAccountInstructions}
                           onChange={(e) => setEditRallyForm(prev => ({ ...prev, feesAccountInstructions: e.target.value }))}
                           className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-400 resize-none"
-                          placeholder="e.g. Paybill 4082200, Account: Assigned Chapter Invoice Reference"
+                          placeholder="e.g. Account: Assigned Chapter Invoice Reference"
                         />
                       </div>
                     </div>
@@ -14139,7 +14129,7 @@ const DEFAULT_CHAPTER_PLACEHOLDER: Chapter = {
                     onChange={(e) => setAdminPaymentForm(prev => ({ ...prev, method: e.target.value as any }))}
                     className="w-full px-3 py-2.5 rounded-xl border border-slate-300 font-semibold focus:ring-2 focus:ring-teal-600 focus:outline-none"
                   >
-                    <option value="MPESA_DARAJA">M-Pesa (Paybill 4082200)</option>
+                    <option value="MPESA_DARAJA">M-Pesa (Paybill)</option>
                     <option value="BANK_TRANSFER">Bank Wire / Deposit</option>
                     <option value="CASH">Cash / Direct Receipt</option>
                   </select>

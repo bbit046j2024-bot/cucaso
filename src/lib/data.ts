@@ -363,8 +363,8 @@ export const DEFAULT_VENUE_ACCESS: VenueAccessInfo = {
 export const DEFAULT_FEES_AND_CAPITATION: FeesAndCapitationInfo = {
   philosophyTitle: "Capability-Based Fair Capitation",
   philosophyText: "CUCASO does not charge exorbitant individual gates. We calculate an institutional capitation fee based on chapter membership and institutional capability tier so no student is turned away.",
-  paybillNumber: "4082200",
-  accountInstructions: "Paybill 4082200, Account Number: Assigned Chapter Invoice Reference (e.g., CUCASO-TUM-2026)",
+  paybillNumber: "",
+  accountInstructions: "Account Number: Assigned Chapter Invoice Reference (e.g., CUCASO-TUM-2026)",
   deadlineText: "Attendee registration lock: 1 November 2026. Full chapter fee settlement: 10 November 2026.",
   tiers: [
     {

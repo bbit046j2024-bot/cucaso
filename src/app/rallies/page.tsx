@@ -6,7 +6,6 @@ import Link from "next/link";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { RallyCountdown } from "@/components/rally-countdown";
-import { CURRENT_RALLY, RALLY_COST_ITEMS } from "@/lib/data";
 import { formatCurrency } from "@/lib/utils";
 import {
   Calendar,
@@ -31,18 +30,26 @@ import {
 export default function RalliesPage() {
   const [activeTab, setActiveTab] = useState<"overview" | "programme" | "venue" | "fees" | "faqs">("overview");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const [currentRally, setCurrentRally] = useState<any>(CURRENT_RALLY);
+  const [currentRally, setCurrentRally] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [rallyHistory, setRallyHistory] = useState<any[]>([]);
 
   useEffect(() => {
     fetch("/api/rallies")
       .then((res) => res.json())
       .then((json) => {
-        if (json.success) {
+        if (json.success && json.data) {
           setCurrentRally(json.data);
+        } else {
+          setCurrentRally(null);
         }
       })
-      .catch(() => { });
+      .catch(() => {
+        setCurrentRally(null);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
 
     fetch("/api/rallies/history")
       .then((res) => res.json())
@@ -86,7 +93,34 @@ export default function RalliesPage() {
         <section className="bg-navy-950 text-white py-12 md:py-16 relative overflow-hidden flex items-stretch min-h-[200px]">
           <div className="flex-1 relative">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 h-full">
-              {currentRally ? (
+              {loading ? (
+                <div className="bg-gradient-to-r from-navy-900 via-navy-950 to-slate-900 rounded-3xl border border-white/10 p-6 sm:p-10 shadow-2xl animate-pulse">
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+                    <div className="lg:col-span-6 h-64 sm:h-80 lg:h-96 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
+                      <div className="flex flex-col items-center gap-3 text-slate-400">
+                        <div className="w-8 h-8 border-2 border-white/20 border-t-amber-400 rounded-full animate-spin" />
+                        <span className="text-xs font-semibold tracking-wide text-slate-300">Loading convention details...</span>
+                      </div>
+                    </div>
+                    <div className="lg:col-span-6 space-y-4">
+                      <div className="h-6 w-36 bg-white/10 rounded-full" />
+                      <div className="h-10 w-3/4 bg-white/10 rounded-xl" />
+                      <div className="h-5 w-1/2 bg-white/10 rounded-lg" />
+                      <div className="h-4 w-2/3 bg-white/5 rounded-lg" />
+                      <div className="grid grid-cols-4 gap-3 pt-2">
+                        <div className="h-16 bg-white/10 rounded-2xl" />
+                        <div className="h-16 bg-white/10 rounded-2xl" />
+                        <div className="h-16 bg-white/10 rounded-2xl" />
+                        <div className="h-16 bg-white/10 rounded-2xl" />
+                      </div>
+                      <div className="flex gap-3 pt-2">
+                        <div className="h-10 w-32 bg-amber-400/20 rounded-full" />
+                        <div className="h-10 w-36 bg-white/10 rounded-full" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : currentRally ? (
                 <div className="bg-gradient-to-r from-navy-900 via-navy-950 to-slate-900 rounded-3xl border border-white/10 overflow-hidden shadow-2xl">
                   <div className="grid grid-cols-1 lg:grid-cols-12 items-center">
                     {/* Photo Left */}
@@ -224,8 +258,23 @@ export default function RalliesPage() {
           </div>
         </section>
 
-        {/* Tabbed Content Navigation (Matching image1/image2 mockup) */}
-        <section className="sticky top-20 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200">
+        {loading ? (
+          <section className="py-12 md:py-16">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+              <div className="flex gap-2 overflow-hidden py-3">
+                <div className="h-9 w-28 bg-slate-200 rounded-xl animate-pulse" />
+                <div className="h-9 w-36 bg-slate-200 rounded-xl animate-pulse" />
+                <div className="h-9 w-36 bg-slate-200 rounded-xl animate-pulse" />
+                <div className="h-9 w-36 bg-slate-200 rounded-xl animate-pulse" />
+                <div className="h-9 w-24 bg-slate-200 rounded-xl animate-pulse" />
+              </div>
+              <div className="h-64 bg-white rounded-3xl border border-slate-200 p-8 animate-pulse shadow-sm" />
+            </div>
+          </section>
+        ) : currentRally ? (
+          <>
+            {/* Tabbed Content Navigation (Matching image1/image2 mockup) */}
+            <section className="sticky top-20 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center space-x-1 sm:space-x-4 overflow-x-auto py-3 no-scrollbar">
               {[
@@ -567,7 +616,7 @@ export default function RalliesPage() {
                   <CreditCard className="w-5 h-5 text-teal-700 flex-shrink-0" />
                   <span>
                     Payments are made strictly to Centralized Paybill{" "}
-                    <strong>{currentRally.feesAndCapitation?.paybillNumber || "4082200"}</strong>.{" "}
+                    <strong>{currentRally.feesAndCapitation?.paybillNumber || "(To be announced)"}</strong>.{" "}
                     {currentRally.feesAndCapitation?.accountInstructions || "Account Number: Assigned on Chapter Invoice."}
                   </span>
                 </div>
@@ -610,6 +659,107 @@ export default function RalliesPage() {
 
           </div>
         </section>
+      </>
+    ) : (
+      <section className="py-12 md:py-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm flex items-start gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 text-amber-700 flex items-center justify-center flex-shrink-0">
+              <Calendar className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-heading font-bold text-lg text-navy-950 mb-1">
+                Convention Planning in Progress
+              </h3>
+              <p className="text-sm text-slate-600 leading-relaxed max-w-2xl">
+                Official announcements regarding host campus, rally theme, attendee registration, and financial capitation guidelines will appear here once officially approved by the CUCASO Council Secretariat.
+              </p>
+            </div>
+          </div>
+
+          {/* Rally Timeline & Archive List */}
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="font-heading font-bold text-xl text-navy-950">
+                  Rally Timeline & Archive
+                </h3>
+                <p className="text-xs text-slate-500">Official chronological record of coastal rallies across the union</p>
+              </div>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {rallyHistory && rallyHistory.length > 0 ? (
+                rallyHistory.map((rally) => {
+                  const isCompleted = (rally.status || "").toLowerCase().includes("completed");
+                  const isActive = (rally.status || "").toLowerCase().includes("active") || (rally.status || "").toLowerCase().includes("current");
+                  return (
+                    <div key={rally.id || rally.title} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-slate-50/50 transition-colors px-2 rounded-xl">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-sm text-navy-950">{rally.title}</span>
+                          {rally.attendees && rally.attendees !== "—" && (
+                            <span className="text-[11px] px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">
+                              {rally.attendees} delegates
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {rally.venue} • {rally.date}
+                        </p>
+                      </div>
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-bold self-start sm:self-auto ${isActive
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          : isCompleted
+                            ? "bg-slate-100 text-slate-700 border border-slate-200"
+                            : "bg-amber-50 text-amber-800 border border-amber-200"
+                          }`}
+                      >
+                        {rally.status || (isCompleted ? "Completed" : "Upcoming")}
+                      </span>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="py-8 text-center text-slate-400 text-xs">
+                  Official rally timeline records will appear here as published by the Secretariat.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* FAQs */}
+          <div className="bg-white rounded-3xl p-6 sm:p-10 border border-slate-200 shadow-sm space-y-6">
+            <div>
+              <h2 className="font-heading font-black text-2xl text-navy-950 mb-2">
+                Frequently Asked Questions
+              </h2>
+              <p className="text-sm text-slate-500">
+                Common questions regarding CUCASO regional rallies and conventions
+              </p>
+            </div>
+            <div className="space-y-3">
+              {faqs.map((f, i) => (
+                <div key={i} className="border border-slate-200 rounded-2xl overflow-hidden">
+                  <button
+                    onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                    className="w-full text-left p-4 sm:p-5 font-heading font-bold text-sm text-navy-950 flex items-center justify-between gap-4 hover:bg-slate-50 transition-colors"
+                  >
+                    <span>{f.q}</span>
+                    <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${openFaq === i ? "rotate-180" : ""}`} />
+                  </button>
+                  {openFaq === i && (
+                    <div className="p-4 sm:p-5 pt-0 text-xs sm:text-sm text-slate-600 bg-slate-50/50 leading-relaxed border-t border-slate-100">
+                      {f.a}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+    )}
       </main>
 
       <Footer />

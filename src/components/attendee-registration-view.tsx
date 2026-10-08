@@ -189,7 +189,7 @@ export function AttendeeRegistrationView({ chapterCode }: AttendeeRegistrationVi
 
     try {
       const res = await fetch(
-        `/api/attendees/check?id=${encodeURIComponent(queryId)}&rallyId=${CURRENT_RALLY.id}`
+        `/api/attendees/check?id=${encodeURIComponent(queryId)}&rallyId=${liveRally?.id || CURRENT_RALLY.id}`
       );
       const data = await res.json();
       if (data.success) {
@@ -231,7 +231,7 @@ export function AttendeeRegistrationView({ chapterCode }: AttendeeRegistrationVi
 
     try {
       const payload: Partial<Attendee> = {
-        rallyId: CURRENT_RALLY.id,
+        rallyId: liveRally?.id || CURRENT_RALLY.id,
         chapterId: activeChapter.id,
         fullName: formData.fullName.trim(),
         admissionOrIdNumber: formData.admissionOrIdNumber.trim().toUpperCase(),
