@@ -79,13 +79,13 @@ function mapAttendee(att: any): Attendee {
     registrationSource: (att.registrationSource || "ADMIN") as Attendee["registrationSource"],
     guardianConsent: att.guardianConsent
       ? {
-          guardianName: att.guardianConsent.guardianName,
-          guardianPhone: att.guardianConsent.guardianPhone,
-          consentGiven: att.guardianConsent.consentGiven,
-          consentDate: att.guardianConsent.consentDate instanceof Date
-            ? att.guardianConsent.consentDate.toISOString().split("T")[0]
-            : String(att.guardianConsent.consentDate || ""),
-        }
+        guardianName: att.guardianConsent.guardianName,
+        guardianPhone: att.guardianConsent.guardianPhone,
+        consentGiven: att.guardianConsent.consentGiven,
+        consentDate: att.guardianConsent.consentDate instanceof Date
+          ? att.guardianConsent.consentDate.toISOString().split("T")[0]
+          : String(att.guardianConsent.consentDate || ""),
+      }
       : undefined,
   };
 }
@@ -121,8 +121,8 @@ function mapPayment(pay: any): Payment {
     timestamp: pay.transactionTime instanceof Date
       ? pay.transactionTime.toISOString().replace("T", " ").slice(0, 19)
       : pay.createdAt instanceof Date
-      ? pay.createdAt.toISOString().replace("T", " ").slice(0, 19)
-      : String(pay.createdAt || ""),
+        ? pay.createdAt.toISOString().replace("T", " ").slice(0, 19)
+        : String(pay.createdAt || ""),
   };
 }
 
@@ -290,12 +290,12 @@ export async function createChapter(chapterData: CreateChapterInput): Promise<Ch
         const { sendSms } = await import("@/lib/sms");
 
         const emailResult = EmailTemplates.chapterApproval({
-            contactName: repName,
-            institutionName: instName,
-            chapterCode: created.code,
-            loginEmail: repEmail,
-            tempPassword: initialPassword,
-          });
+          contactName: repName,
+          institutionName: instName,
+          chapterCode: created.code,
+          loginEmail: repEmail,
+          tempPassword: initialPassword,
+        });
         await sendEmail({
           to: repEmail,
           subject: emailResult.subject,
@@ -532,7 +532,7 @@ export async function getCurrentRally(): Promise<Rally | null> {
               quantity: c.quantity || 1,
               notes: c.notes || null,
             })),
-          }).catch(() => {});
+          }).catch(() => { });
         }
       } catch (seedErr) {
         console.warn("Could not auto-seed rally in DB, returning fallback:", seedErr);
@@ -546,34 +546,34 @@ export async function getCurrentRally(): Promise<Rally | null> {
     if (rally.programmeJson) {
       try {
         parsedProgramme = JSON.parse(rally.programmeJson);
-      } catch {}
+      } catch { }
     }
 
     let parsedVenueAccess = INITIAL_RALLY.venueAccess;
     if (rally.venueAccessJson) {
       try {
         parsedVenueAccess = JSON.parse(rally.venueAccessJson);
-      } catch {}
+      } catch { }
     }
 
     let parsedFeesAndCapitation = INITIAL_RALLY.feesAndCapitation;
     if (rally.feesInfoJson) {
       try {
         parsedFeesAndCapitation = JSON.parse(rally.feesInfoJson);
-      } catch {}
+      } catch { }
     }
 
     const costItems = rally.costItems && rally.costItems.length > 0
       ? rally.costItems.map((c: any) => ({
-          id: c.id,
-          rallyId: c.rallyId,
-          category: c.category as any,
-          name: c.name,
-          type: c.type as any,
-          amount: c.amountKes,
-          quantity: c.quantity,
-          notes: c.notes ?? undefined,
-        }))
+        id: c.id,
+        rallyId: c.rallyId,
+        category: c.category as any,
+        name: c.name,
+        type: c.type as any,
+        amount: c.amountKes,
+        quantity: c.quantity,
+        notes: c.notes ?? undefined,
+      }))
       : undefined;
 
     return {
@@ -610,7 +610,7 @@ export async function updateCurrentRally(updates: Partial<Rally>): Promise<Rally
     where: { key: "rally_deleted" },
     update: { value: "false" },
     create: { key: "rally_deleted", value: "false" },
-  }).catch(() => {});
+  }).catch(() => { });
 
   let current = await prisma.rally.findFirst({
     include: { venue: true },
@@ -633,7 +633,7 @@ export async function updateCurrentRally(updates: Partial<Rally>): Promise<Rally
         ...(updates.venueName ? { name: updates.venueName } : {}),
         ...(updates.venueLocation ? { location: updates.venueLocation } : {}),
       },
-    }).catch(() => {});
+    }).catch(() => { });
   }
 
   // Build Prisma Rally update object
@@ -681,7 +681,7 @@ export async function updateCurrentRally(updates: Partial<Rally>): Promise<Rally
       entityId: current.id,
       afterJson: JSON.stringify(updates),
     },
-  }).catch(() => {});
+  }).catch(() => { });
 
   const updatedRally = await getCurrentRally();
   return updatedRally || (INITIAL_RALLY as Rally);
@@ -693,7 +693,7 @@ export async function createRally(data: Partial<Rally>): Promise<Rally> {
     where: { key: "rally_deleted" },
     update: { value: "false" },
     create: { key: "rally_deleted", value: "false" },
-  }).catch(() => {});
+  }).catch(() => { });
 
   let venue = await prisma.venue.findFirst({
     where: { name: data.venueName || "Mombasa Sports Complex" },
@@ -752,33 +752,33 @@ export async function deleteRally(id?: string): Promise<boolean> {
       const targetRallyId = targetRally.id;
 
       // 1. Fee adjustments
-      await prisma.feeAdjustment.deleteMany({ where: { rallyId: targetRallyId } }).catch(() => {});
+      await prisma.feeAdjustment.deleteMany({ where: { rallyId: targetRallyId } }).catch(() => { });
       // 2. Cost items
-      await prisma.costItem.deleteMany({ where: { rallyId: targetRallyId } }).catch(() => {});
+      await prisma.costItem.deleteMany({ where: { rallyId: targetRallyId } }).catch(() => { });
       // 3. Participations
-      await prisma.rallyChapterParticipation.deleteMany({ where: { rallyId: targetRallyId } }).catch(() => {});
+      await prisma.rallyChapterParticipation.deleteMany({ where: { rallyId: targetRallyId } }).catch(() => { });
 
       // 4. Invoices and payments
       const invs = await prisma.invoice.findMany({ where: { rallyId: targetRallyId }, select: { id: true } }).catch(() => []);
       const invIds = invs.map((i: any) => i.id);
       if (invIds.length > 0) {
-        await prisma.payment.deleteMany({ where: { invoiceId: { in: invIds } } }).catch(() => {});
-        await prisma.invoice.deleteMany({ where: { id: { in: invIds } } }).catch(() => {});
+        await prisma.payment.deleteMany({ where: { invoiceId: { in: invIds } } }).catch(() => { });
+        await prisma.invoice.deleteMany({ where: { id: { in: invIds } } }).catch(() => { });
       }
 
       // 5. Attendees & guardian consents
       const atts = await prisma.attendee.findMany({ where: { rallyId: targetRallyId }, select: { id: true } }).catch(() => []);
       const attIds = atts.map((a: any) => a.id);
       if (attIds.length > 0) {
-        await prisma.guardianConsent.deleteMany({ where: { attendeeId: { in: attIds } } }).catch(() => {});
-        await prisma.attendee.deleteMany({ where: { rallyId: targetRallyId } }).catch(() => {});
+        await prisma.guardianConsent.deleteMany({ where: { attendeeId: { in: attIds } } }).catch(() => { });
+        await prisma.attendee.deleteMany({ where: { rallyId: targetRallyId } }).catch(() => { });
       }
 
       // 6. Audit logs
-      await prisma.auditLog.deleteMany({ where: { entityId: targetRallyId } }).catch(() => {});
+      await prisma.auditLog.deleteMany({ where: { entityId: targetRallyId } }).catch(() => { });
 
       // 7. Finally delete the rally
-      await prisma.rally.delete({ where: { id: targetRallyId } }).catch(() => {});
+      await prisma.rally.delete({ where: { id: targetRallyId } }).catch(() => { });
     }
 
     // Set deleted flag so system doesn't auto-reseed until created or updated
@@ -786,7 +786,7 @@ export async function deleteRally(id?: string): Promise<boolean> {
       where: { key: "rally_deleted" },
       update: { value: "true" },
       create: { key: "rally_deleted", value: "true" },
-    }).catch(() => {});
+    }).catch(() => { });
 
     return true;
   } catch (error) {
@@ -917,11 +917,11 @@ export async function getCostItems(rallyId?: string): Promise<import("@/types").
           notes: c.notes ?? null,
         })),
         skipDuplicates: true,
-      }).catch(() => {});
+      }).catch(() => { });
 
       await prisma.systemSetting.create({
         data: { key: `cost_items_seeded_${targetRallyId}`, value: "true" },
-      }).catch(() => {});
+      }).catch(() => { });
 
       items = await prisma.costItem.findMany({
         where: { rallyId: targetRallyId },
@@ -965,7 +965,7 @@ export async function resetCostItems(rallyId?: string): Promise<import("@/types"
       where: { key: `cost_items_seeded_${targetRallyId}` },
       update: { value: "true" },
       create: { key: `cost_items_seeded_${targetRallyId}`, value: "true" },
-    }).catch(() => {});
+    }).catch(() => { });
 
     await prisma.auditLog.create({
       data: {
@@ -975,7 +975,7 @@ export async function resetCostItems(rallyId?: string): Promise<import("@/types"
         entityId: targetRallyId,
         afterJson: JSON.stringify({ reset: true, count: RALLY_COST_ITEMS.length }),
       },
-    }).catch(() => {});
+    }).catch(() => { });
 
     const items = await prisma.costItem.findMany({
       where: { rallyId: targetRallyId },
@@ -1025,7 +1025,7 @@ export async function createCostItem(data: {
       entityId: created.id,
       afterJson: JSON.stringify({ name: created.name, type: created.type, amountKes: created.amountKes }),
     },
-  }).catch(() => {});
+  }).catch(() => { });
 
   return mapCostItem(created);
 }
@@ -1061,7 +1061,7 @@ export async function updateCostItem(id: string, data: {
       entityId: id,
       afterJson: JSON.stringify(data),
     },
-  }).catch(() => {});
+  }).catch(() => { });
 
   return mapCostItem(updated);
 }
@@ -1077,7 +1077,7 @@ export async function deleteCostItem(id: string): Promise<boolean> {
         entityId: id,
         afterJson: JSON.stringify({ deleted: true }),
       },
-    }).catch(() => {});
+    }).catch(() => { });
     return true;
   } catch (err) {
     console.error("deleteCostItem error:", err);
@@ -1156,12 +1156,12 @@ export async function createAttendee(attendeeData: Partial<Attendee>): Promise<A
       registrationSource: attendeeData.registrationSource || "ADMIN",
       guardianConsent: attendeeData.guardianConsent
         ? {
-            create: {
-              guardianName: attendeeData.guardianConsent.guardianName,
-              guardianPhone: attendeeData.guardianConsent.guardianPhone,
-              consentGiven: attendeeData.guardianConsent.consentGiven,
-            },
-          }
+          create: {
+            guardianName: attendeeData.guardianConsent.guardianName,
+            guardianPhone: attendeeData.guardianConsent.guardianPhone,
+            consentGiven: attendeeData.guardianConsent.consentGiven,
+          },
+        }
         : undefined,
     },
     include: { guardianConsent: true },
@@ -1174,7 +1174,7 @@ export async function createAttendee(attendeeData: Partial<Attendee>): Promise<A
       where: { id: created.chapterId },
       data: { approximateMembers: Math.max(count, 1) },
     });
-  } catch {}
+  } catch { }
 
   return mapAttendee(created);
 }
@@ -1448,154 +1448,7 @@ export async function ensureInvoicesAndPaymentsSeeded() {
       });
     }
 
-    const payCount = await prisma.payment.count();
-    if (payCount === 0) {
-      const allInvoices = await prisma.invoice.findMany();
-      const invoiceRefMap = new Map<string, string>();
-      for (const inv of allInvoices) {
-        invoiceRefMap.set(inv.paymentReference, inv.id);
-        invoiceRefMap.set(inv.chapterId, inv.id);
-      }
 
-      const samplePayments = [
-        {
-          chapterId: "ch-tum",
-          ref: "CUCASO-TUM-2026",
-          amount: 340000,
-          channel: "MPESA_C2B",
-          receipt: "QEJ8291X0K",
-          payer: "David Kiboi (TUM Treasurer)",
-          phone: "+254 722 445 566",
-          status: "MATCHED",
-          time: new Date("2026-09-12T14:22:10Z"),
-        },
-        {
-          chapterId: "ch-pwani",
-          ref: "CUCASO-PWANI-2026",
-          amount: 350000,
-          channel: "BANK_TRANSFER",
-          receipt: "KCB-FT-994012",
-          payer: "Mercy Chebet (Pwani Treasury)",
-          status: "MATCHED",
-          time: new Date("2026-09-10T10:15:00Z"),
-        },
-        {
-          chapterId: "ch-kmtc",
-          ref: "CUCASO-KMTC-2026",
-          amount: 220000,
-          channel: "MPESA_C2B",
-          receipt: "QEH3390A1L",
-          payer: "Evans Kilonzo",
-          status: "MATCHED",
-          time: new Date("2026-09-08T16:45:12Z"),
-        },
-        {
-          chapterId: "ch-mpoly",
-          ref: "CUCASO-MPOLY-2026",
-          amount: 140000,
-          channel: "MPESA_C2B",
-          receipt: "QEG1124M9T",
-          payer: "Peter Ochieng",
-          status: "MATCHED",
-          time: new Date("2026-09-11T11:30:40Z"),
-        },
-        {
-          chapterId: "ch-ttu",
-          ref: "CUCASO-TTU-2026",
-          amount: 240000,
-          channel: "BANK_TRANSFER",
-          receipt: "EQU-TR-882190",
-          payer: "Collins Mwachofi",
-          status: "MATCHED",
-          time: new Date("2026-09-07T09:20:00Z"),
-        },
-        {
-          chapterId: "ch-garissa",
-          ref: "CUCASO-GAR-2026",
-          amount: 200000,
-          channel: "MPESA_C2B",
-          receipt: "QEF4491Z2W",
-          payer: "Ahmed Baraka",
-          status: "MATCHED",
-          time: new Date("2026-09-05T13:12:00Z"),
-        },
-        {
-          chapterId: "ch-kwale",
-          ref: "CUCASO-KWL-2026",
-          amount: 150000,
-          channel: "MPESA_C2B",
-          receipt: "QEE3381Y3V",
-          payer: "Faith Mwende",
-          status: "MATCHED",
-          time: new Date("2026-09-04T15:40:00Z"),
-        },
-        {
-          chapterId: "ch-mss",
-          ref: "CUCASO-MSS-2026",
-          amount: 70000,
-          channel: "MPESA_C2B",
-          receipt: "QEC8891T4G",
-          payer: "Joshua Baraza",
-          status: "MATCHED",
-          time: new Date("2026-09-02T10:05:00Z"),
-        },
-        {
-          chapterId: "ch-kca",
-          ref: "CUCASO-KCA-2026",
-          amount: 120000,
-          channel: "BANK_TRANSFER",
-          receipt: "COOP-TX-440182",
-          payer: "Daniel Katana",
-          status: "MATCHED",
-          time: new Date("2026-09-01T14:18:00Z"),
-        },
-        {
-          chapterId: "ch-mal",
-          ref: "CUCASO-MAL-2026",
-          amount: 60000,
-          channel: "MPESA_C2B",
-          receipt: "QEA1192M2P",
-          payer: "Grace Sidi",
-          status: "MATCHED",
-          time: new Date("2026-08-30T11:45:00Z"),
-        },
-        // 1 UNMATCHED transaction (PRD un-reconciled Paybill transaction)
-        {
-          chapterId: null,
-          ref: "RALLY-CONTRIB-4082200",
-          amount: 50000,
-          channel: "MPESA_C2B",
-          receipt: "QEX9901Z1A",
-          payer: "Unknown Sender (+254 712 998877)",
-          phone: "+254 712 998877",
-          status: "UNMATCHED",
-          time: new Date("2026-09-13T09:15:22Z"),
-        },
-      ];
-
-      for (const p of samplePayments) {
-        let invId: string | null = null;
-        if (p.ref && invoiceRefMap.has(p.ref)) {
-          invId = invoiceRefMap.get(p.ref) || null;
-        } else if (p.chapterId && invoiceRefMap.has(p.chapterId)) {
-          invId = invoiceRefMap.get(p.chapterId) || null;
-        }
-
-        await prisma.payment.create({
-          data: {
-            invoiceId: invId,
-            accountReference: p.ref,
-            amountKes: p.amount,
-            channel: p.channel as any,
-            mpesaReceiptNumber: p.receipt,
-            senderName: p.payer,
-            senderPhone: p.phone ?? null,
-            status: p.status as any,
-            transactionTime: p.time,
-          },
-        });
-      }
-    }
   } catch (err) {
     console.error("ensureInvoicesAndPaymentsSeeded failed:", err);
   }
@@ -1684,7 +1537,7 @@ export async function createPayment(payData: Partial<Payment>): Promise<Payment>
   await ensureInvoicesAndPaymentsSeeded();
 
   let invoiceId = payData.invoiceId || "";
-  
+
   // If invoiceId wasn't directly passed, find by paymentReference, invoiceNumber, or chapter code
   if (!invoiceId && payData.reference) {
     const cleanRef = payData.reference.trim();
@@ -1753,7 +1606,7 @@ export async function createPayment(payData: Partial<Payment>): Promise<Payment>
       entityId: created.id,
       afterJson: JSON.stringify({ amount, receipt: created.mpesaReceiptNumber, invoiceId, status }),
     },
-  }).catch(() => {});
+  }).catch(() => { });
 
   return mapPayment(created);
 }
@@ -1798,7 +1651,7 @@ export async function matchPayment(paymentId: string, invoiceId: string): Promis
       entityId: paymentId,
       afterJson: JSON.stringify({ paymentId, invoiceId, amount: payment.amountKes, newBalance }),
     },
-  }).catch(() => {});
+  }).catch(() => { });
 
   return { payment: mapPayment(updatedPayment), invoice: mapInvoice(updatedInvoice) };
 }
@@ -1837,7 +1690,7 @@ export async function syncMpesaPayments(): Promise<{ synced: number; matched: nu
       entityId: `sync-${Date.now()}`,
       afterJson: JSON.stringify({ syncedAt: new Date().toISOString(), matchedCount, totalChecked: unmatched.length }),
     },
-  }).catch(() => {});
+  }).catch(() => { });
 
   return {
     synced: unmatched.length,
@@ -1879,7 +1732,7 @@ export async function deletePayment(paymentId: string): Promise<void> {
       entityId: paymentId,
       afterJson: JSON.stringify({ deletedAt: new Date().toISOString() }),
     },
-  }).catch(() => {});
+  }).catch(() => { });
 }
 
 export async function updatePayment(
@@ -1940,7 +1793,7 @@ export async function updatePayment(
       entityId: paymentId,
       afterJson: JSON.stringify(data),
     },
-  }).catch(() => {});
+  }).catch(() => { });
 
   return mapPayment(updated);
 }
@@ -1965,7 +1818,7 @@ export async function deleteInvoice(invoiceId: string): Promise<void> {
       entityId: invoiceId,
       afterJson: JSON.stringify({ deletedAt: new Date().toISOString() }),
     },
-  }).catch(() => {});
+  }).catch(() => { });
 }
 
 export async function updateInvoice(
@@ -2022,7 +1875,7 @@ export async function updateInvoice(
       entityId: invoiceId,
       afterJson: JSON.stringify(data),
     },
-  }).catch(() => {});
+  }).catch(() => { });
 
   return mapInvoice(updated);
 }
@@ -2045,7 +1898,7 @@ export async function clearRallyInvoices(): Promise<{ cleared: number; message: 
       entityId: "all",
       afterJson: JSON.stringify({ clearedAt: new Date().toISOString(), count }),
     },
-  }).catch(() => {});
+  }).catch(() => { });
 
   return { cleared: count, message: `${count} invoice(s) cleared. Payment history retained.` };
 }
@@ -2076,14 +1929,14 @@ export async function getSystemStats() {
     pendingApplications,
     rally: rally
       ? {
-          id: rally.id,
-          code: rally.code,
-          title: rally.title,
-          theme: rally.theme,
-          venueName: rally.venue.name,
-          venueLocation: rally.venue.location,
-          state: rally.state,
-        }
+        id: rally.id,
+        code: rally.code,
+        title: rally.title,
+        theme: rally.theme,
+        venueName: rally.venue.name,
+        venueLocation: rally.venue.location,
+        state: rally.state,
+      }
       : null,
     lastUpdated: new Date().toISOString(),
   };
@@ -2301,7 +2154,7 @@ export function getDatabase() {
   return {} as any;
 }
 
-export function saveDatabase(_data: any) {}
+export function saveDatabase(_data: any) { }
 
 // ─── USER ACCOUNTS & RBAC ───────────────────────────────────────────────────
 
@@ -2441,9 +2294,9 @@ export async function getUsers(role?: string): Promise<UserAccount[]> {
         role: u.role as any,
         roleTitle: u.role === "SUPER_ADMIN" ? "Super Administrator"
           : u.role === "CENTRAL_TREASURER" ? "Council Treasurer"
-          : u.role === "SECRETARY" ? "Organization Secretary"
-          : u.role === "CHAPTER_REP" ? `Chapter Representative (${u.chapter?.institution?.name || "Chapter"})`
-          : u.role,
+            : u.role === "SECRETARY" ? "Organization Secretary"
+              : u.role === "CHAPTER_REP" ? `Chapter Representative (${u.chapter?.institution?.name || "Chapter"})`
+                : u.role,
         chapterId: u.chapterId ?? undefined,
         chapterName: u.chapter?.institution?.name ?? undefined,
         status: (u.isActive ? "ACTIVE" : "SUSPENDED") as "ACTIVE" | "SUSPENDED",
@@ -2585,8 +2438,8 @@ export async function createNewsPost(data: Partial<NewsPost>): Promise<NewsPost>
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/(^-|-$)/g, "") +
-      "-" +
-      Date.now().toString(36);
+    "-" +
+    Date.now().toString(36);
 
   const validCategories = ["NEWS", "ANNOUNCEMENT", "STORY", "DEVOTIONAL", "TESTIMONY", "FINANCE", "SPIRITUAL"];
   const cat =
