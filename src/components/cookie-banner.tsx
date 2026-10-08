@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Cookie, ShieldCheck, Settings2, Check, X, SlidersHorizontal, Info } from "lucide-react";
 
 const CONSENT_STORAGE_KEY = "cucaso_cookie_consent_v1";
@@ -14,6 +15,9 @@ interface CookiePreferences {
 }
 
 export function CookieConsentBanner() {
+  const pathname = usePathname();
+  const isPortal = pathname?.startsWith("/portal");
+
   const [mounted, setMounted] = useState(false);
   const [showBanner, setShowBanner] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -86,8 +90,8 @@ export function CookieConsentBanner() {
     saveConsent(preferences);
   };
 
-  // Prevent rendering before hydration to avoid SSR mismatch
-  if (!mounted) return null;
+  // Prevent rendering before hydration to avoid SSR mismatch, and hide inside the /portal dashboard
+  if (!mounted || isPortal) return null;
 
   return (
     <>
