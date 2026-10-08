@@ -11,7 +11,8 @@ import {
   Crosshair, 
   Building2, 
   Users, 
-  Layers
+  Layers,
+  X
 } from "lucide-react";
 import { Chapter } from "@/types";
 import { COASTAL_AREA_PRESETS } from "@/lib/data";
@@ -84,7 +85,8 @@ export function EmbeddedCoastalMap({
     chapters.find((c) => c.id === (selectedChapterId || chapters[0]?.id)) || chapters[0] || null
   );
   const [searchQuery, setSearchQuery] = useState("");
-  const [mapPreset, setMapPreset] = useState<"coast" | "kenya" | "mombasa">("coast");
+  const [mapPreset, setMapPreset] = useState<"coast" | "kenya">("coast");
+  const [mobileDirectoryOpen, setMobileDirectoryOpen] = useState(false);
 
   // Keep active pin in sync if external selectedChapterId changes
   useEffect(() => {
@@ -337,8 +339,8 @@ export function EmbeddedCoastalMap({
     [onSelectChapter]
   );
 
-  // Set preset view (Coast / Whole Kenya / Mombasa)
-  const applyPresetView = (preset: "coast" | "kenya" | "mombasa") => {
+  // Set preset view (Coast / Whole Kenya)
+  const applyPresetView = (preset: "coast" | "kenya") => {
     setMapPreset(preset);
     if (!mapInstanceRef.current) return;
 
@@ -346,8 +348,6 @@ export function EmbeddedCoastalMap({
       mapInstanceRef.current.flyTo(KENYA_CENTER, KENYA_ZOOM, { duration: 1 });
     } else if (preset === "coast") {
       mapInstanceRef.current.flyTo(COASTAL_CENTER, COASTAL_ZOOM, { duration: 1 });
-    } else if (preset === "mombasa") {
-      mapInstanceRef.current.flyTo(MOMBASA_CENTER, MOMBASA_ZOOM, { duration: 1 });
     }
   };
 
@@ -360,79 +360,109 @@ export function EmbeddedCoastalMap({
   return (
     <div className={wrapperCls}>
       {/* ── Top Bar Controls ──────────────────────────────────────────────── */}
-      <div className="relative z-20 flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 py-3 bg-navy-950/95 backdrop-blur-md border-b border-white/10 text-white">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-teal-500/20 border border-teal-500/30 flex items-center justify-center text-teal-400 flex-shrink-0">
-            <Globe className="w-5 h-5 animate-pulse" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h4 className="font-heading font-bold text-sm text-white tracking-tight">
-                Live OpenStreetMap Chapters
-              </h4>
-              <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold uppercase tracking-wider">
-                Live Pins
-              </span>
-              {isAdmin && (
-                <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-bold uppercase tracking-wider">
-                  Admin Edit Mode
-                </span>
-              )}
-            </div>
-            <p className="text-[11px] text-slate-400">
-              {chapters.length} institutions mapped • Real-time GPS markers
-            </p>
-          </div>
-        </div>
-
-        {/* View Preset Toggles */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <div className="inline-flex items-center bg-white/10 rounded-lg p-0.5 border border-white/10 text-xs">
+      <div className="relative z-20 px-3.5 sm:px-6 py-2.5 sm:py-3 bg-navy-950/95 backdrop-blur-md border-b border-white/10 text-white">
+        {/* MOBILE VIEW (< sm): Clean, single-row compact toolbar */}
+        <div className="flex sm:hidden items-center justify-between gap-2">
+          {/* Quick Preset Pills: Kenya & Coast */}
+          <div className="inline-flex items-center bg-white/10 rounded-xl p-1 border border-white/10 text-[10px]">
             <button
               type="button"
               onClick={() => applyPresetView("kenya")}
-              className={`px-2.5 py-1 rounded-md font-bold transition-all text-[11px] ${
+              className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
                 mapPreset === "kenya"
                   ? "bg-teal-600 text-white shadow-sm"
                   : "text-slate-300 hover:text-white"
               }`}
             >
-              Whole Kenya
+              Kenya
             </button>
             <button
               type="button"
               onClick={() => applyPresetView("coast")}
-              className={`px-2.5 py-1 rounded-md font-bold transition-all text-[11px] ${
+              className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
                 mapPreset === "coast"
                   ? "bg-teal-600 text-white shadow-sm"
                   : "text-slate-300 hover:text-white"
               }`}
             >
-              Coastal Region
-            </button>
-            <button
-              type="button"
-              onClick={() => applyPresetView("mombasa")}
-              className={`px-2.5 py-1 rounded-md font-bold transition-all text-[11px] ${
-                mapPreset === "mombasa"
-                  ? "bg-teal-600 text-white shadow-sm"
-                  : "text-slate-300 hover:text-white"
-              }`}
-            >
-              Mombasa Island
+              Coast
             </button>
           </div>
 
-          <a
-            href={`https://www.openstreetmap.org/?mlat=${currentCoords[0]}&mlon=${currentCoords[1]}#map=13/${currentCoords[0]}/${currentCoords[1]}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white text-[11px] font-bold flex items-center gap-1.5 transition-all border border-white/10"
-            title="Open in OpenStreetMap external site"
+          {/* Single, Clean Mobile Directory Button */}
+          <button
+            type="button"
+            onClick={() => setMobileDirectoryOpen(!mobileDirectoryOpen)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-sm transition-all flex-shrink-0"
           >
-            <ExternalLink className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">OSM Full</span>
-          </a>
+            <Layers className="w-3.5 h-3.5" />
+            <span>{mobileDirectoryOpen ? "Map" : `List (${filteredChapters.length})`}</span>
+          </button>
+        </div>
+
+        {/* TABLET / DESKTOP VIEW (sm+): Full rich control bar */}
+        <div className="hidden sm:flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-teal-500/20 border border-teal-500/30 flex items-center justify-center text-teal-400 flex-shrink-0">
+              <Globe className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="font-heading font-bold text-sm text-white tracking-tight">
+                  Live OpenStreetMap Chapters
+                </h4>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold uppercase tracking-wider">
+                  Live Pins
+                </span>
+                {isAdmin && (
+                  <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-bold uppercase tracking-wider">
+                    Admin
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-400">
+                {chapters.length} institutions mapped • Real-time GPS markers
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="inline-flex items-center bg-white/10 rounded-lg p-0.5 border border-white/10 text-xs flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => applyPresetView("kenya")}
+                className={`px-2.5 py-1 rounded-md font-bold transition-all text-[11px] ${
+                  mapPreset === "kenya"
+                    ? "bg-teal-600 text-white shadow-sm"
+                    : "text-slate-300 hover:text-white"
+                }`}
+              >
+                Whole Kenya
+              </button>
+              <button
+                type="button"
+                onClick={() => applyPresetView("coast")}
+                className={`px-2.5 py-1 rounded-md font-bold transition-all text-[11px] ${
+                  mapPreset === "coast"
+                    ? "bg-teal-600 text-white shadow-sm"
+                    : "text-slate-300 hover:text-white"
+                }`}
+              >
+                Coastal Region
+              </button>
+            </div>
+
+            <a
+              href={`https://www.openstreetmap.org/?mlat=${currentCoords[0]}&mlon=${currentCoords[1]}#map=13/${currentCoords[0]}/${currentCoords[1]}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white text-[11px] font-bold flex items-center gap-1.5 transition-all border border-white/10 flex-shrink-0"
+              title="Open in OpenStreetMap external site"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span>OSM</span>
+            </a>
+          </div>
         </div>
       </div>
 
@@ -440,22 +470,41 @@ export function EmbeddedCoastalMap({
       <div
         className="relative w-full"
         style={{
-          minHeight: fullBleed ? "600px" : "540px",
-          height: fullBleed ? "clamp(600px, 75vh, 850px)" : "clamp(540px, 65vh, 720px)",
+          minHeight: fullBleed ? "480px" : "440px",
+          height: fullBleed ? "clamp(480px, 72vh, 850px)" : "clamp(440px, 62vh, 720px)",
         }}
       >
         {/* Leaflet DOM Node */}
         <div ref={mapContainerRef} className="absolute inset-0 w-full h-full z-10" />
 
-        {/* ── Chapter Directory Floating Sidebar (Overlays Top-Right) ────────── */}
-        <div className="absolute top-4 right-4 z-20 w-64 sm:w-72 max-h-[calc(100%-32px)] flex flex-col bg-navy-950/90 backdrop-blur-md rounded-2xl border border-white/15 shadow-2xl overflow-hidden pointer-events-auto">
+        {/* ── Chapter Directory Sidebar / Drawer ────────────────────────── */}
+        {/* Desktop: clean floating sidebar on top-right */}
+        {/* Mobile: expandable modal/bottom sheet when mobileDirectoryOpen is true */}
+        <div
+          className={`z-30 flex flex-col bg-navy-950/95 backdrop-blur-xl border border-white/15 shadow-2xl overflow-hidden pointer-events-auto transition-all duration-300 ${
+            mobileDirectoryOpen
+              ? "fixed inset-x-3 bottom-20 top-24 rounded-3xl lg:absolute lg:top-4 lg:right-4 lg:inset-auto lg:w-72 lg:max-h-[calc(100%-32px)]"
+              : "hidden lg:flex lg:absolute lg:top-4 lg:right-4 lg:w-72 lg:max-h-[calc(100%-32px)] lg:rounded-2xl"
+          }`}
+        >
           {/* Sidebar Header & Search */}
           <div className="p-3 border-b border-white/10 bg-white/5 space-y-2">
             <div className="flex items-center justify-between text-[11px] text-slate-300 font-bold uppercase tracking-wider">
               <span>Chapter Directory</span>
-              <span className="px-1.5 py-0.2 rounded bg-teal-500/20 text-teal-300 border border-teal-500/30">
-                {filteredChapters.length}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="px-1.5 py-0.2 rounded bg-teal-500/20 text-teal-300 border border-teal-500/30">
+                  {filteredChapters.length}
+                </span>
+                {/* Mobile Close Button */}
+                <button
+                  type="button"
+                  onClick={() => setMobileDirectoryOpen(false)}
+                  className="lg:hidden p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+                  aria-label="Close chapter directory"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
             <div className="relative">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
@@ -477,8 +526,11 @@ export function EmbeddedCoastalMap({
                 <button
                   key={ch.id}
                   type="button"
-                  onClick={() => flyToChapter(ch)}
-                  className={`w-full text-left p-2 rounded-xl transition-all flex items-start gap-2.5 ${
+                  onClick={() => {
+                    flyToChapter(ch);
+                    setMobileDirectoryOpen(false); // Close directory on mobile so user sees the map!
+                  }}
+                  className={`w-full text-left p-2.5 lg:p-2 rounded-xl transition-all flex items-start gap-2.5 ${
                     isActive
                       ? "bg-teal-700/60 text-white shadow-inner"
                       : "text-slate-300 hover:bg-white/10"
@@ -486,7 +538,7 @@ export function EmbeddedCoastalMap({
                 >
                   {/* Logo or Icon */}
                   <div
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden border ${
+                    className={`w-8 h-8 lg:w-7 lg:h-7 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden border ${
                       isActive
                         ? "bg-amber-400 text-navy-950 border-amber-300"
                         : "bg-navy-900 text-teal-400 border-white/10"
@@ -505,7 +557,7 @@ export function EmbeddedCoastalMap({
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-1">
-                      <span className="text-[11px] font-bold leading-tight truncate">
+                      <span className="text-xs lg:text-[11px] font-bold leading-tight truncate">
                         {ch.institutionName}
                       </span>
                     </div>
@@ -527,12 +579,12 @@ export function EmbeddedCoastalMap({
           </div>
         </div>
 
-        {/* ── Active Chapter Detail Card (Bottom-Left) ───────────────────────── */}
-        {activePin && (
-          <div className="absolute bottom-4 left-4 z-20 max-w-sm sm:max-w-md w-[calc(100%-32px)] sm:w-auto bg-white/95 backdrop-blur-md p-4 rounded-2xl border border-slate-200 shadow-2xl pointer-events-auto animate-in fade-in slide-in-from-bottom-3 duration-300">
+        {/* ── Active Chapter Detail Card (Bottom-Left / Bottom Floating) ─────── */}
+        {activePin && !mobileDirectoryOpen && (
+          <div className="absolute bottom-3 left-3 right-3 sm:right-auto sm:left-4 z-20 max-w-sm sm:max-w-md bg-white/95 backdrop-blur-md p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-2xl pointer-events-auto animate-in fade-in slide-in-from-bottom-3 duration-300">
             <div className="flex items-start gap-3">
               {/* Institution Logo */}
-              <div className="w-12 h-12 rounded-xl bg-teal-50 border border-teal-200 flex items-center justify-center flex-shrink-0 overflow-hidden shadow-sm">
+              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-teal-50 border border-teal-200 flex items-center justify-center flex-shrink-0 overflow-hidden shadow-sm">
                 {activePin.logoUrl ? (
                   <img
                     src={activePin.logoUrl}
@@ -546,19 +598,32 @@ export function EmbeddedCoastalMap({
 
               {/* Information */}
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                  <span className="px-2 py-0.5 rounded bg-teal-100 text-teal-800 font-mono font-extrabold text-[10px]">
-                    {activePin.code}
-                  </span>
-                  <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-bold text-[10px]">
-                    {activePin.type}
-                  </span>
-                  <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold text-[10px]">
-                    {activePin.sector}
-                  </span>
+                <div className="flex items-center justify-between gap-1 mb-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="px-2 py-0.5 rounded bg-teal-100 text-teal-800 font-mono font-extrabold text-[10px]">
+                      {activePin.code}
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-bold text-[10px]">
+                      {activePin.type}
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold text-[10px]">
+                      {activePin.sector}
+                    </span>
+                  </div>
+
+                  {/* Close / Dismiss button to reveal unobstructed map */}
+                  <button
+                    type="button"
+                    onClick={() => setActivePin(null)}
+                    title="Dismiss card"
+                    aria-label="Dismiss card"
+                    className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                 </div>
 
-                <h5 className="font-heading font-black text-sm text-navy-950 leading-snug line-clamp-1">
+                <h5 className="font-heading font-black text-xs sm:text-sm text-navy-950 leading-snug line-clamp-1">
                   {activePin.institutionName}
                 </h5>
 
@@ -606,8 +671,8 @@ export function EmbeddedCoastalMap({
         )}
       </div>
 
-      {/* ── Status Footer ─────────────────────────────────────────────────── */}
-      <div className="px-4 sm:px-6 py-2.5 bg-navy-950/95 backdrop-blur-md border-t border-white/10 flex flex-wrap items-center justify-between text-[11px] text-slate-400 gap-2">
+      {/* ── Status Footer (Shown on tablet/desktop to save mobile height) ── */}
+      <div className="hidden sm:flex px-4 sm:px-6 py-2 bg-navy-950/95 backdrop-blur-md border-t border-white/10 flex-wrap items-center justify-between text-[11px] text-slate-400 gap-2">
         <div className="flex items-center gap-2">
           <Navigation className="w-3.5 h-3.5 text-teal-400 flex-shrink-0 animate-pulse" />
           <span className="font-mono text-slate-300">

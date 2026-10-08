@@ -103,7 +103,6 @@ export const metadata: Metadata = {
 };
 
 import { MobileBottomNav } from "@/components/mobile-bottom-nav";
-import { AdventistBrandSidebar } from "@/components/adventist-brand-sidebar";
 import { CookieConsentBanner } from "@/components/cookie-banner";
 
 const structuredData = {
@@ -159,7 +158,6 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen flex flex-col bg-slate-50 text-slate-900 antialiased font-body">
         {children}
-        <AdventistBrandSidebar />
         <MobileBottomNav />
         <CookieConsentBanner />
       </body>
